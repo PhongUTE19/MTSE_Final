@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
 const serverRoot = path.resolve(__dirname, '..');
 const projectRoot = path.resolve(serverRoot, '..');
 
-dotenv.config({ path: path.join(projectRoot, '.env') });
+dotenv.config({ path: path.join(serverRoot, '.env') });
 
 export const config = {
   port: parseInt(process.env.PORT || SERVER_CONFIG_DEFAULTS.DEFAULT_PORT_STR, 10),

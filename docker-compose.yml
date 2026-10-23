@@ -7,26 +7,22 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - ./server/.env
     environment:
+      - NODE_ENV=production
       - PORT=3000
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - GEMINI_MODEL=${GEMINI_MODEL:-gemini-3.5-flash-lite}
-      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-gemini-embedding-001}
-      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.60}
-      - TOP_K=${TOP_K:-3}
-      - QDRANT_URL=${QDRANT_URL}
-      - QDRANT_API_KEY=${QDRANT_API_KEY}
-      - QDRANT_COLLECTION_NAME=${QDRANT_COLLECTION_NAME:-Student_Handbook}
       - KNOWLEDGE_DIR=/app/data/knowledge
-      - PROMPT_FILE=/app/data/system_prompt.txt
+      - PROMPT_FILE=/app/data/prompts/system_prompt.txt
+      - PROMPT_FILE_DEFAULT=/app/data/prompts/system_prompt_default.txt
     volumes:
       - ./data:/app/data
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
-      start_period: 5s
+      start_period: 10s
 
   client:
     build:
@@ -41,7 +37,7 @@ services:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:80/ || exit 1"]
-      interval: 5s
-      timeout: 3s
+      interval: 10s
+      timeout: 5s
       retries: 5
-      start_period: 3s
+      start_period: 5s
