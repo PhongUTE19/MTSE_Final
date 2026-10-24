@@ -4,6 +4,7 @@ import { createUserScopedSupabaseClient } from '../../shared/integrations/supaba
 import { EXPENSE_MESSAGES } from './expenses.constants.js';
 
 const TRANSACTIONS_TABLE = 'expense_transactions';
+const SUMMARY_BATCH_SIZE = 1000;
 let clientFactory = null;
 
 /** @internal Test seam; production creates a fresh RLS-aware client per request. */
@@ -77,6 +78,62 @@ export async function listTransactions(user, query) {
   const { data, count, error } = await request.order(column, { ascending: sortOrder === 'asc' }).range(start, start + pageSize - 1);
   if (error) throw databaseError();
   return { transactions: (data || []).map(toTransaction), total: count || 0, page, pageSize };
+}
+
+function toMoneyCents(value) {
+  // Cộng bằng số nguyên nhỏ nhất để 0.1 + 0.2 không tạo sai số JavaScript.
+  return Math.round(Number(value) * 100);
+}
+
+function fromMoneyCents(cents) { return cents / 100; }
+
+/**
+ * Tính báo cáo từ toàn bộ giao dịch trong kỳ của một user. Đây không dùng
+ * listTransactions vì listTransactions có pagination dành cho giao diện.
+ */
+export async function getSpendingSummary(user, period) {
+  const buildQuery = () => {
+    let request = clientFor(user)
+      .from(TRANSACTIONS_TABLE)
+      .select('type,amount,category', { count: 'exact' })
+      .eq('user_id', user.id)
+      .gte('transaction_date', period.from)
+      .lte('transaction_date', period.to);
+    return request;
+  };
+
+  const firstPage = await buildQuery().order('transaction_date', { ascending: false }).range(0, SUMMARY_BATCH_SIZE - 1);
+  if (firstPage.error) throw databaseError(firstPage.error, 'Summary query');
+
+  const rows = [...(firstPage.data || [])];
+  const total = firstPage.count || 0;
+  for (let start = SUMMARY_BATCH_SIZE; start < total; start += SUMMARY_BATCH_SIZE) {
+    const page = await buildQuery().order('transaction_date', { ascending: false }).range(start, start + SUMMARY_BATCH_SIZE - 1);
+    if (page.error) throw databaseError(page.error, 'Summary query');
+    rows.push(...(page.data || []));
+  }
+
+  let incomeCents = 0;
+  let expenseCents = 0;
+  const categories = new Map();
+  for (const row of rows) {
+    const amountCents = toMoneyCents(row.amount);
+    if (row.type === 'income') incomeCents += amountCents;
+    if (row.type === 'expense') {
+      expenseCents += amountCents;
+      categories.set(row.category, (categories.get(row.category) || 0) + amountCents);
+    }
+  }
+
+  return {
+    period,
+    totalIncome: fromMoneyCents(incomeCents),
+    totalExpense: fromMoneyCents(expenseCents),
+    balance: fromMoneyCents(incomeCents - expenseCents),
+    topCategories: [...categories.entries()]
+      .map(([category, cents]) => ({ category, amount: fromMoneyCents(cents) }))
+      .sort((a, b) => b.amount - a.amount || a.category.localeCompare(b.category)),
+  };
 }
 
 export async function getTransaction(user, id) {

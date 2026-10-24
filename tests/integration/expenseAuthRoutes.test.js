@@ -81,10 +81,14 @@ test('expense routes reject unauthenticated transaction and receipt-draft reques
   const agentResponse = await dispatch(expenseAgentRouter, {
     method: 'POST', path: '/search', body: { message: 'Tìm giao dịch Highlands' },
   });
+  const summaryResponse = await dispatch(expenseAgentRouter, {
+    method: 'POST', path: '/summary', body: { message: 'Tổng chi tháng này' },
+  });
 
   assert.equal(transactionResponse.status, 401);
   assert.equal(receiptResponse.status, 401);
   assert.equal(agentResponse.status, 401);
+  assert.equal(summaryResponse.status, 401);
 });
 
 test('expense routes enforce ownership at the HTTP boundary and reject non-admin roles', { concurrency: false }, async (t) => {
