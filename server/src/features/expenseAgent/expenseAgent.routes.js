@@ -7,4 +7,5 @@ import * as controller from './expenseAgent.controller.js';
 const router = express.Router();
 router.use(authenticate);
 router.post('/search', validateRequest({ body: expenseAgentRequestSchema }), controller.search);
+router.post('/summary', validateRequest({ body: expenseAgentRequestSchema }), controller.summary);
 export default router;

@@ -21,6 +21,19 @@ export const SEARCH_TRANSACTIONS_TOOL = Object.freeze({
   },
 });
 
+export const SPENDING_SUMMARY_TOOL = Object.freeze({
+  name: 'get_spending_summary',
+  description: 'Calculate income, expenses, balance, and expense categories for the authenticated user over an inclusive ISO date range.',
+  parametersJsonSchema: {
+    type: 'object',
+    properties: {
+      from: { type: 'string', description: 'Inclusive start date, YYYY-MM-DD.' },
+      to: { type: 'string', description: 'Inclusive end date, YYYY-MM-DD.' },
+    },
+    required: ['from', 'to'],
+  },
+});
+
 let clientFactory = null;
 export function setGeminiExpenseAgentClientFactoryForTests(factory) { clientFactory = factory; }
 
@@ -44,15 +57,21 @@ function systemInstruction(today) {
   return `You are the transaction-search assistant. Today is ${today}. You must use search_transactions to answer every transaction lookup. Convert an unambiguous month/year to its first and last ISO date. Resolve common relative dates using Today: "hôm qua" is the previous calendar day, "tuần trước" is the previous Monday through Sunday, and "tháng này" is the first through last day of the current month. Ask one short clarification only when there is no reliable date range, such as "gần đây" or "một thời gian trước". Never invent transactions or amounts. After receiving tool results, give a concise Vietnamese answer.`;
 }
 
+function summarySystemInstruction(today) {
+  return `You are the spending-summary assistant. Today is ${today} in Asia/Ho_Chi_Minh. You must use get_spending_summary for every summary request. Dates are inclusive. Convert a named month to its first and last ISO date. Resolve "tháng này" to the current calendar month and "tuần này" to Monday through Sunday of the current week. If the user does not provide a reliable period, ask one short clarification. Never invent totals, categories, or amounts. After receiving the tool result, explain only those results concisely in Vietnamese.`;
+}
+
 /** Runs exactly one read-only function call, then returns Gemini's natural-language summary. */
 export async function runGeminiExpenseAgent(message, executeTool, options = {}) {
   const ai = options.ai || getClient();
   const model = options.model || config.geminiModel;
   const timeoutMs = options.timeoutMs ?? 15000;
   const today = options.today || getVietnamDate();
+  const instruction = options.agentType === 'summary' ? summarySystemInstruction(today) : systemInstruction(today);
+  const declaration = options.agentType === 'summary' ? SPENDING_SUMMARY_TOOL : SEARCH_TRANSACTIONS_TOOL;
   const generationConfig = {
-    systemInstruction: systemInstruction(today),
-    tools: [{ functionDeclarations: [SEARCH_TRANSACTIONS_TOOL] }],
+    systemInstruction: instruction,
+    tools: [{ functionDeclarations: [declaration] }],
     // AUTO để Gemini có thể xin làm rõ ngày mơ hồ thay vì tự đoán điều kiện lọc.
     // Gemini API chỉ cho phép allowedFunctionNames ở mode ANY. AUTO giữ khả
     // năng hỏi lại khi ngày mơ hồ; tool declaration đã chỉ chứa đúng một tool.
@@ -77,7 +96,7 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
       firstResponse.candidates?.[0]?.content,
       { role: 'user', parts: [{ functionResponse: { name: call.name, response: toolResult } }] },
     ],
-    config: { systemInstruction: systemInstruction(today) },
+    config: { systemInstruction: instruction },
   }), timeoutMs, 'Expense search timed out.');
   const answer = finalResponse.text?.trim();
   if (!answer) throw new Error('Gemini returned an empty final answer.');

@@ -1,7 +1,7 @@
 import { AppError } from '../../shared/errors/index.js';
 import { HTTP_STATUS } from '../../constants/index.js';
-import { listTransactions } from '../expenses/expenses.service.js';
-import { searchTransactionsArgsSchema } from './expenseAgent.schemas.js';
+import { getSpendingSummary, listTransactions } from '../expenses/expenses.service.js';
+import { searchTransactionsArgsSchema, spendingSummaryArgsSchema } from './expenseAgent.schemas.js';
 import { runGeminiExpenseAgent } from './geminiExpenseAgent.js';
 
 const MAX_AGENT_STEPS = 2; // Gemini gọi tool một lần, sau đó chỉ tổng hợp câu trả lời.
@@ -33,5 +33,30 @@ export async function searchTransactionsForUser(user, message, options = {}) {
     // Không log prompt, token, tham số hay raw provider error vì có thể chứa dữ liệu tài chính.
     console.error('[ExpenseAgent] Search failed', { name: error?.name || 'UnknownError' });
     throw new AppError('Expense search is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  }
+}
+
+export async function getSpendingSummaryForUser(user, message, options = {}) {
+  let executedSteps = 0;
+  const executeTool = async (toolName, rawArgs) => {
+    executedSteps += 1;
+    if (executedSteps >= MAX_AGENT_STEPS) throw new AppError('Agent step limit reached.', HTTP_STATUS.BAD_REQUEST);
+    if (toolName !== 'get_spending_summary') throw new AppError('Unsupported expense agent tool.', HTTP_STATUS.BAD_REQUEST);
+
+    const parsed = spendingSummaryArgsSchema.safeParse(rawArgs);
+    if (!parsed.success) throw new AppError('Gemini returned invalid summary period.', HTTP_STATUS.BAD_REQUEST);
+
+    // User identity luôn đến từ JWT đã xác thực, không lấy từ Gemini args.
+    return (options.getSpendingSummary || getSpendingSummary)(user, parsed.data);
+  };
+
+  try {
+    return await (options.agentRunner || runGeminiExpenseAgent)(message, executeTool, {
+      ...options, agentType: 'summary',
+    });
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    console.error('[ExpenseAgent] Summary failed', { name: error?.name || 'UnknownError' });
+    throw new AppError('Expense summary is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
 }
