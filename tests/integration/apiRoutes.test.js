@@ -1,4 +1,4 @@
-import { describe, it } from 'node:test';
+import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'http';
 import express from '../../server/node_modules/express/index.js';
@@ -8,11 +8,25 @@ import adminRoute from '../../server/src/routes/adminRoute.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
 import { removeDocument } from '../../server/src/features/documents/documents.service.js';
 import { SERVER_MESSAGES, PAGINATION_LIMITS } from '../../server/src/constants/index.js';
+import { setTokenVerifierForTests } from '../../server/src/shared/middleware/authenticate.js';
 
 describe('Express Route -> Validation Middleware -> Controller Integration Pipeline Suite', () => {
   let app;
   let server;
   let baseUrl;
+  const adminHeaders = {
+    'Content-Type': 'application/json',
+    Authorization: 'Bearer integration-admin-token',
+  };
+
+  // Các case bên dưới kiểm tra validation của admin routes, nên cấp đúng
+  // identity admin thay vì bị chặn ở middleware authentication trước đó.
+  before(() => setTokenVerifierForTests(async (token) => (
+    token === 'integration-admin-token'
+      ? { id: 'admin-a', app_metadata: { role: 'admin' } }
+      : null
+  )));
+  after(() => setTokenVerifierForTests(null));
 
   // Helper to start ephemeral Express server for route integration tests
   const startTestServer = () => new Promise((resolve) => {
@@ -60,7 +74,7 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
     await startTestServer();
     try {
       const maliciousParam = encodeURIComponent('../academic.md');
-      const res = await fetch(`${baseUrl}/api/admin/documents/${maliciousParam}`);
+      const res = await fetch(`${baseUrl}/api/admin/documents/${maliciousParam}`, { headers: adminHeaders });
 
       assert.equal(res.status, 400);
       const data = await res.json();
@@ -74,7 +88,7 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
     await startTestServer();
     try {
       // Valid numeric query string
-      const res = await fetch(`${baseUrl}/api/admin/chunks?limit=2&offset=1&q=tuition`);
+      const res = await fetch(`${baseUrl}/api/admin/chunks?limit=2&offset=1&q=tuition`, { headers: adminHeaders });
       assert.equal(res.status, 200);
       const data = await res.json();
       assert.equal(data.limit, 2);
@@ -82,7 +96,7 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
       assert.ok(Array.isArray(data.chunks));
 
       // Clamped query string (negative / invalid values)
-      const resClamped = await fetch(`${baseUrl}/api/admin/chunks?limit=-10&offset=invalid`);
+      const resClamped = await fetch(`${baseUrl}/api/admin/chunks?limit=-10&offset=invalid`, { headers: adminHeaders });
       assert.equal(resClamped.status, 200);
       const clampedData = await resClamped.json();
       assert.equal(clampedData.limit, PAGINATION_LIMITS.DEFAULT_LIMIT);
@@ -97,7 +111,7 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
     try {
       const res = await fetch(`${baseUrl}/api/user/chat/stream`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders,
         body: JSON.stringify({ message: '' }),
       });
 
@@ -121,7 +135,7 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
       // POST document without .md extension in filename
       const res = await fetch(`${baseUrl}/api/admin/documents`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: adminHeaders,
         body: JSON.stringify({
           filename: testDocFilename,
           content: '## Integration Section\nValidated content reaching controller.',
@@ -156,7 +170,7 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
       for (const route of badRoutes) {
         const res = await fetch(`${baseUrl}${route.path}`, {
           method: route.method,
-          headers: { 'Content-Type': 'application/json' },
+          headers: route.path.startsWith('/api/admin') ? adminHeaders : { 'Content-Type': 'application/json' },
           body: JSON.stringify(route.body),
         });
         assert.equal(res.status, 400, `Expected 400 for ${route.path}`);

@@ -60,12 +60,14 @@ function toRow(input) {
 function escapeSearch(value) { return value.replace(/[,%()]/g, '\\$&'); }
 
 export async function listTransactions(user, query) {
-  const { search, type, category, from, to, page, pageSize, sortBy, sortOrder } = query;
+  const { search, type, category, from, to, minAmount, maxAmount, page, pageSize, sortBy, sortOrder } = query;
   let request = clientFor(user).from(TRANSACTIONS_TABLE).select('*', { count: 'exact' }).eq('user_id', user.id);
   if (type) request = request.eq('type', type);
   if (category) request = request.eq('category', category);
   if (from) request = request.gte('transaction_date', from);
   if (to) request = request.lte('transaction_date', to);
+  if (minAmount !== undefined) request = request.gte('amount', minAmount);
+  if (maxAmount !== undefined) request = request.lte('amount', maxAmount);
   if (search) {
     const term = `%${escapeSearch(search)}%`;
     request = request.or(`merchant.ilike.${term},note.ilike.${term}`);
