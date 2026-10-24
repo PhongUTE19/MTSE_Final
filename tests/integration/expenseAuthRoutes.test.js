@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import express from '../../server/node_modules/express/index.js';
 import expenseRouter from '../../server/src/features/expenses/expenses.routes.js';
+import expenseAgentRouter from '../../server/src/features/expenseAgent/expenseAgent.routes.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
 import {
   setTokenVerifierForTests,
@@ -9,6 +10,7 @@ import {
 } from '../../server/src/shared/middleware/authenticate.js';
 import { authorize } from '../../server/src/shared/middleware/authorize.js';
 import { setExpenseClientFactoryForTests } from '../../server/src/features/expenses/expenses.service.js';
+import { setReceiptDependenciesForTests } from '../../server/src/features/expenses/receipt.service.js';
 
 function dispatch(router, { method = 'GET', path, headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
@@ -54,6 +56,15 @@ function ownerAwareClient() {
   return { from: () => ({ ...query }) };
 }
 
+function receiptClientWithoutLinkedTransaction() {
+  const query = {
+    select() { return this; },
+    eq() { return this; },
+    maybeSingle: async () => ({ data: null, error: null }),
+  };
+  return { from: () => query };
+}
+
 test('expense routes reject unauthenticated transaction and receipt-draft requests', { concurrency: false }, async (t) => {
   setTokenVerifierForTests(async () => null);
   t.after(() => {
@@ -67,9 +78,13 @@ test('expense routes reject unauthenticated transaction and receipt-draft reques
     headers: { 'content-type': 'application/json' },
     body: { fileName: 'receipt.png', fileType: 'image/png' },
   });
+  const agentResponse = await dispatch(expenseAgentRouter, {
+    method: 'POST', path: '/search', body: { message: 'Tìm giao dịch Highlands' },
+  });
 
   assert.equal(transactionResponse.status, 401);
   assert.equal(receiptResponse.status, 401);
+  assert.equal(agentResponse.status, 401);
 });
 
 test('expense routes enforce ownership at the HTTP boundary and reject non-admin roles', { concurrency: false }, async (t) => {
@@ -79,12 +94,18 @@ test('expense routes enforce ownership at the HTTP boundary and reject non-admin
     return null;
   });
   setExpenseClientFactoryForTests(() => ownerAwareClient());
+  // DELETE transaction kiểm tra receipt liên kết trước khi xoá. Mock dependency
+  // này để test ownership không gọi Supabase thật bằng token giả.
+  setReceiptDependenciesForTests({
+    clientFactory: { user: () => receiptClientWithoutLinkedTransaction(), server: () => null },
+  });
   const adminRouter = express.Router();
   adminRouter.get('/admin-check', authenticate, authorize('admin'), (_req, res) => res.status(204).end());
   const headers = { authorization: 'Bearer user-b-token', 'content-type': 'application/json' };
   t.after(() => {
     setTokenVerifierForTests(null);
     setExpenseClientFactoryForTests(null);
+    setReceiptDependenciesForTests();
   });
 
   const getResponse = await dispatch(expenseRouter, { path: '/transactions/transaction-a', headers });

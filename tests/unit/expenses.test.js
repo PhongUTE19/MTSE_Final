@@ -67,13 +67,15 @@ describe('Expense tracker schema and service', () => {
     setExpenseClientFactoryForTests(() => client);
     const searchResult = await listTransactions(testUser, {
       search: 'cafe', type: 'expense', category: 'Food & dining',
-      from: '2026-10-01', to: '2026-10-31', page: 1, pageSize: 10,
+      from: '2026-10-01', to: '2026-10-31', minAmount: 100000, maxAmount: 150000, page: 1, pageSize: 10,
       sortBy: 'date', sortOrder: 'desc',
     });
     assert.equal(searchResult.total, 1);
     assert.equal(searchResult.transactions[0].date, '2026-10-21');
     assert.deepEqual(calls.find((call) => call[0] === 'eq'), ['eq', 'user_id', 'user-a']);
     assert.deepEqual(calls.find((call) => call[0] === 'order'), ['order', 'transaction_date', { ascending: false }]);
+    assert.ok(calls.some((call) => call[0] === 'gte' && call[1] === 'amount' && call[2] === 100000));
+    assert.ok(calls.some((call) => call[0] === 'lte' && call[1] === 'amount' && call[2] === 150000));
   });
 
   it('maps create/update/delete to transaction_date and reports non-owned records as 404', async () => {

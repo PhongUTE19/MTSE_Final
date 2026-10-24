@@ -20,10 +20,18 @@ export const transactionQuerySchema = z.object({
   category: z.string().trim().optional(),
   from: z.string().regex(datePattern).optional(),
   to: z.string().regex(datePattern).optional(),
+  minAmount: z.coerce.number().nonnegative().optional(),
+  maxAmount: z.coerce.number().nonnegative().optional(),
   page: z.coerce.number().int().positive().default(1),
   pageSize: z.coerce.number().int().positive().max(EXPENSE_LIMITS.MAX_PAGE_SIZE).default(10),
   sortBy: z.enum(['date', 'amount']).default('date'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
+}).refine((query) => !query.from || !query.to || query.from <= query.to, {
+  message: 'From date must not be after to date.',
+  path: ['to'],
+}).refine((query) => query.minAmount === undefined || query.maxAmount === undefined || query.minAmount <= query.maxAmount, {
+  message: 'Minimum amount must not be greater than maximum amount.',
+  path: ['maxAmount'],
 });
 
 export const receiptSchema = z.object({
