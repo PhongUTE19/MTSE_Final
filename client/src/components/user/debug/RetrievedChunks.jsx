@@ -70,7 +70,14 @@ export default function RetrievedChunks({ retrieval }) {
             : UI_LABELS.ANSWER_SECTION.SHOW_CHUNKS(retrievedChunks.length)}
         </button>
         <span className="badge">
-          {UI_LABELS.ANSWER_SECTION.RETRIEVED_LABEL}<strong>{retrievedChunks.length}</strong> | {UI_LABELS.ANSWER_SECTION.PASSED_TO_LLM_LABEL}<strong>{usedChunks.length}</strong> | {UI_LABELS.ANSWER_SECTION.THRESHOLD_LABEL}<strong>{threshold}</strong>
+          {UI_LABELS.ANSWER_SECTION.RETRIEVED_LABEL}
+          <strong>{retrievedChunks.length}</strong>
+          {' | '}
+          {UI_LABELS.ANSWER_SECTION.PASSED_TO_LLM_LABEL}
+          <strong>{usedChunks.length}</strong>
+          {' | '}
+          {UI_LABELS.ANSWER_SECTION.THRESHOLD_LABEL}
+          <strong>{threshold}</strong>
         </span>
       </div>
 
@@ -87,13 +94,21 @@ export default function RetrievedChunks({ retrieval }) {
           ) : (
             <>
               <div className="card-header split-layout">
-                <span><strong>{UI_LABELS.ANSWER_SECTION.CANDIDATE_POOL}</strong> {retrievedChunks.length}{UI_LABELS.ANSWER_SECTION.CHUNKS_SUFFIX}</span>
-                <span><strong>{UI_LABELS.ANSWER_SECTION.THRESHOLD_LABEL}</strong> {threshold}</span>
+                <span>
+                  <strong>{UI_LABELS.ANSWER_SECTION.CANDIDATE_POOL}</strong>{' '}
+                  {retrievedChunks.length}{UI_LABELS.ANSWER_SECTION.CHUNKS_SUFFIX}
+                </span>
+                <span>
+                  <strong>{UI_LABELS.ANSWER_SECTION.THRESHOLD_LABEL}</strong> {threshold}
+                </span>
                 {bestScore !== undefined && (
-                  <span><strong>{UI_LABELS.ANSWER_SECTION.TOP_SIMILARITY_SCORE}</strong> {formatScore(bestScore)}</span>
+                  <span>
+                    <strong>{UI_LABELS.ANSWER_SECTION.TOP_SIMILARITY_SCORE}</strong> {formatScore(bestScore)}
+                  </span>
                 )}
                 <span>
-                  <strong>{UI_LABELS.ANSWER_SECTION.STATUS_LABEL}</strong> {usedChunks.length > 0 ? UI_LABELS.ANSWER_SECTION.STATUS_PASSED : UI_LABELS.ANSWER_SECTION.STATUS_FILTERED}
+                  <strong>{UI_LABELS.ANSWER_SECTION.STATUS_LABEL}</strong>{' '}
+                  {usedChunks.length > 0 ? UI_LABELS.ANSWER_SECTION.STATUS_PASSED : UI_LABELS.ANSWER_SECTION.STATUS_FILTERED}
                 </span>
               </div>
 

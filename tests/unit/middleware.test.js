@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { chatRequestSchema } from '../../server/src/features/chat/chat.schema.js';
+import { chatRequestSchema } from '../../server/src/features/chat/chat.schemas.js';
 import {
   getValidatedData,
   validateRequest,

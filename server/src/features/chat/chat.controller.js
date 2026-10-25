@@ -1,6 +1,6 @@
 import * as chatService from './chat.service.js';
 import { SERVER_MESSAGES } from '../../constants/index.js';
-import { chatRequestSchema } from './chat.schema.js';
+import { chatRequestSchema } from './chat.schemas.js';
 import { getValidatedData } from '../../shared/middleware/index.js';
 
 

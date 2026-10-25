@@ -105,19 +105,19 @@ Every new account defaults to the least-privileged `user` role. Do **not** edit 
 4. From the project root in PowerShell, run the command below. Do not type angle brackets around the UUID:
 
    ```powershell
-   npm.cmd --prefix server run set-role -- 11111111-2222-3333-4444-555555555555 admin
+   npm run set-role -- 11111111-2222-3333-4444-555555555555 admin
    ```
 
 5. The user must **sign out and sign in again** (or refresh their session) so the newly issued JWT includes `app_metadata.role = "admin"`.
-6. Open `http://localhost:5173/admin.html`.
+6. Open `http://localhost:5173/admin` or `http://localhost:5173/analytics`.
 
 To revoke administrator access:
 
 ```powershell
-npm.cmd --prefix server run set-role -- 11111111-2222-3333-4444-555555555555 user
+npm run set-role -- 11111111-2222-3333-4444-555555555555 user
 ```
 
-If PowerShell blocks `npm.ps1`, use `npm.cmd` as shown. The command uses the server-only Supabase Admin API and preserves unrelated `app_metadata` fields.
+If PowerShell blocks `npm.ps1`, use `npm.cmd` as prefix. The command uses the server-only Supabase Admin API and preserves unrelated `app_metadata` fields.
 
 ## Demo script
 

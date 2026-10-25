@@ -51,34 +51,46 @@ export default function TransactionForm({ transaction, onSave, onClose }) {
         {error && <p className="form-error">{error}</p>}
 
         <div className="form-grid">
-          <label>Type
+          <label>
+            Type
             <select name="type" value={form.type} onChange={handleChange}>
               <option value="expense">Expense</option>
               <option value="income">Income</option>
             </select>
           </label>
-          <label>Amount
+          <label>
+            Amount
             <input name="amount" type="number" min="1" value={form.amount} onChange={handleChange} required />
           </label>
-          <label>Date
+          <label>
+            Date
             <input name="date" type="date" value={form.date} onChange={handleChange} required />
           </label>
-          <label>Category
+          <label>
+            Category
             <select name="category" value={form.category} onChange={handleChange}>
-              {selectableCategories.map((category) => <option key={category}>{category}</option>)}
+              {selectableCategories.map((category) => (
+                <option key={category}>{category}</option>
+              ))}
             </select>
           </label>
-          <label className="full">Merchant or description
+          <label className="full">
+            Merchant or description
             <input name="merchant" value={form.merchant} onChange={handleChange} required />
           </label>
-          <label className="full">Note
+          <label className="full">
+            Note
             <textarea name="note" value={form.note} onChange={handleChange} rows="3" />
           </label>
         </div>
 
         <div className="modal-actions">
-          <button type="button" className="secondary-button" onClick={onClose}>Cancel</button>
-          <button className="primary-button" disabled={saving}>{saving ? 'Saving…' : 'Save transaction'}</button>
+          <button type="button" className="secondary-button" onClick={onClose}>
+            Cancel
+          </button>
+          <button className="primary-button" disabled={saving}>
+            {saving ? 'Saving…' : 'Save transaction'}
+          </button>
         </div>
       </form>
     </div>

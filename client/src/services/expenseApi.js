@@ -24,18 +24,46 @@ export const expenseApi = {
     );
     return request(`/api/transactions?${new URLSearchParams(populatedQuery)}`);
   },
-  create: (data) => request('/api/transactions', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id, data) => request(`/api/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  remove: (id) => request(`/api/transactions/${id}`, { method: 'DELETE' }),
-  upload: (file) => { const body = new FormData(); body.append('receipt', file, file.name); return request('/api/receipts/upload', { method: 'POST', body }); },
+  create: (data) =>
+    request('/api/transactions', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id, data) =>
+    request(`/api/transactions/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  remove: (id) =>
+    request(`/api/transactions/${id}`, { method: 'DELETE' }),
+  upload: (file) => {
+    const body = new FormData();
+    body.append('receipt', file, file.name);
+    return request('/api/receipts/upload', { method: 'POST', body });
+  },
   listReceipts: () => request('/api/receipts'),
   previewReceipt: (id) => request(`/api/receipts/${id}/preview`),
   retryReceipt: (id) => request(`/api/receipts/${id}/retry`, { method: 'POST' }),
-  confirmReceipt: (id, finalTransaction) => request(`/api/receipts/${id}/confirm`, { method: 'POST', body: JSON.stringify({ finalTransaction }) }),
+  confirmReceipt: (id, finalTransaction) =>
+    request(`/api/receipts/${id}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ finalTransaction }),
+    }),
   deleteReceipt: (id) => request(`/api/receipts/${id}`, { method: 'DELETE' }),
-  askExpenseAssistant: (message, history = []) => request('/api/expense-agent/assistant', { method: 'POST', body: JSON.stringify({ message, history }) }),
-  searchAgentTransactions: (message) => request('/api/expense-agent/search', { method: 'POST', body: JSON.stringify({ message }) }),
-  createAgentProposal: (message) => request('/api/expense-agent/create-proposal', { method: 'POST', body: JSON.stringify({ message }) }),
-  confirmAgentProposal: (id, transaction) => request(`/api/expense-agent/proposals/${id}/confirm`, { method: 'POST', body: JSON.stringify({ transaction }) }),
-  cancelAgentProposal: (id) => request(`/api/expense-agent/proposals/${id}`, { method: 'DELETE' }),
+  askExpenseAssistant: (message, history = []) =>
+    request('/api/expense-agent/assistant', {
+      method: 'POST',
+      body: JSON.stringify({ message, history }),
+    }),
+  searchAgentTransactions: (message) =>
+    request('/api/expense-agent/search', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+  createAgentProposal: (message) =>
+    request('/api/expense-agent/create-proposal', {
+      method: 'POST',
+      body: JSON.stringify({ message }),
+    }),
+  confirmAgentProposal: (id, transaction) =>
+    request(`/api/expense-agent/proposals/${id}/confirm`, {
+      method: 'POST',
+      body: JSON.stringify({ transaction }),
+    }),
+  cancelAgentProposal: (id) =>
+    request(`/api/expense-agent/proposals/${id}`, { method: 'DELETE' }),
 };

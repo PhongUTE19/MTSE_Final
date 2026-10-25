@@ -129,7 +129,8 @@ export default function AnalyticsHistoryTable({
         loading={loading}
         showingLabel={(from, to, tot) => (
           <span>
-            {UI_LABELS.COMMON.SHOWING} <strong>{from}–{to}</strong> {UI_LABELS.COMMON.OF} <strong>{tot}</strong> records
+            {UI_LABELS.COMMON.SHOWING} <strong>{from}–{to}</strong>{' '}
+            {UI_LABELS.COMMON.OF} <strong>{tot}</strong> records
           </span>
         )}
         ariaLabel="Request history pagination"

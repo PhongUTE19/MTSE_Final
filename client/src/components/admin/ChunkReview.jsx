@@ -36,7 +36,9 @@ export default function ChunkReview({
 
   const showingLabel = (from, to, total) => (
     <span>
-      {UI_LABELS.CHUNK_REVIEW.SHOWING} <strong>{from}–{to}</strong> {UI_LABELS.CHUNK_REVIEW.OF} <strong>{total}</strong> {UI_LABELS.CHUNK_REVIEW.CHUNKS}
+      {UI_LABELS.CHUNK_REVIEW.SHOWING} <strong>{from}–{to}</strong>{' '}
+      {UI_LABELS.CHUNK_REVIEW.OF} <strong>{total}</strong>{' '}
+      {UI_LABELS.CHUNK_REVIEW.CHUNKS}
     </span>
   );
 

@@ -85,3 +85,17 @@ export function formatTimestamp(isoString) {
     return isoString;
   }
 }
+
+/**
+ * Formats a monetary number in VND currency.
+ *
+ * @param {number|string|null|undefined} value - Amount to format
+ * @returns {string} Formatted currency string
+ */
+export function formatMoney(value) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value || 0);
+}

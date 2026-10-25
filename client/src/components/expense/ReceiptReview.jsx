@@ -55,7 +55,9 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
           <h2>Review extracted details</h2>
           <p>AI extraction is a draft. Check every field before saving.</p>
         </div>
-        <button className="secondary-button" type="button" onClick={handleDiscard} disabled={busy}>{action === 'discarding' ? 'Discarding…' : 'Discard'}</button>
+        <button className="secondary-button" type="button" onClick={handleDiscard} disabled={busy}>
+          {action === 'discarding' ? 'Discarding…' : 'Discard'}
+        </button>
       </div>
 
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -68,20 +70,37 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
           <small>{Math.round(file.size / 1024)} KB</small>
         </div>
         <div className="form-grid">
-          <label>Merchant<input name="merchant" value={form.merchant} onChange={handleChange} disabled={busy} required /></label>
-          <label>Date<input name="date" type="date" value={form.date} onChange={handleChange} disabled={busy} required /></label>
-          <label>Total amount<input name="amount" type="number" min="1" value={form.amount} onChange={handleChange} disabled={busy} required /></label>
-          <label>Category
+          <label>
+            Merchant
+            <input name="merchant" value={form.merchant} onChange={handleChange} disabled={busy} required />
+          </label>
+          <label>
+            Date
+            <input name="date" type="date" value={form.date} onChange={handleChange} disabled={busy} required />
+          </label>
+          <label>
+            Total amount
+            <input name="amount" type="number" min="1" value={form.amount} onChange={handleChange} disabled={busy} required />
+          </label>
+          <label>
+            Category
             <select name="category" value={form.category} onChange={handleChange} disabled={busy}>
-              {categoriesForType(EXPENSE_CATEGORIES, form.type).map((category) => <option key={category}>{category}</option>)}
+              {categoriesForType(EXPENSE_CATEGORIES, form.type).map((category) => (
+                <option key={category}>{category}</option>
+              ))}
             </select>
           </label>
-          <label className="full">Note<textarea name="note" value={form.note} onChange={handleChange} disabled={busy} rows="2" /></label>
+          <label className="full">
+            Note
+            <textarea name="note" value={form.note} onChange={handleChange} disabled={busy} rows="2" />
+          </label>
         </div>
       </div>
 
       <div className="modal-actions">
-        <button className="primary-button" type="button" onClick={handleConfirm} disabled={busy}>{action === 'saving' ? 'Saving transaction…' : 'Confirm and save transaction'}</button>
+        <button className="primary-button" type="button" onClick={handleConfirm} disabled={busy}>
+          {action === 'saving' ? 'Saving transaction…' : 'Confirm and save transaction'}
+        </button>
       </div>
     </section>
   );

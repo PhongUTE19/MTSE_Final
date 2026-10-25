@@ -7,8 +7,8 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "index": "node src/features/knowledge/indexer.js",
-    "set-role": "node scripts/set-user-role.js"
-    ,"eval:receipts": "node ../evals/receipts/runner.js"
+    "set-role": "node scripts/set-user-role.js",
+    "eval:receipts": "node ../evals/receipts/runner.js"
   },
   "keywords": [
     "student",
@@ -30,6 +30,7 @@
     "helmet": "^8.3.0",
     "multer": "^2.0.2",
     "sharp": "^0.34.0",
+    "student-handbook-": "file:..",
     "zod": "^4.6.7"
   }
 }

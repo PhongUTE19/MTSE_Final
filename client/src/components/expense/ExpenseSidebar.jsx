@@ -6,7 +6,14 @@ const navigationItems = [
 
 export default function ExpenseSidebar({ activeView, onNavigate, user, onSignOut }) {
   const displayName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || 'Account';
-  const initials = displayName.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase();
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
   return (
     <aside className="expense-sidebar">
       <div className="brand">
@@ -37,7 +44,9 @@ export default function ExpenseSidebar({ activeView, onNavigate, user, onSignOut
           <strong>{displayName}</strong>
           <small>Personal workspace</small>
         </div>
-        <button type="button" className="sidebar-signout" onClick={onSignOut}>Sign out</button>
+        <button type="button" className="sidebar-signout" onClick={onSignOut}>
+          Sign out
+        </button>
       </div>
     </aside>
   );

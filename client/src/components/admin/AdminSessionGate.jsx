@@ -1,12 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { appUrl, isSupabaseConfigured, signOut, supabase, getUserRole, safeNextPath } from '../../services/supabaseAuth';
+import {
+  appUrl,
+  getUserRole,
+  isSupabaseConfigured,
+  safeNextPath,
+  signOut,
+  supabase,
+} from '../../services/supabaseAuth';
 import HandbookView from '../HandbookView';
 import { ADMIN_TABS, USER_ROLES } from '../../constants';
 import './admin.css';
 
 function redirectToSignIn(targetPath = '/analytics') {
-  window.location.replace(`${appUrl('/auth')}?next=${encodeURIComponent(safeNextPath(targetPath) || '/analytics')}`);
+  const next = encodeURIComponent(safeNextPath(targetPath) || '/analytics');
+  window.location.replace(`${appUrl('/auth')}?next=${next}`);
 }
 
 function redirectToExpense() {
@@ -37,7 +45,9 @@ export default function AdminSessionGate({ defaultTab = ADMIN_TABS.ANALYTICS }) 
     };
 
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => applySession(currentSession));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => applySession(currentSession));
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, currentSession) => applySession(currentSession));
     return () => {
       active = false;
       subscription.unsubscribe();

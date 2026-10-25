@@ -9,6 +9,7 @@
     "server": "npm --prefix server run dev",
     "client": "npm --prefix client run dev",
     "index": "npm --prefix server run index",
+    "set-role": "node server/scripts/set-user-role.js",
     "test": "node --test \"tests/**/*.test.js\"",
     "test:unit": "node --test \"tests/unit/**/*.test.js\"",
     "test:integration": "node --test \"tests/integration/**/*.test.js\"",

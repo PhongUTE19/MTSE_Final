@@ -1,10 +1,4 @@
-export function formatMoney(value) {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'VND',
-    maximumFractionDigits: 0,
-  }).format(value || 0);
-}
+export { formatMoney } from '../../utils/formatters.js';
 
 export function categoriesForType(categories, type) {
   const incomeCategories = ['Salary', 'Other income'];

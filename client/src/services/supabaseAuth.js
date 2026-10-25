@@ -15,15 +15,20 @@ export const supabase = isSupabaseConfigured
   })
   : null;
 
+const ALLOWED_DESTINATIONS = new Set(['/expense', '/admin', '/analytics', '/handbook', '/demo']);
+
 export function appUrl(pathname) {
-  const origin = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : 'http://localhost:5173';
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'http://localhost:5173';
   return new URL(pathname, origin).toString();
 }
 
 export function safeNextPath(value) {
   if (!value || value === '/' || value === '/auth') return '/expense';
   const clean = value.replace(/\.html$/, '');
-  return clean === '/expense' || clean === '/admin' || clean === '/analytics' || clean === '/handbook' || clean === '/demo' ? clean : '/expense';
+  return ALLOWED_DESTINATIONS.has(clean) ? clean : '/expense';
 }
 
 /**

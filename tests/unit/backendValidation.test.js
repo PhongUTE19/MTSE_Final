@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { validate, validateRequest } from '../../server/src/shared/middleware/validateRequest.js';
-import { chatRequestSchema } from '../../server/src/features/chat/chat.schema.js';
+import { chatRequestSchema } from '../../server/src/features/chat/chat.schemas.js';
 import { paginationQuerySchema } from '../../server/src/features/knowledgeBase/knowledgeBase.schemas.js';
 import { filenameSchema, documentContentSchema, createDocumentSchema, documentParamsSchema } from '../../server/src/features/documents/documents.schemas.js';
 import { AppError, ValidationError } from '../../server/src/shared/errors/index.js';

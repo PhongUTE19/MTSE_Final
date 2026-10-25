@@ -61,7 +61,9 @@ function RequestVolumeChart({ data = [] }) {
 
           return (
             <g key={d.timestamp || idx}>
-              <title>{`${d.dateLabel}: ${d.totalRequests} total (${d.successCount} ok, ${d.failureCount} err, ${d.refusalCount} ref)`}</title>
+              <title>
+                {`${d.dateLabel}: ${d.totalRequests} total (${d.successCount} ok, ${d.failureCount} err, ${d.refusalCount} ref)`}
+              </title>
 
               {/* Success slice (green) */}
               {successHeight > 0 && (

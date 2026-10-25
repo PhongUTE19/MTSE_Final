@@ -1,7 +1,7 @@
 import express from 'express';
 import * as chatController from './chat.controller.js';
 import { validateRequest, chatRateLimiter } from '../../shared/middleware/index.js';
-import { chatRequestSchema } from './chat.schema.js';
+import { chatRequestSchema } from './chat.schemas.js';
 
 const router = express.Router();
 

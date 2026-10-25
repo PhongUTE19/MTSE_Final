@@ -36,5 +36,16 @@ export default function AuthCallbackPage() {
     complete();
   }, []);
 
-  return <main className="auth-content auth-standalone"><section className="auth-card" aria-live="polite"><p className="auth-kicker">SPENDWISE</p><h1>Finishing up</h1><p>{message}</p><Link className="auth-text-link" to="/auth">Return to sign in</Link></section></main>;
+  return (
+    <main className="auth-content auth-standalone">
+      <section className="auth-card" aria-live="polite">
+        <p className="auth-kicker">SPENDWISE</p>
+        <h1>Finishing up</h1>
+        <p>{message}</p>
+        <Link className="auth-text-link" to="/auth">
+          Return to sign in
+        </Link>
+      </section>
+    </main>
+  );
 }

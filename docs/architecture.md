@@ -306,7 +306,7 @@ Student_Handbook/
 │   │   │   ├── chat/                     # User chat orchestration & routes
 │   │   │   │   ├── chat.controller.js
 │   │   │   │   ├── chat.routes.js
-│   │   │   │   ├── chat.schema.js
+│   │   │   │   ├── chat.schemas.js
 │   │   │   │   └── chat.service.js
 │   │   │   ├── documents/                # Markdown document CRUD
 │   │   │   │   ├── documents.controller.js
