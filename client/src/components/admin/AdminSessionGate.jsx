@@ -1,23 +1,27 @@
 import React, { useCallback } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import {
   appUrl,
   getUserRole,
   safeNextPath,
   signOut,
 } from '../../services/supabaseAuth';
-import { useSession } from '../../hooks';
-import HandbookView from '../HandbookView';
-import { ADMIN_TABS, USER_ROLES } from '../../constants';
+import { useSession, useHealth } from '../../hooks';
+import AppSidebar from '../layout/AppSidebar';
+import HealthBadge from '../HealthBadge';
+import { ToastProvider } from '../../context/ToastContext';
+import AdminDashboard from './AdminDashboard';
+import { ADMIN_TABS, APP_ROUTES, USER_ROLES } from '../../constants';
+import '../expense/expenseTracker.css';
 import './admin.css';
 
-function redirectToSignIn(targetPath = '/analytics') {
-  const next = encodeURIComponent(safeNextPath(targetPath) || '/analytics');
-  window.location.replace(`${appUrl('/auth')}?next=${next}`);
+function redirectToSignIn(targetPath = APP_ROUTES.ADMIN_ANALYTICS) {
+  const next = encodeURIComponent(safeNextPath(targetPath) || APP_ROUTES.ADMIN_ANALYTICS);
+  window.location.replace(`${appUrl(APP_ROUTES.AUTH)}?next=${next}`);
 }
 
 function redirectToExpense() {
-  window.location.replace(appUrl('/expense'));
+  window.location.replace(appUrl(APP_ROUTES.EXPENSE));
 }
 
 export default function AdminSessionGate({ defaultTab = ADMIN_TABS.ANALYTICS }) {
@@ -40,6 +44,8 @@ export default function AdminSessionGate({ defaultTab = ADMIN_TABS.ANALYTICS }) 
     onUnauthorized: handleUnauthorized,
   });
 
+  const { health, checkHealth } = useHealth(USER_ROLES.ADMIN);
+
   if (!session) {
     return (
       <main className="admin-gate">
@@ -48,33 +54,46 @@ export default function AdminSessionGate({ defaultTab = ADMIN_TABS.ANALYTICS }) 
     );
   }
 
-  const displayName = session.user.user_metadata?.display_name || session.user.email || 'Administrator';
+  const activeView = (location.pathname === APP_ROUTES.ADMIN_KNOWLEDGE || location.pathname === '/admin') ? 'knowledge' : 'analytics';
+  const pageTitle = activeView === 'analytics' ? 'AI Usage Analytics' : 'Knowledge Base';
 
-  const adminNavActions = (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-      <Link className="admin-secondary-link" to="/expense">
-        Open expense workspace
-      </Link>
-      <button
-        type="button"
-        className="admin-signout"
-        onClick={async () => {
-          await signOut();
-          redirectToSignIn(location.pathname);
-        }}
-      >
-        Sign out
-      </button>
-    </div>
-  );
+  const handleSignOut = async () => {
+    await signOut();
+    redirectToSignIn(location.pathname);
+  };
 
   return (
-    <HandbookView
-      role={USER_ROLES.ADMIN}
-      kicker="SPENDWISE · ADMIN WORKSPACE"
-      subtitle={<>Signed in as <strong>{displayName}</strong></>}
-      headerActions={adminNavActions}
-      defaultTab={defaultTab}
-    />
+    <ToastProvider>
+      <main className="expense-shell">
+        <AppSidebar
+          activeView={activeView}
+          user={session.user}
+          onSignOut={handleSignOut}
+        />
+
+        <section className="expense-main">
+          <header className="expense-header">
+            <div>
+              <p className="eyebrow">ADMINISTRATION</p>
+              <h1>{pageTitle}</h1>
+            </div>
+            <HealthBadge
+              status={health?.status}
+              indexedChunks={health?.indexedChunks}
+              loading={health?.loading}
+              error={health?.error}
+              onRetry={checkHealth}
+            />
+          </header>
+
+          <AdminDashboard
+            key={activeView}
+            defaultTab={defaultTab}
+            health={health}
+            onRefreshHealth={checkHealth}
+          />
+        </section>
+      </main>
+    </ToastProvider>
   );
 }

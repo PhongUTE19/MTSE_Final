@@ -1,8 +1,9 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import HandbookView from './components/HandbookView';
-import { ADMIN_TABS } from './constants';
 
+import { ADMIN_TABS, APP_ROUTES } from './constants';
+
+// Lazy-loaded page components and workspace session gates
 const AuthPage = lazy(() => import('./components/auth/AuthPage'));
 const AuthCallbackPage = lazy(() => import('./components/auth/AuthCallbackPage'));
 const ResetPasswordPage = lazy(() => import('./components/auth/ResetPasswordPage'));
@@ -23,28 +24,34 @@ export default function App() {
       <Suspense fallback={<RouteLoadingFallback />}>
         <Routes>
           {/* Public Authentication and Landing Page routes */}
-          <Route path="/" element={<AuthPage />} />
-          <Route path="/auth" element={<AuthPage />} />
+          <Route path={APP_ROUTES.HOME} element={<AuthPage />} />
+          <Route path={APP_ROUTES.AUTH} element={<AuthPage />} />
 
           {/* OAuth and Email Confirmation Callback routes */}
-          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+          <Route path={APP_ROUTES.AUTH_CALLBACK} element={<AuthCallbackPage />} />
 
           {/* Password Reset routes */}
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path={APP_ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
 
           {/* Dedicated User Workspace routes */}
-          <Route path="/expense" element={<ExpenseSessionGate />} />
+          <Route path={APP_ROUTES.EXPENSE} element={<ExpenseSessionGate />} />
 
-          {/* Dedicated Admin and Analytics Workspace Gate routes */}
-          <Route path="/admin" element={<AdminSessionGate defaultTab={ADMIN_TABS.KNOWLEDGE} />} />
-          <Route path="/analytics" element={<AdminSessionGate defaultTab={ADMIN_TABS.ANALYTICS} />} />
+          {/* Canonical Admin Workspace routes */}
+          <Route
+            path={APP_ROUTES.ADMIN_ANALYTICS}
+            element={<AdminSessionGate defaultTab={ADMIN_TABS.ANALYTICS} />}
+          />
+          <Route
+            path={APP_ROUTES.ADMIN_KNOWLEDGE}
+            element={<AdminSessionGate defaultTab={ADMIN_TABS.KNOWLEDGE} />}
+          />
 
-          {/* Explicit Student Handbook Assistant Demo routes */}
-          <Route path="/handbook" element={<HandbookView />} />
-          <Route path="/demo" element={<HandbookView />} />
+          {/* Canonical Admin redirects */}
+          <Route path="/admin" element={<Navigate to={APP_ROUTES.ADMIN_KNOWLEDGE} replace />} />
+          <Route path="/analytics" element={<Navigate to={APP_ROUTES.ADMIN_ANALYTICS} replace />} />
 
           {/* Catch-all fallback route */}
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to={APP_ROUTES.HOME} replace />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

@@ -1,7 +1,7 @@
 {
   "name": "student-handbook-",
   "version": "1.0.0",
-  "description": "Student Handbook Assistant with RAG - Root Orchestration",
+  "description": "SpendWise - AI Expense Management & Knowledge Base Assistant",
   "type": "module",
   "scripts": {
     "dev": "npm start",

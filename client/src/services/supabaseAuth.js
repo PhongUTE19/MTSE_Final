@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { APP_ROUTES, ALLOWED_AUTH_DESTINATIONS } from '../constants/routes.js';
 
 const supabaseUrl = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_SUPABASE_URL : undefined;
 const supabaseAnonKey = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_SUPABASE_ANON_KEY : undefined;
@@ -15,8 +16,6 @@ export const supabase = isSupabaseConfigured
   })
   : null;
 
-const ALLOWED_DESTINATIONS = new Set(['/expense', '/admin', '/analytics', '/handbook', '/demo']);
-
 export function appUrl(pathname) {
   const origin =
     typeof window !== 'undefined' && window.location?.origin
@@ -26,9 +25,11 @@ export function appUrl(pathname) {
 }
 
 export function safeNextPath(value) {
-  if (!value || value === '/' || value === '/auth') return '/expense';
+  if (!value || value === APP_ROUTES.HOME || value === APP_ROUTES.AUTH) return APP_ROUTES.EXPENSE;
   const clean = value.replace(/\.html$/, '');
-  return ALLOWED_DESTINATIONS.has(clean) ? clean : '/expense';
+  if (clean === '/admin' || clean === '/admin/knowledge-base') return APP_ROUTES.ADMIN_KNOWLEDGE;
+  if (clean === '/analytics' || clean === '/admin/analytics') return APP_ROUTES.ADMIN_ANALYTICS;
+  return ALLOWED_AUTH_DESTINATIONS.has(clean) ? clean : APP_ROUTES.EXPENSE;
 }
 
 /**
@@ -45,7 +46,7 @@ export function getUserRole(sessionOrUser) {
 
 /**
  * Computes post-authentication navigation path based on trusted user role.
- * Admins are directed to /analytics by default; regular users are directed to /expense.
+ * Admins are directed to /admin/analytics by default; regular users are directed to /expense.
  *
  * @param {'admin'|'user'|string} [role] - Verified role from app_metadata
  * @param {string|null} [requestedNext] - Optional requested next path
@@ -54,25 +55,29 @@ export function getUserRole(sessionOrUser) {
 export function getPostAuthPath(role, requestedNext) {
   const isAdmin = role === 'admin';
   if (isAdmin) {
-    if (requestedNext === '/admin' || requestedNext === '/analytics') {
-      return requestedNext;
+    if (requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE || requestedNext === '/admin' || requestedNext === '/admin/knowledge-base') {
+      return APP_ROUTES.ADMIN_KNOWLEDGE;
     }
-    return '/analytics';
+    if (requestedNext === APP_ROUTES.ADMIN_ANALYTICS || requestedNext === '/analytics' || requestedNext === '/admin/analytics') {
+      return APP_ROUTES.ADMIN_ANALYTICS;
+    }
+    return APP_ROUTES.ADMIN_ANALYTICS;
   }
 
   // Non-admin user: never allow access to admin routes or landing/auth pages
   if (
     requestedNext &&
-    requestedNext !== '/admin' &&
+    !requestedNext.startsWith('/admin') &&
     requestedNext !== '/analytics' &&
-    requestedNext !== '/' &&
-    requestedNext !== '/auth'
+    requestedNext !== APP_ROUTES.HOME &&
+    requestedNext !== APP_ROUTES.AUTH
   ) {
     const clean = requestedNext.replace(/\.html$/, '');
-    if (clean === '/expense' || clean === '/handbook' || clean === '/demo') return clean;
+    if (clean === APP_ROUTES.EXPENSE) return clean;
   }
-  return '/expense';
+  return APP_ROUTES.EXPENSE;
 }
+
 
 /**
  * Standardizes authentication error messages, specifically handling rate limits

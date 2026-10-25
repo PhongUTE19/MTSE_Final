@@ -1,236 +1,165 @@
 # Codebase Duplication & Reuse Audit: Student Handbook Assistant & SpendWise
 
-> **Status**: Verified against active repository code  
-> **Date**: October 2026  
-> **Audit Type**: Read-only codebase duplication & reuse opportunity assessment.
+> **Status**: Verified against active repository code (Post-Refactoring Audit)
+> **Date**: October 2026
+> **Audit Type**: Verification of duplication resolution, regression analysis, and prioritization of remaining opportunities.
 
 ---
 
 ## 1. Executive Summary
 
-This audit evaluated the complete codebase (`client/`, `server/`, `tests/`, `evals/`, `supabase/`, `data/`) to identify confirmed duplication, incomplete reuse of established abstractions, and potential risks of logic divergence as the project scales.
+This re-audit evaluated the complete codebase (`client/`, `server/`, `tests/`, `evals/`, `supabase/`, `data/`) following recent refactoring iterations.
 
-### Key Audit Findings
-1. **HTTP Client & 401 Interception**: [expenseApi.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/expenseApi.js) reimplements a private `request()` function with Bearer token injection, duplicating [apiClient.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/apiClient.js) while only `expenseApi` handles 401 auto-signout.
-2. **Session Gates & Route Protection**: [AdminSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/AdminSessionGate.jsx) and [ExpenseSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/ExpenseSessionGate.jsx) duplicate Supabase session retrieval, auth state change subscription, cleanup, and redirection handling.
-3. **Table Pagination, Search & Headers**: [DocumentTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/DocumentTable.jsx), [AnalyticsHistoryTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/analytics/AnalyticsHistoryTable.jsx), and [ChunkReview.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/ChunkReview.jsx) successfully reuse shared primitives ([Pagination.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/Pagination.jsx), [SortableHeader.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SortableHeader.jsx), [SearchInput.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SearchInput.jsx)), but [TransactionTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionTable.jsx) manually reimplements custom search, sort buttons, and pagination buttons.
-4. **Transaction & Receipt Field Forms**: Core financial input fields (type, amount, date, category, merchant, note) are duplicated across [TransactionForm.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionForm.jsx), [ReceiptReview.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/ReceiptReview.jsx), and the `Proposal` component inside [AiExpenseAssistant.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/AiExpenseAssistant.jsx).
-5. **AI Telemetry & Provider Isolation Gap**: While [geminiProvider.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/integrations/ai/providers/geminiProvider.js) instruments all calls (`embedText`, `generateAnswer`, `extractReceiptImage`) with exponential backoff retry and `recordUsage()`, [geminiExpenseAgent.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/features/expenseAgent/geminiExpenseAgent.js) initializes its own `GoogleGenAI` instance, lacks retry logic, and completely bypasses `recordUsage()`.
-6. **Backend Query Pagination Coercion**: Four different features validate pagination query parameters in four different ways across Zod schemas (`.transform(parseIntegerParam)`, `z.preprocess`, `z.coerce.number()`, and raw `z.number().int()`).
+All **7 of the original primary duplication findings** have been confirmed resolved through targeted extraction and reuse of existing components, hooks, schemas, and error utilities. In addition, confirmed growth-risk duplications in query-string serialization and pagination validation have been consolidated.
+
+No regressions, circular dependencies, or stale imports were introduced. The full test suite (261 unit tests, 31 integration tests) and production client build pass cleanly.
+
+### Summary of Resolved & Prioritized Findings
+
+| Item | Area | Initial Status | Verified Current Status | Resolution Mechanism |
+| :--- | :--- | :--- | :--- | :--- |
+| **Finding 1** | HTTP Client & 401 Interception | Confirmed Duplication | **Resolved** | [expenseApi.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/expenseApi.js) delegates to [apiClient.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/apiClient.js) with centralized 401 sign-out. |
+| **Finding 2** | Session Gates & Route Protection | Confirmed Duplication | **Resolved** | Extracted [useSession](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/hooks/useSession.js) hook for Supabase subscription, validation, and cleanup. |
+| **Finding 3** | Table Controls in TransactionTable | Confirmed Duplication | **Resolved** | [TransactionTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionTable.jsx) reuses [Pagination.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/Pagination.jsx), [SortableHeader.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SortableHeader.jsx), and [SearchInput.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SearchInput.jsx). |
+| **Finding 4** | Transaction & Receipt Field Inputs | Confirmed Duplication | **Resolved** | Extracted [TransactionFields.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionFields.jsx) and shared form utilities. |
+| **Finding 5** | AI Client & Telemetry Tracking | Confirmed Duplication | **Resolved** | [geminiExpenseAgent.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/features/expenseAgent/geminiExpenseAgent.js) reuses `getAIClient()`, retry utilities, and instruments `safeRecordUsage()`. |
+| **Finding 6** | Database Error Handling | Confirmed Duplication | **Resolved** | Extracted [DatabaseError](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/errors/AppError.js#L78) and [handleDatabaseError](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/errors/AppError.js#L98) in [AppError.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/errors/AppError.js). |
+| **Finding 7** | Auth Email & Password Validation | Confirmed Duplication | **Resolved** | [AuthPage.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/auth/AuthPage.jsx) and [ResetPasswordPage.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/auth/ResetPasswordPage.jsx) reuse [validation.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/utils/validation.js). |
+| **Growth Risk A** | Backend Pagination Validation | Potential Duplication | **Resolved** | Extracted [zodIntegerParam](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/validation/pagination.js#L57) in [pagination.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/validation/pagination.js); unified KB, Analytics, and Expenses. |
+| **Growth Risk B** | URL Query String Serializers | Potential Duplication | **Resolved** | Extracted [toQueryString](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/utils/collectionUtils.js#L221) in [collectionUtils.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/utils/collectionUtils.js); unified Analytics and Expense APIs. |
+| **Growth Risk C** | AI Rate Limiting Protection | Security / Reliability | **Resolved** | Implemented dedicated [expenseAgentRateLimiter](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L67), [receiptOcrRateLimiter](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L78), and user-aware [resolveRateLimitKey](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L13). |
+| **Remaining 1** | Root Toast Provider Mount | Architecture Consistency | **Open (Medium/Low Priority)** | [ToastProvider](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/context/ToastContext.jsx) mounted in HandbookLayout; Expense & Auth use local banner state. |
 
 ---
 
-## 2. Confirmed Duplications & Reusable Implementations
+## 2. Re-Audit of Original Findings
 
 ### Finding 1: Private HTTP Request Function in `expenseApi.js` vs Shared `apiClient.js`
-- **Classification**: Confirmed Duplication
-- **Evidence**:
-  - `client/src/services/expenseApi.js` (lines 3–18):
-    ```javascript
-    const request = async (url, options = {}) => {
-      const token = await getAccessToken();
-      const headers = new Headers(options.headers);
-      if (!(options.body instanceof FormData)) headers.set('Content-Type', 'application/json');
-      if (token) headers.set('Authorization', `Bearer ${token}`);
-      const response = await fetch(url, { ...options, headers });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        if (response.status === 401) {
-          await signOut();
-          window.dispatchEvent(new CustomEvent('spendwise:unauthorized'));
-        }
-        throw new Error(body.error || 'Request failed.');
-      }
-      return body;
-    };
-    ```
-  - `client/src/services/apiClient.js` (lines 16–41):
-    ```javascript
-    export async function apiRequest(url, options = {}, fallbackError) {
-      const token = await getAccessToken();
-      const headers = new Headers(options.headers);
-      if (token && !headers.has('Authorization')) {
-        headers.set('Authorization', `Bearer ${token}`);
-      }
-      const res = await fetch(url, { ...options, headers });
-      const data = await res.json().catch(() => ({}));
-      ...
-    }
-    ```
-- **Existing Implementation to Reuse**: [apiClient.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/apiClient.js).
-- **Recommended Action**:
-  - Enhance `apiClient.js` to automatically handle HTTP 401 responses (calling `signOut()` and dispatching the unauthorized event).
-  - Refactor `expenseApi.js` to call `apiRequest` and `apiJsonRequest`, deleting its private `request()` function.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Eliminates 16 lines of boilerplate fetch code.
-  - Ensures all API services (`documentsApi`, `systemPromptApi`, `knowledgeBaseApi`, `analyticsApi`, `expenseApi`) behave consistently upon session expiration (auto-logout on 401).
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [expenseApi.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/expenseApi.js) imports `apiRequest` and `apiJsonRequest` from [apiClient.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/apiClient.js). The private `request()` helper has been completely removed.
+  - [apiClient.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/services/apiClient.js#L5-L20) implements `handleUnauthorized()`, which signs out on HTTP 401 and emits the `spendwise:unauthorized` event with debounce protection.
+- **Architectural Assessment**: Preserves uniform session invalidation across all feature APIs (`documentsApi`, `systemPromptApi`, `knowledgeBaseApi`, `analyticsApi`, and `expenseApi`).
 
 ---
 
 ### Finding 2: Session Subscription and Gate Lifecycle in `AdminSessionGate` and `ExpenseSessionGate`
-- **Classification**: Confirmed Duplication
-- **Evidence**:
-  - `client/src/components/admin/AdminSessionGate.jsx` (lines 28–55):
-    - Checks `!isSupabaseConfigured || !supabase`.
-    - Declares `let active = true`.
-    - Calls `supabase.auth.getSession()` and `supabase.auth.onAuthStateChange()`.
-    - Cleans up with `subscription.unsubscribe()`.
-    - Renders loading fallback: `<main className="admin-gate"><p>Checking administrator access…</p></main>`.
-  - `client/src/components/expense/ExpenseSessionGate.jsx` (lines 12–44):
-    - Checks `!isSupabaseConfigured || !supabase`.
-    - Declares `let active = true`.
-    - Calls `supabase.auth.getSession()` and `supabase.auth.onAuthStateChange()`.
-    - Cleans up with `subscription.unsubscribe()`.
-    - Renders loading fallback: `<main className="expense-shell">...<p>Checking your session…</p></main>`.
-- **Existing Implementation to Reuse**: None; logic is mirrored between the two gates.
-- **Recommended Action**:
-  - Extract a custom hook `useSession({ requiredRole, onUnauthorized })` in `client/src/hooks/useSession.js`.
-  - The hook encapsulates the Supabase auth subscription, active flag, unsubscribe cleanup, and role verification.
-  - Both gates become concise wrappers defining only their page-specific loading markup and destination routes.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Eliminates duplicated reactive session management and edge-case subscription leaks.
-  - Preserves route-specific differences (Admin workspace requires `'admin'` role; Expense workspace allows any authenticated user).
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [useSession.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/hooks/useSession.js) encapsulates Supabase session initialization, auth state change subscription, cleanup on unmount, and unauthorized callbacks.
+  - [AdminSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/AdminSessionGate.jsx#L38-L41) and [ExpenseSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/ExpenseSessionGate.jsx#L28-L31) both call `useSession()`.
+- **Architectural Assessment**: Gates retain their distinct authorization rules (Admin requires `'admin'` metadata role; Expense allows any authenticated user) and domain-specific loading shells without duplicating subscription plumbing.
 
 ---
 
 ### Finding 3: Table Controls in `TransactionTable.jsx` vs Reusable Common Components
-- **Classification**: Confirmed Duplication / Under-reuse
-- **Evidence**:
-  - `client/src/components/expense/TransactionTable.jsx` (lines 111–114, 176–207):
-    - Hand-rolls a sort button: `<button className="sort-button" onClick={toggleAmountSort}>Amount ↕</button>`.
-    - Hand-rolls pagination controls:
-      ```jsx
-      <footer className="pagination">
-        <span>{data.total} transaction{data.total === 1 ? '' : 's'}</span>
-        <div>
-          <button disabled={data.page <= 1} onClick={...}>Previous</button>
-          <span>Page {data.page}</span>
-          <button disabled={data.page * data.pageSize >= data.total} onClick={...}>Next</button>
-        </div>
-      </footer>
-      ```
-  - Meanwhile, [DocumentTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/DocumentTable.jsx), [AnalyticsHistoryTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/analytics/AnalyticsHistoryTable.jsx), and [ChunkReview.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/ChunkReview.jsx) all reuse:
-    - [Pagination.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/Pagination.jsx)
-    - [SortableHeader.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SortableHeader.jsx)
-    - [SearchInput.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SearchInput.jsx)
-- **Existing Implementation to Reuse**: `client/src/components/common/Pagination.jsx` and `SortableHeader.jsx`.
-- **Recommended Action**:
-  - Replace the custom pagination markup in `TransactionTable.jsx` with `<Pagination page={data.page} limit={data.pageSize} total={data.total} onPageChange={...} />`.
-  - Replace `<button className="sort-button">` with `<SortableHeader columnKey="amount" currentSortKey={filters.sortBy} currentDirection={filters.sortOrder} onSort={...}>Amount</SortableHeader>`.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Aligns keyboard navigation, ARIA attributes, and disabled states across the entire application.
-  - Reuses existing CSS classes from `tables.css`.
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [TransactionTable.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionTable.jsx) imports and renders:
+    - [SearchInput.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SearchInput.jsx) for merchant/note filtering.
+    - [SortableHeader.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/SortableHeader.jsx) on `Date` and `Amount` headers.
+    - [Pagination.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/common/Pagination.jsx) with total item count and responsive page navigation.
+  - Server-side query coordinates sorting and pagination at the HTTP boundary, avoiding accidental client-side sorting of paginated slices.
+- **Architectural Assessment**: Visual styling, keyboard accessibility, and ARIA attributes are aligned across admin and expense tables without generic over-abstraction.
 
 ---
 
 ### Finding 4: Form Input Markup Across `TransactionForm`, `ReceiptReview`, and Assistant `Proposal`
-- **Classification**: Confirmed Duplication
-- **Evidence**:
-  - `client/src/components/expense/TransactionForm.jsx` (lines 53–85):
-    - Renders inputs for: `type`, `amount`, `date`, `category`, `merchant`, `note`.
-  - `client/src/components/expense/ReceiptReview.jsx` (lines 62–98):
-    - Renders inputs for: `type`, `amount`, `date`, `category`, `merchant`, `note`.
-  - `client/src/components/expense/AiExpenseAssistant.jsx` (lines 127–167, `Proposal` subcomponent):
-    - Renders inputs for: `type`, `amount`, `date`, `category`, `merchant`, `note`.
-  - Each of the three independently calls `categoriesForType(EXPENSE_CATEGORIES, type)`, sets up change handlers, and formats numeric input.
-- **Existing Implementation to Reuse**: [TransactionForm.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionForm.jsx).
-- **Recommended Action**:
-  - Extract a shared presentational component `TransactionFields.jsx` in `client/src/components/expense/TransactionFields.jsx`.
-  - `TransactionForm`, `ReceiptReview`, and `Proposal` supply their own wrapper buttons and submission handlers while sharing the form fields.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Eliminates 3x duplication of the 6 core transaction inputs.
-  - Prevents discrepancies where a new category or validation rule is added to one form but forgotten in the others.
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [TransactionFields.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionFields.jsx) and [transactionFields.utils.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/transactionFields.utils.js) centralize the 6 financial input fields (`type`, `amount`, `date`, `category`, `merchant`, `note`), category-per-type transitions, and field validations.
+  - Reused across:
+    - [TransactionForm.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/TransactionForm.jsx#L39-L43) (modal creation & editing).
+    - [ReceiptReview.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/ReceiptReview.jsx#L64-L71) (receipt image draft confirmation).
+    - [AiExpenseAssistant.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/AiExpenseAssistant.jsx#L123-L132) (AI proposal review card).
+- **Architectural Assessment**: Form submission, receipt confirmation, and AI proposal lifecycles remain completely decoupled while eliminating field-level divergence.
 
 ---
 
 ### Finding 5: AI Client Initialization & Telemetry Tracking in `geminiExpenseAgent.js`
-- **Classification**: Confirmed Architecture Duplication & Telemetry Gap
-- **Evidence**:
-  - `server/src/shared/integrations/ai/providers/geminiProvider.js` (lines 15–23, 35–92):
-    - Centralizes `new GoogleGenAI({ apiKey: config.geminiApiKey })`.
-    - Wraps operations in `executeWithRetry()` handling transient 429/503 errors.
-    - Captures `tokenUsage`, latency, attempts, and calls `recordUsage()`.
-  - `server/src/features/expenseAgent/geminiExpenseAgent.js` (lines 62–66, 101–124):
-    - Creates its own independent client: `new GoogleGenAI({ apiKey: config.geminiApiKey })`.
-    - Uses plain `withTimeout()` without retry for transient quota errors.
-    - **Does not invoke `recordUsage()`**. The two Gemini calls made during every assistant invocation (function calling + summary generation) are completely invisible in the admin analytics dashboard!
-- **Existing Implementation to Reuse**: `server/src/shared/integrations/ai/providers/geminiProvider.js` and `server/src/features/analytics/usageTracker.js`.
-- **Recommended Action**:
-  - Expose a multi-tool agent execution helper in `server/src/shared/integrations/ai/index.js` or wrap `runGeminiExpenseAgent` with `recordUsage()`.
-  - Reuse `getAIClient()` and retry utilities from `geminiProvider.js`.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Brings full telemetry visibility to the SpendWise Assistant.
-  - Ensures resilient error handling and consistent API key verification across all AI features.
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [geminiExpenseAgent.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/features/expenseAgent/geminiExpenseAgent.js#L63-L66) reuses `getAIClient()` and `executeWithRetry()` from the shared AI integration layer.
+  - Every agent request (tool selection step and summary step) invokes `safeRecordUsage()`, logging duration, attempts, prompt hash, outcomes, and token usage into the admin telemetry system.
+- **Architectural Assessment**: Eliminates independent client instantiation and provides full observability for Expense Assistant interactions in the admin analytics dashboard.
 
 ---
 
 ### Finding 6: Ad-hoc Database Error Wrapping in Expense Services
-- **Classification**: Confirmed Duplication
-- **Evidence**:
-  - `server/src/features/expenses/expenses.service.js` (lines 19–27):
-    ```javascript
-    function databaseError(error, operation = 'database operation') {
-      console.error(`[ExpenseService] ${operation} failed`, { ... });
-      return new AppError('Expense persistence is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-    }
-    ```
-  - `server/src/features/expenses/receipt.service.js` (lines 12–22):
-    ```javascript
-    function dbError(operation, error) {
-      console.error(`[ReceiptService] ${operation} failed`, { ... });
-      return new AppError('Receipt service is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-    }
-    ```
-- **Existing Implementation to Reuse**: [AppError.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/errors/AppError.js) exports `DatabaseError`.
-- **Recommended Action**:
-  - Consolidate error logging and conversion into a shared helper `handleDatabaseError(error, context)` or standardize on `new DatabaseError()`.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Avoids repeating identical `console.error` metadata structuring across service files.
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [AppError.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/errors/AppError.js#L78-L111) defines `DatabaseError` (HTTP 500, operational) and `handleDatabaseError(serviceName, operation, error, clientMessage)`.
+  - Re-exported from [server/src/shared/errors/index.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/errors/index.js#L8-L9).
+  - [expenses.service.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/features/expenses/expenses.service.js#L18-L20) and [receipt.service.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/features/expenses/receipt.service.js#L22-L24) delegate to `handleDatabaseError`.
+- **Architectural Assessment**: Standardizes server-side Postgres diagnostic logging (`code`, `message`, `details`, `hint`) while consistently shielding internal database details from client responses.
 
 ---
 
 ### Finding 7: Email and Password Validation Logic in Auth Components
-- **Classification**: Confirmed Duplication
+- **Classification**: **Resolved**
+- **Verification Evidence**:
+  - [AuthPage.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/auth/AuthPage.jsx#L11) imports `validateEmail` and `validateStringLength` from [validation.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/utils/validation.js) and applies them in `validate(form, mode)`.
+  - [ResetPasswordPage.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/auth/ResetPasswordPage.jsx#L4) imports and applies `validateStringLength` for password length validation.
+- **Architectural Assessment**: Eliminates duplicate inline regular expressions and aligns client validation rules with tested utilities.
+
+---
+
+## 3. Prioritized Remaining Opportunities & Growth Risks
+
+### Growth Risk C: AI Rate Limiting for Expense Agent & Receipt Upload
+- **Current Status**: **Resolved**
+- **Verification Evidence**:
+  - [rateLimiter.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js) implements dedicated limiters:
+    - [chatRateLimiter](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L56) (30 req / min) for Handbook chat & streams.
+    - [expenseAgentRateLimiter](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L67) (30 req / min) protecting `/api/expense-agent/search`, `/summary`, `/assistant`, and `/create-proposal`.
+    - [receiptOcrRateLimiter](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L78) (15 req / min) protecting `/api/receipts/upload` (evaluated before multer file ingestion) and `/api/receipts/:id/retry`.
+  - [resolveRateLimitKey](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/rateLimiter.js#L13) keys authenticated users by `user:<id>` so callers receive dedicated quotas without IP collision, falling back to IPv6-normalized client IPs for guests.
+  - Limits are configured in [RATE_LIMIT_CONFIG](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/constants/config.js#L70) and exposed via [config.rateLimits](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/config.js#L35).
+
+---
+
+### Remaining Issue 1 (Medium / Low Priority): Root Mount of `ToastProvider`
+- **Current Status**: **Still Unconsolidated / Architecture Consistency**
 - **Evidence**:
-  - `client/src/components/auth/AuthPage.jsx` (lines 14, 27–34):
-    ```javascript
-    const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!EMAIL_PATTERN.test(form.email)) errors.email = 'Enter a valid email address.';
-    if (mode !== 'forgot' && form.password.length < 8) errors.password = 'Use at least 8 characters.';
-    ```
-  - `client/src/components/auth/ResetPasswordPage.jsx` (lines 40–47):
-    ```javascript
-    if (password.length < 8) { setError('Use at least 8 characters.'); return; }
-    if (password !== confirmation) { setError('Passwords do not match.'); return; }
-    ```
-  - `client/src/utils/validation.js` (lines 52–83):
-    - Already defines and tests `validateEmail(value)` and `validateStringLength(value, { min: 8 })`.
-- **Existing Implementation to Reuse**: [validation.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/utils/validation.js).
+  - [ToastProvider](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/context/ToastContext.jsx#L9) is mounted only inside [HandbookLayout.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/HandbookLayout.jsx#L28).
+  - Expense Tracker views (`ExpenseTrackerApp`) and Auth views (`AuthPage`) manage local error and notification banner state (`<div className="expense-banner">{error}</div>`).
 - **Recommended Action**:
-  - Import `validateEmail` and `validateStringLength` from `client/src/utils/validation.js` in `AuthPage.jsx` and `ResetPasswordPage.jsx`.
-- **Why This Reduces Duplication Without Premature Abstraction**:
-  - Reuses existing tested utility functions and eliminates redundant regex declarations.
+  - Mount `ToastProvider` at root level in `App.jsx` to allow transient feedback (e.g., "Transaction saved", "Receipt deleted") to persist across route navigations if desired.
+  - Keep inline validation error messages next to form fields (do not replace field errors with toasts).
 
 ---
 
-## 3. Potential Shared Capabilities (Growth Risks)
-
-| Capability Area | Current State & Evidence | Risk Assessment | Recommended Future Action |
-| :--- | :--- | :--- | :--- |
-| **Toast Notifications vs Local Error Banners** | `ToastProvider` is only mounted in `HandbookLayout.jsx`. `ExpenseTrackerApp` and `AuthPage` use local state error banners (`{error && <div className="expense-banner">{error}</div>}`). | Moderate: Notifications cannot cross page transitions or provide unified timing. | Mount `ToastProvider` at root `App.jsx` level so all views can call `useToast()`. |
-| **Backend Query Pagination Coercion** | `knowledgeBase.schemas.js` uses `.transform(parseIntegerParam)`; `analytics.schemas.js` uses `z.preprocess`; `expenses.schemas.js` uses `z.coerce.number()`. | Moderate: Slight behavioral differences in how invalid strings or arrays are clamped. | Extract `zodPaginationQuerySchema({ defaultLimit, maxLimit })` into `validateRequest.js`. |
-| **AI Rate Limiting** | `chatRateLimiter` (30 req/min) protects `/api/user/chat` and `/stream`. But `/api/expense-agent/*` and `/api/receipts/upload` are only covered by general `apiRateLimiter` (300 req/15 min). | High: Multi-tool expense agent calls Gemini twice per request; vulnerable to rapid quota exhaustion. | Apply `chatRateLimiter` to `/api/expense-agent/*` and `/api/receipts/upload`. |
-| **Loading / Empty States in Tables** | `DocumentTable`, `TransactionTable`, `AnalyticsHistoryTable`, and `ChunkReview` all render inline `<tr><td className="empty">Loading...</td></tr>` or `<div className="empty-state">`. | Low: Minor cosmetic divergence in spinner markup and empty messages. | Keep separate for now; table and card list layouts differ in markup requirements. |
-| **Drawer vs Modal Backdrop** | `Drawer.jsx` is used for Admin Knowledge panels. `AiExpenseAssistant` and `TransactionForm` use custom CSS classes (`.expense-modal-backdrop`, `.agent-drawer`). | Low: Admin drawer is slide-out from right; transaction form is a centered modal dialog. | Keep separate. Centered modal and slide-out drawer have different UX purposes. |
-| **URL Query String Serializers** | `analyticsApi.js` defines `buildFilterQueryString()`. `expenseApi.js` defines inline `Object.fromEntries(Object.entries(query).filter(...))`. | Low: Both convert filter objects to URL query strings. | A simple pure utility `toQueryString(params)` in `client/src/utils/collectionUtils.js` could replace both. |
+### Reclassified: Items No Longer Recommended for Consolidation
+1. **Loading / Empty States in Tables**:
+   - *Status*: **No longer recommended for abstraction**.
+   - *Rationale*: Table rows (`<tr><td className="empty">...</td></tr>`), card lists, and chat cards have distinct DOM semantics and layout constraints. Forcing a generic wrapper would add JSX indirection without meaningful maintenance benefits.
+2. **Drawer vs Modal Backdrop**:
+   - *Status*: **Intentional Separation**.
+   - *Rationale*: Admin drawer is a persistent right slide-out panel allowing background inspection, while the expense transaction modal is an accessible dialog requiring focal trap and backdrop click-dismissal.
 
 ---
 
-## 4. Intentional Separations (Do Not Merge)
+## 4. Intentional Architectural Separations (Preserve Boundaries)
 
 1. **Demo Role Switching (`/demo`, `/handbook`) vs Real Account Role Management (`set-user-role.js`)**:
-   - *Why Separate*: Demo mode is a client presentation feature that toggles local React state (`internalRole`) without active credentials. Real account role management alters Supabase `app_metadata.role` using server-side service credentials. Merging them or allowing demo toggles to modify tokens would create a severe privilege escalation vulnerability.
+   - Demo mode is a client presentation feature that toggles local React state without active credentials. Real account role management alters Supabase `app_metadata.role` using server-side service credentials. These must never be unified.
 2. **Handbook RAG Chunks vs Expense Receipts Storage**:
-   - *Why Separate*: Handbook chunks are vectorized in Qdrant Cloud using 3072-dim embeddings for semantic similarity search over static institutional documents. Receipts are user-owned multimodal images stored in Supabase Storage with metadata in PostgreSQL RLS tables. Their lifecycle, ownership, query mechanisms, and retention rules are fundamentally different.
+   - Handbook chunks are vectorized in Qdrant Cloud using 3072-dim embeddings for semantic similarity search over static institutional documents. Receipts are user-owned multimodal images stored in Supabase Storage with metadata in PostgreSQL RLS tables. Lifecycle and retention rules are fundamentally different.
 3. **Admin Analytics (`ai_usage_analytics`) vs Personal Expense Transactions (`expense_transactions`)**:
-   - *Why Separate*: AI usage analytics is system telemetry tracking model costs, latencies, and tokens for administrators. Expense transactions represent private student financial data protected by strict user-level RLS. Sharing database structures or query handlers would violate tenant isolation.
+   - AI usage analytics is system telemetry tracking model costs and latencies for administrators. Expense transactions represent private student financial data protected by strict user-level RLS. Sharing database structures or query handlers would violate tenant isolation.
+
+---
+
+## 5. Verification Matrix & Health Status
+
+| Check | Target / Suite | Command | Observed Result |
+| :--- | :--- | :--- | :--- |
+| **Focused Unit Tests** | AI Rate Limiting Suite | `node --test tests/unit/aiRateLimiter.test.js` | **14 passed, 0 failed** (Quotas, limit exhaustion, user isolation, route stacks) |
+| **Focused Unit Tests** | Shared Duplications Refactor | `node --test tests/unit/sharedDuplicationRefactor.test.js` | **13 passed, 0 failed** (Database errors, Zod pagination bounds, query string) |
+| **All Unit Tests** | Full Client & Server Suite | `npm run test:unit` | **275 passed, 0 failed (34 suites)** |
+| **All Integration Tests** | Full Pipeline Suite | `npm run test:integration` | **31 passed, 0 failed (10 suites)** |
+| **Import Integrity** | Server, Client, Tests | `node check_imports.js` | **0 broken imports** across all folders |
+| **Circular Dependencies** | Full Dependency Graph | `node detect_cycles.js` / `check_client_cycles.js` | **0 cycles detected (Clean DAG)** |
+| **Frontend Production Build** | Vite Client Bundle | `npm --prefix client run build` | **Built cleanly in 11.82s, 0 errors** |
+| **Whitespace / Lint Diff** | Working Tree | `git diff --check` | **Clean, 0 errors / warnings** |
+| **Git Safety** | Working Tree & Remote | `git status` | **No commits or pushes performed** |

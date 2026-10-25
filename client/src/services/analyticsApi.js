@@ -1,5 +1,6 @@
 import { API_ENDPOINTS } from '../constants';
 import { apiRequest } from './apiClient';
+import { toQueryString } from '../utils/collectionUtils';
 
 /**
  * Builds a query string from filter options.
@@ -8,35 +9,7 @@ import { apiRequest } from './apiClient';
  * @returns {string}
  */
 function buildFilterQueryString(filters = {}) {
-  const params = new URLSearchParams();
-
-  if (filters.timeRange && filters.timeRange !== 'all') {
-    params.set('timeRange', filters.timeRange);
-  }
-  if (filters.startDate) {
-    params.set('startDate', filters.startDate);
-  }
-  if (filters.endDate) {
-    params.set('endDate', filters.endDate);
-  }
-  if (filters.feature && filters.feature !== 'all') {
-    params.set('feature', filters.feature);
-  }
-  if (filters.model && filters.model !== 'all') {
-    params.set('model', filters.model);
-  }
-  if (filters.outcome && filters.outcome !== 'all') {
-    params.set('outcome', filters.outcome);
-  }
-  if (filters.page) {
-    params.set('page', String(filters.page));
-  }
-  if (filters.limit) {
-    params.set('limit', String(filters.limit));
-  }
-
-  const qs = params.toString();
-  return qs ? `?${qs}` : '';
+  return toQueryString(filters, { ignoreValues: ['', null, undefined, 'all'] });
 }
 
 /**

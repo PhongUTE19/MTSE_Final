@@ -67,3 +67,45 @@ export class TooManyRequestsError extends AppError {
     super(message, statusCode);
   }
 }
+
+/**
+ * Operational error thrown when database persistence operations fail (500).
+ * Preserves safe client message while attaching underlying error details for diagnostic logging.
+ */
+export class DatabaseError extends AppError {
+  /**
+   * @param {string} [message='Database operation is temporarily unavailable.']
+   * @param {Error|object|null} [originalError=null]
+   * @param {number} [statusCode=HTTP_STATUS.INTERNAL_SERVER_ERROR]
+   */
+  constructor(message = 'Database operation is temporarily unavailable.', originalError = null, statusCode = HTTP_STATUS.INTERNAL_SERVER_ERROR) {
+    super(message, statusCode);
+    this.originalError = originalError;
+  }
+}
+
+/**
+ * Logs structured database error diagnostics and returns a sanitized DatabaseError.
+ * Keeps provider and database internals out of the browser while keeping production
+ * failures fully diagnosable from server logs.
+ *
+ * @param {string} serviceName - e.g. 'ExpenseService' or 'ReceiptService'
+ * @param {string} operation - Operation description, e.g. 'Insert transaction'
+ * @param {Error|object} error - Underlying PostgREST/Supabase error
+ * @param {string} [clientMessage='Database operation is temporarily unavailable.']
+ * @returns {DatabaseError}
+ */
+export function handleDatabaseError(
+  serviceName,
+  operation,
+  error,
+  clientMessage = 'Database operation is temporarily unavailable.'
+) {
+  console.error(`[${serviceName}] ${operation} failed`, {
+    code: error?.code ?? null,
+    message: error?.message ?? null,
+    details: error?.details ?? null,
+    hint: error?.hint ?? null,
+  });
+  return new DatabaseError(clientMessage, error);
+}

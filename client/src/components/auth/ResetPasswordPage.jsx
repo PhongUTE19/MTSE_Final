@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { APP_ROUTES } from '../../constants';
 import { appUrl, exchangeCodeForSessionFromUrl, isSupabaseConfigured, supabase } from '../../services/supabaseAuth';
 import { validateStringLength } from '../../utils/validation';
+import { AUTH_LABELS, AUTH_MODES } from './authConstants';
 import PasswordField from './PasswordField';
 import './auth.css';
 
@@ -39,15 +41,15 @@ export default function ResetPasswordPage() {
     setError('');
     setMessage('');
     if (!validateStringLength(password, { min: 8, trim: false }).isValid) {
-      setError('Use at least 8 characters.');
+      setError(AUTH_LABELS.VALIDATION.PASSWORD_LENGTH);
       return;
     }
     if (password !== confirmation) {
-      setError('Passwords do not match.');
+      setError(AUTH_LABELS.VALIDATION.PASSWORD_MISMATCH);
       return;
     }
     if (!isSupabaseConfigured || !supabase) {
-      setError('Authentication has not been configured for this environment.');
+      setError(AUTH_LABELS.NOTICES.NOT_CONFIGURED_GENERIC);
       return;
     }
     if (!ready) {
@@ -63,7 +65,7 @@ export default function ResetPasswordPage() {
       }
       setCompleted(true);
       setMessage('Password updated. Redirecting you to sign in…');
-      window.setTimeout(() => window.location.replace(appUrl('/auth?reset=success')), 1200);
+      window.setTimeout(() => window.location.replace(appUrl(`${APP_ROUTES.AUTH}?reset=success`)), 1200);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'We could not update your password. Please try again.');
     } finally {
@@ -76,7 +78,7 @@ export default function ResetPasswordPage() {
   return (
     <main className="auth-content auth-standalone">
       <section className="auth-card">
-        <p className="auth-kicker">ACCOUNT RECOVERY</p>
+        <p className="auth-kicker">{AUTH_LABELS.KICKERS[AUTH_MODES.FORGOT]}</p>
         <h1>Choose a new password</h1>
         <p className="auth-copy">Use a password with at least eight characters.</p>
 
@@ -114,7 +116,7 @@ export default function ResetPasswordPage() {
         </form>
 
         <p className="auth-switch">
-          <Link to="/auth">Return to sign in</Link>
+          <Link to={APP_ROUTES.AUTH}>Return to sign in</Link>
         </p>
       </section>
     </main>

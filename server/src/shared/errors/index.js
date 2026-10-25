@@ -5,4 +5,6 @@ export {
   UnauthorizedError,
   ForbiddenError,
   TooManyRequestsError,
+  DatabaseError,
+  handleDatabaseError,
 } from './AppError.js';

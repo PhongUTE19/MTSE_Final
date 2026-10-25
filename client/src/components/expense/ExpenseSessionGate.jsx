@@ -1,10 +1,11 @@
 import React, { useCallback } from 'react';
 import ExpenseTrackerApp from './ExpenseTrackerApp';
+import { APP_ROUTES } from '../../constants';
 import { appUrl, safeNextPath, signOut } from '../../services/supabaseAuth';
 import { useSession } from '../../hooks';
 
 function redirectToSignIn() {
-  window.location.replace(`${appUrl('/auth')}?next=${encodeURIComponent(safeNextPath(window.location.pathname))}`);
+  window.location.replace(`${appUrl(APP_ROUTES.AUTH)}?next=${encodeURIComponent(safeNextPath(window.location.pathname))}`);
 }
 
 export default function ExpenseSessionGate() {

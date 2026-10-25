@@ -90,26 +90,26 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
     it('returns grounded answer with sources and complete diagnostics for in-scope query', async () => {
       const mockChunks = [
         {
-          id: 'KB-A_Lumen-Institute-Student-Handbook_sec2',
-          title: '2. Programs at a Glance',
+          id: 'spendwise_user_guide_sec2',
+          title: '2. Platform Features at a Glance',
           sectionNumber: 2,
-          sectionTitle: 'Programs at a Glance',
-          source: 'KB-A_Lumen-Institute-Student-Handbook.md',
+          sectionTitle: 'Platform Features at a Glance',
+          source: 'spendwise_user_guide.md',
           score: 0.7313,
-          content: '| Tuition per semester | 42,000,000 VND | 58,000,000 VND |',
+          content: '| Maximum Attachment Size | N/A | 5 MB |',
         },
       ];
 
       const res = await simulateChatProcess({
-        query: 'What is the tuition fee per semester for the Honors Program?',
+        query: 'What is the maximum attachment size for receipts?',
         mockRetrievedChunks: mockChunks,
-        mockLLMAnswer: 'The tuition per semester for the Honors Program is 58,000,000 VND.',
+        mockLLMAnswer: 'The maximum attachment size for receipts is 5 MB.',
         similarityThreshold: 0.60,
       });
 
-      assert.ok(res.answer.includes('58,000,000 VND'));
+      assert.ok(res.answer.includes('5 MB'));
       assert.equal(res.sources.length, 1);
-      assert.equal(res.sources[0].id, 'KB-A_Lumen-Institute-Student-Handbook_sec2');
+      assert.equal(res.sources[0].id, 'spendwise_user_guide_sec2');
 
       assert.ok(res.retrieval, 'Retrieval diagnostics must be present');
       assert.equal(res.retrieval.retrievedChunks.length, 1);
@@ -122,13 +122,13 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
     it('rejects out-of-scope query, keeps sources empty, but preserves inspectable chunks', async () => {
       const mockOutChunks = [
         {
-          id: 'KB-A_Lumen-Institute-Student-Handbook_sec8',
-          title: '8. Dormitory',
+          id: 'spendwise_user_guide_sec8',
+          title: '8. Vector Indexing and Qdrant Search',
           sectionNumber: 8,
-          sectionTitle: 'Dormitory',
-          source: 'KB-A_Lumen-Institute-Student-Handbook.md',
+          sectionTitle: 'Vector Indexing and Qdrant Search',
+          source: 'spendwise_user_guide.md',
           score: 0.4903,
-          content: 'Curfew in both blocks is 23:00...',
+          content: 'Vector index configuration details...',
         },
       ];
 

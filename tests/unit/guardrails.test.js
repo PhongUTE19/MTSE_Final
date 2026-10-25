@@ -142,17 +142,15 @@ describe('Guardrails Comprehensive Test Suite', () => {
       }
     });
 
-    it('treats valid university and student handbook inquiries as in-scope', () => {
+    it('treats valid SpendWise and expense inquiries as in-scope', () => {
       const inScopeQueries = [
-        'What is the tuition fee for the Honors Program?',
-        'Can I pay tuition in monthly installments?',
-        'What is the dormitory curfew for undergraduate students?',
-        'How many credits can I take in a semester?',
-        'What happens if I miss a final exam due to medical reasons?',
-        'What is the minimum GPA required to maintain a scholarship?',
-        'How much is the fine for overdue library books?',
-        'What is linear algebra?',
-        'What is quantum mechanics?',
+        'How do I record a new expense transaction?',
+        'Can I upload a receipt image in SpendWise?',
+        'What categories are available for spending?',
+        'How does OCR extract amounts from a receipt?',
+        'How do I view my spending analytics and budget?',
+        'What is the token usage limit for AI queries?',
+        'Can SpendWise track monthly income and expenses?',
       ];
 
       for (const query of inScopeQueries) {
@@ -259,9 +257,18 @@ describe('Guardrails Comprehensive Test Suite', () => {
       assert.equal(formatSafeErrorMessage(timeoutError), SERVER_MESSAGES.ERRORS.AI_TIMEOUT);
     });
 
+    const mockRagExecutor = async () => ({
+      status: 'SUFFICIENT',
+      passedThreshold: true,
+      sources: [{ id: 'sec1', title: 'SpendWise Guide', score: 0.85 }],
+      retrieval: { similarityThreshold: 0.6, bestScore: 0.85, retrievedChunks: [], usedChunks: [] },
+      prompt: 'Context for SpendWise',
+    });
+
     it('orchestrateChat safely handles empty generator responses with fallback text', async () => {
       const mockEmptyGenerator = async () => '';
-      const response = await orchestrateChat('What is the tuition fee?', {
+      const response = await orchestrateChat('What is an expense transaction?', {
+        ragExecutor: mockRagExecutor,
         llmGenerator: mockEmptyGenerator,
       });
 
@@ -278,9 +285,10 @@ describe('Guardrails Comprehensive Test Suite', () => {
       }
 
       await orchestrateChatStream(
-        'What is the tuition fee?',
+        'What is an expense transaction?',
         emit,
         {
+          ragExecutor: mockRagExecutor,
           llmStreamGenerator: async () => failingStream(),
         }
       );
@@ -311,10 +319,11 @@ describe('Guardrails Comprehensive Test Suite', () => {
       }
 
       await orchestrateChatStream(
-        'What is the tuition fee?',
+        'What is an expense transaction?',
         emit,
         {
           signal: controller.signal,
+          ragExecutor: mockRagExecutor,
           llmStreamGenerator: async () => infiniteStream(),
         }
       );

@@ -8,43 +8,40 @@ import {
   safeNextPath,
   supabase,
 } from '../../services/supabaseAuth';
+import { APP_ROUTES } from '../../constants';
 import { validateEmail, validateStringLength } from '../../utils/validation';
+import { GoogleMark } from '../common/Icons';
 import PasswordField from './PasswordField';
+import { AUTH_LABELS, AUTH_MODES } from './authConstants';
 import './auth.css';
-
-function GoogleMark() {
-  return (
-    <svg className="auth-google-mark" viewBox="0 0 24 24" aria-hidden="true">
-      <path fill="#4285f4" d="M21.35 12.23c0-.71-.06-1.4-.19-2.05H12v3.88h5.24a4.48 4.48 0 0 1-1.94 2.94v2.52h3.15c1.84-1.69 2.9-4.18 2.9-7.29Z" />
-      <path fill="#34a853" d="M12 21.75c2.62 0 4.83-.87 6.45-2.36L15.3 16.9c-.9.6-2.05.96-3.3.96-2.53 0-4.67-1.7-5.44-4H3.3v2.6A9.75 9.75 0 0 0 12 21.75Z" />
-      <path fill="#fbbc05" d="M6.56 13.86a5.87 5.87 0 0 1 0-3.72V7.55H3.3a9.75 9.75 0 0 0 0 8.9l3.26-2.59Z" />
-      <path fill="#ea4335" d="M12 6.14c1.43 0 2.71.49 3.72 1.46l2.79-2.79C16.82 3.22 14.62 2.25 12 2.25a9.75 9.75 0 0 0-8.7 5.3l3.26 2.59c.77-2.3 2.91-4 5.44-4Z" />
-    </svg>
-  );
-}
 
 function validate(form, mode) {
   const errors = {};
-  if (mode === 'signup' && !form.name.trim()) errors.name = 'Enter the name you want to use in Spendwise.';
-  if (!validateEmail(form.email).isValid) errors.email = 'Enter a valid email address.';
-  if (mode !== 'forgot' && !validateStringLength(form.password, { min: 8, trim: false }).isValid) {
-    errors.password = 'Use at least 8 characters.';
+  if (mode === AUTH_MODES.SIGNUP && !form.name.trim()) errors.name = AUTH_LABELS.VALIDATION.NAME_REQUIRED;
+  if (!validateEmail(form.email).isValid) errors.email = AUTH_LABELS.VALIDATION.EMAIL_INVALID;
+  if (mode !== AUTH_MODES.FORGOT && !validateStringLength(form.password, { min: 8, trim: false }).isValid) {
+    errors.password = AUTH_LABELS.VALIDATION.PASSWORD_LENGTH;
   }
-  if (mode === 'signup' && form.password !== form.confirmPassword) errors.confirmPassword = 'Passwords do not match.';
+  if (mode === AUTH_MODES.SIGNUP && form.password !== form.confirmPassword) {
+    errors.confirmPassword = AUTH_LABELS.VALIDATION.PASSWORD_MISMATCH;
+  }
   return errors;
 }
 
 export default function AuthPage() {
   const [mode, setMode] = useState(
-    new URLSearchParams(window.location.search).get('mode') === 'signup' ? 'signup' : 'signin'
+    new URLSearchParams(window.location.search).get('mode') === AUTH_MODES.SIGNUP
+      ? AUTH_MODES.SIGNUP
+      : AUTH_MODES.SIGNIN
   );
   const [form, setForm] = useState({ name: '', email: '', password: '', confirmPassword: '' });
   const [errors, setErrors] = useState({});
   const [notice, setNotice] = useState(
     new URLSearchParams(window.location.search).get('reset') === 'success'
-      ? 'Password updated. Sign in using your new password.'
+      ? AUTH_LABELS.NOTICES.RESET_SUCCESS
       : ''
   );
+
   const [loading, setLoading] = useState(false);
   const nextParam = new URLSearchParams(window.location.search).get('next');
   const nextPath = safeNextPath(nextParam);
@@ -87,34 +84,32 @@ export default function AuthPage() {
     setNotice('');
     if (Object.keys(nextErrors).length) return;
     if (!isSupabaseConfigured || !supabase) {
-      setNotice(
-        'Authentication is not configured for this environment. Add the public VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY variables to enable sign-in.'
-      );
+      setNotice(AUTH_LABELS.NOTICES.NOT_CONFIGURED);
       return;
     }
     setLoading(true);
     try {
       if (isForgot) {
         const { error: requestError } = await supabase.auth.resetPasswordForEmail(form.email, {
-          redirectTo: appUrl('/reset-password'),
+          redirectTo: appUrl(APP_ROUTES.RESET_PASSWORD),
         });
-        if (requestError) setNotice(formatAuthError(requestError, 'forgot'));
-        else setNotice('If an account exists for that email, a password-reset link has been sent.');
+        if (requestError) setNotice(formatAuthError(requestError, AUTH_MODES.FORGOT));
+        else setNotice(AUTH_LABELS.NOTICES.RESET_LINK_SENT);
       } else if (isSignUp) {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email: form.email,
           password: form.password,
           options: {
             data: { display_name: form.name.trim() },
-            emailRedirectTo: appUrl('/auth/callback'),
+            emailRedirectTo: appUrl(APP_ROUTES.AUTH_CALLBACK),
           },
         });
 
         if (signUpError) {
-          setNotice(formatAuthError(signUpError, 'signup'));
+          setNotice(formatAuthError(signUpError, AUTH_MODES.SIGNUP));
         } else if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           // Account already exists in Supabase Auth (obfuscated identity response)
-          setNotice('An account with this email address already exists. Please sign in or reset your password.');
+          setNotice(AUTH_LABELS.NOTICES.ACCOUNT_EXISTS);
         } else if (data?.session) {
           // Reliable role resolution from trusted app_metadata
           const role = getUserRole(data.session);
@@ -122,7 +117,7 @@ export default function AuthPage() {
           window.location.replace(appUrl(destination));
         } else {
           // Email confirmation is required; do not treat user as authenticated
-          setNotice('Check your email to confirm your account before signing in.');
+          setNotice(AUTH_LABELS.NOTICES.CONFIRM_EMAIL);
         }
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({
@@ -130,7 +125,7 @@ export default function AuthPage() {
           password: form.password,
         });
         if (signInError) {
-          setNotice(formatAuthError(signInError, 'signin'));
+          setNotice(formatAuthError(signInError, AUTH_MODES.SIGNIN));
         } else {
           const role = getUserRole(data?.session);
           const destination = getPostAuthPath(role, nextParam);
@@ -147,29 +142,26 @@ export default function AuthPage() {
   async function signInWithGoogle() {
     setNotice('');
     if (!isSupabaseConfigured || !supabase) {
-      setNotice('Authentication is not configured for this environment.');
+      setNotice(AUTH_LABELS.NOTICES.NOT_CONFIGURED_GENERIC);
       return;
     }
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: `${appUrl('/auth/callback')}?next=${encodeURIComponent(nextPath)}` },
+        options: { redirectTo: `${appUrl(APP_ROUTES.AUTH_CALLBACK)}?next=${encodeURIComponent(nextPath)}` },
       });
-      if (error) setNotice(formatAuthError(error, 'signin'));
+      if (error) setNotice(formatAuthError(error, AUTH_MODES.SIGNIN));
     } catch (authError) {
-      setNotice(formatAuthError(authError, 'signin'));
+      setNotice(formatAuthError(authError, AUTH_MODES.SIGNIN));
     } finally {
       setLoading(false);
     }
   }
 
-  const title = isForgot ? 'Reset your password' : isSignUp ? 'Create your workspace' : 'Welcome back';
-  const description = isForgot
-    ? 'Enter your email and we’ll send a secure reset link.'
-    : isSignUp
-      ? 'Set up your Spendwise workspace in a few moments.'
-      : 'Sign in to continue managing your money with confidence.';
+  const title = AUTH_LABELS.TITLES[mode] || AUTH_LABELS.TITLES[AUTH_MODES.SIGNIN];
+  const description = AUTH_LABELS.DESCRIPTIONS[mode] || AUTH_LABELS.DESCRIPTIONS[AUTH_MODES.SIGNIN];
+  const kicker = AUTH_LABELS.KICKERS[mode] || AUTH_LABELS.KICKERS[AUTH_MODES.SIGNIN];
 
   return (
     <main className="auth-page">
@@ -203,7 +195,7 @@ export default function AuthPage() {
         </div>
         <div className="auth-card">
           <div className="auth-card__header">
-            <p className="auth-kicker">{isForgot ? 'ACCOUNT RECOVERY' : isSignUp ? 'GET STARTED' : 'SECURE ACCESS'}</p>
+            <p className="auth-kicker">{kicker}</p>
             <h1 id="auth-title">{title}</h1>
             <p>{description}</p>
           </div>
@@ -211,7 +203,7 @@ export default function AuthPage() {
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
             {Object.keys(errors).length > 0 && (
               <div className="auth-alert auth-alert--error" role="alert">
-                Please correct the highlighted fields and try again.
+                {AUTH_LABELS.NOTICES.VALIDATION_SUMMARY}
               </div>
             )}
             {notice && (
@@ -276,13 +268,23 @@ export default function AuthPage() {
             )}
 
             {!isSignUp && !isForgot && (
-              <button className="auth-text-link auth-forgot-password" type="button" onClick={() => switchMode('forgot')}>
-                Forgot password?
+              <button
+                className="auth-text-link auth-forgot-password"
+                type="button"
+                onClick={() => switchMode(AUTH_MODES.FORGOT)}
+              >
+                {AUTH_LABELS.BUTTONS.FORGOT_PASSWORD}
               </button>
             )}
 
             <button className="auth-primary-button" type="submit" disabled={loading}>
-              {loading ? 'Please wait…' : isForgot ? 'Send reset link' : isSignUp ? 'Create account' : 'Sign in'}
+              {loading
+                ? AUTH_LABELS.BUTTONS.SUBMIT_LOADING
+                : isForgot
+                  ? AUTH_LABELS.BUTTONS.SUBMIT_FORGOT
+                  : isSignUp
+                    ? AUTH_LABELS.BUTTONS.SUBMIT_SIGNUP
+                    : AUTH_LABELS.BUTTONS.SUBMIT_SIGNIN}
             </button>
           </form>
 
@@ -293,22 +295,31 @@ export default function AuthPage() {
               </div>
               <button className="auth-google-button" type="button" disabled={loading} onClick={signInWithGoogle}>
                 <GoogleMark />
-                Continue with Google
+                {AUTH_LABELS.BUTTONS.GOOGLE_SIGNIN}
               </button>
             </>
           )}
 
           <p className="auth-switch">
-            {isForgot ? 'Remember your password?' : isSignUp ? 'Already have an account?' : 'New to Spendwise?'}
+            {isForgot
+              ? AUTH_LABELS.SWITCH_PROMPTS.FORGOT
+              : isSignUp
+                ? AUTH_LABELS.SWITCH_PROMPTS.SIGNUP
+                : AUTH_LABELS.SWITCH_PROMPTS.SIGNIN}
             {' '}
-            <button type="button" onClick={() => switchMode(isForgot || isSignUp ? 'signin' : 'signup')}>
-              {isForgot || isSignUp ? 'Sign in' : 'Create an account'}
+            <button
+              type="button"
+              onClick={() => switchMode(isForgot || isSignUp ? AUTH_MODES.SIGNIN : AUTH_MODES.SIGNUP)}
+            >
+              {isForgot || isSignUp
+                ? AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNIN
+                : AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNUP}
             </button>
           </p>
 
           {isSignUp && (
             <p className="auth-legal">
-              By creating an account, you agree to the terms and privacy policy that will be provided when authentication is enabled.
+              {AUTH_LABELS.NOTICES.TERMS_NOTICE}
             </p>
           )}
         </div>

@@ -1,7 +1,7 @@
 {
   "name": "student-handbook--server",
   "version": "1.0.0",
-  "description": "Small Student Handbook Assistant with RAG",
+  "description": "SpendWise Server - AI Expense Management & Knowledge Base RAG API",
   "type": "module",
   "main": "src/server.js",
   "scripts": {
@@ -11,10 +11,10 @@
     "eval:receipts": "node ../evals/receipts/runner.js"
   },
   "keywords": [
-    "student",
-    "handbook",
+    "spendwise",
+    "expense-tracker",
+    "receipt-ocr",
     "rag",
-    "gemini",
     "express"
   ],
   "author": "",

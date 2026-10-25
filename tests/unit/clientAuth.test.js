@@ -42,15 +42,17 @@ describe('Client Authentication and Role Routing Suite', () => {
   });
 
   describe('2. Post-Authentication Destination Mapping', () => {
-    it('redirects admin users to /analytics by default', () => {
-      assert.equal(getPostAuthPath('admin'), '/analytics');
-      assert.equal(getPostAuthPath('admin', null), '/analytics');
-      assert.equal(getPostAuthPath('admin', ''), '/analytics');
+    it('redirects admin users to /admin/analytics by default', () => {
+      assert.equal(getPostAuthPath('admin'), '/admin/analytics');
+      assert.equal(getPostAuthPath('admin', null), '/admin/analytics');
+      assert.equal(getPostAuthPath('admin', ''), '/admin/analytics');
     });
 
-    it('preserves /admin or /analytics when explicitly requested by an admin', () => {
-      assert.equal(getPostAuthPath('admin', '/admin'), '/admin');
-      assert.equal(getPostAuthPath('admin', '/analytics'), '/analytics');
+    it('preserves canonical and legacy admin routes when explicitly requested by an admin', () => {
+      assert.equal(getPostAuthPath('admin', '/admin/knowledge-base'), '/admin/knowledge-base');
+      assert.equal(getPostAuthPath('admin', '/admin/analytics'), '/admin/analytics');
+      assert.equal(getPostAuthPath('admin', '/admin'), '/admin/knowledge-base');
+      assert.equal(getPostAuthPath('admin', '/analytics'), '/admin/analytics');
     });
 
     it('redirects non-admin users to /expense by default', () => {
@@ -59,33 +61,36 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(getPostAuthPath('user', ''), '/expense');
     });
 
-    it('strictly prevents non-admin users from accessing /admin or /analytics', () => {
+    it('strictly prevents non-admin users from accessing /admin or /analytics routes', () => {
       assert.equal(getPostAuthPath('user', '/admin'), '/expense');
       assert.equal(getPostAuthPath('user', '/analytics'), '/expense');
+      assert.equal(getPostAuthPath('user', '/admin/analytics'), '/expense');
+      assert.equal(getPostAuthPath('user', '/admin/knowledge-base'), '/expense');
       assert.equal(getPostAuthPath('user', '/admin.html'), '/expense');
     });
 
-    it('normalizes legacy .html path suffixes', () => {
+    it('normalizes legacy and canonical path destinations', () => {
       assert.equal(safeNextPath('/expense.html'), '/expense');
-      assert.equal(safeNextPath('/admin.html'), '/admin');
-      assert.equal(safeNextPath('/analytics'), '/analytics');
+      assert.equal(safeNextPath('/admin.html'), '/admin/knowledge-base');
+      assert.equal(safeNextPath('/admin/knowledge-base'), '/admin/knowledge-base');
+      assert.equal(safeNextPath('/admin/analytics'), '/admin/analytics');
       assert.equal(safeNextPath('/invalid-path'), '/expense');
     });
 
     it('redirects to workspace instead of looping when requestedNext is / or /auth', () => {
       assert.equal(getPostAuthPath('user', '/'), '/expense');
       assert.equal(getPostAuthPath('user', '/auth'), '/expense');
-      assert.equal(getPostAuthPath('admin', '/'), '/analytics');
-      assert.equal(getPostAuthPath('admin', '/auth'), '/analytics');
+      assert.equal(getPostAuthPath('admin', '/'), '/admin/analytics');
+      assert.equal(getPostAuthPath('admin', '/auth'), '/admin/analytics');
       assert.equal(safeNextPath('/'), '/expense');
       assert.equal(safeNextPath('/auth'), '/expense');
     });
 
-    it('allows valid demo routes for non-admin users', () => {
-      assert.equal(getPostAuthPath('user', '/handbook'), '/handbook');
-      assert.equal(getPostAuthPath('user', '/demo'), '/demo');
-      assert.equal(safeNextPath('/handbook'), '/handbook');
-      assert.equal(safeNextPath('/demo'), '/demo');
+    it('strictly disallows obsolete handbook/demo routes and defaults to expense', () => {
+      assert.equal(getPostAuthPath('user', '/handbook'), '/expense');
+      assert.equal(getPostAuthPath('user', '/demo'), '/expense');
+      assert.equal(safeNextPath('/handbook'), '/expense');
+      assert.equal(safeNextPath('/demo'), '/expense');
     });
   });
 

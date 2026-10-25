@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import { EXPENSE_LIMITS, RECEIPT_MIME_TYPES } from './expenses.constants.js';
+import { zodIntegerParam } from '../../shared/validation/pagination.js';
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 
-// Kiểm tra payload giao dịch trước khi chuyển vào business logic.
+// Validate transaction payload before passing to business logic.
 export const transactionSchema = z.object({
   type: z.enum(['income', 'expense']),
   amount: z.coerce.number().positive('Amount must be greater than zero.'),
@@ -22,8 +23,12 @@ export const transactionQuerySchema = z.object({
   to: z.string().regex(datePattern).optional(),
   minAmount: z.coerce.number().nonnegative().optional(),
   maxAmount: z.coerce.number().nonnegative().optional(),
-  page: z.coerce.number().int().positive().default(1),
-  pageSize: z.coerce.number().int().positive().max(EXPENSE_LIMITS.MAX_PAGE_SIZE).default(10),
+  page: zodIntegerParam({ defaultValue: 1, min: 1 }),
+  pageSize: zodIntegerParam({
+    defaultValue: 10,
+    min: 1,
+    max: EXPENSE_LIMITS.MAX_PAGE_SIZE,
+  }),
   sortBy: z.enum(['date', 'amount']).default('date'),
   sortOrder: z.enum(['asc', 'desc']).default('desc'),
 }).refine((query) => !query.from || !query.to || query.from <= query.to, {

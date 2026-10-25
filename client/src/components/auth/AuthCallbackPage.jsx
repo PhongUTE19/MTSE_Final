@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { APP_ROUTES } from '../../constants';
+import { AUTH_LABELS } from './authConstants';
 import {
   appUrl,
   exchangeCodeForSessionFromUrl,
@@ -17,7 +19,7 @@ export default function AuthCallbackPage() {
   useEffect(() => {
     async function complete() {
       if (!isSupabaseConfigured || !supabase) {
-        setMessage('Authentication has not been configured for this environment.');
+        setMessage(AUTH_LABELS.NOTICES.NOT_CONFIGURED_GENERIC);
         return;
       }
       const { session, error } = await exchangeCodeForSessionFromUrl();
@@ -42,7 +44,7 @@ export default function AuthCallbackPage() {
         <p className="auth-kicker">SPENDWISE</p>
         <h1>Finishing up</h1>
         <p>{message}</p>
-        <Link className="auth-text-link" to="/auth">
+        <Link className="auth-text-link" to={APP_ROUTES.AUTH}>
           Return to sign in
         </Link>
       </section>

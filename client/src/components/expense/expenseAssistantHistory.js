@@ -5,8 +5,8 @@ function storageKey(userId) {
   return `spendwise:expense-assistant:${userId}`;
 }
 
-// localStorage chỉ giữ dữ liệu UI cho đúng tài khoản trên trình duyệt này.
-// Nó không chứa JWT và không bao giờ được dùng để xác thực/quyết định quyền.
+// localStorage only retains UI data for the active browser account.
+// It contains no JWT and is never used for authentication or authorization decisions.
 export function loadExpenseAssistantHistory(storage, userId) {
   if (!storage || !userId) return [];
   try {
@@ -19,14 +19,14 @@ export function saveExpenseAssistantHistory(storage, userId, conversations) {
   if (!storage || !userId) return;
   const safeConversations = conversations.slice(0, MAX_CONVERSATIONS).map((conversation) => ({
     id: conversation.id,
-    title: String(conversation.title || 'Cuộc trò chuyện mới').slice(0, 80),
+    title: String(conversation.title || 'New conversation').slice(0, 80),
     updatedAt: conversation.updatedAt,
-    // Không lưu proposal còn hiệu lực vì proposal phải được xác nhận trong phiên hiện tại.
+    // Do not persist active proposals because they must be confirmed in the current session.
     messages: conversation.messages.slice(-MAX_MESSAGES).map(({ id, role, text, toolName, result }) => ({ id, role, text, toolName, result })),
   }));
   storage.setItem(storageKey(userId), JSON.stringify(safeConversations));
 }
 
 export function makeConversation() {
-  return { id: crypto.randomUUID(), title: 'Cuộc trò chuyện mới', updatedAt: new Date().toISOString(), messages: [] };
+  return { id: crypto.randomUUID(), title: 'New conversation', updatedAt: new Date().toISOString(), messages: [] };
 }

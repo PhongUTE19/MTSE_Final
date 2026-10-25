@@ -1,7 +1,7 @@
 export const SAMPLE_QUESTIONS = Object.freeze([
-  'What is the tuition fee for the Standard Program?',
-  'What are the requirements for the Aurora Scholarship?',
-  'What is linear algebra?',
+  'What are the key policies outlined in the documentation?',
+  'How do I get started with the system?',
+  'Where can I find more information about available services?',
 ]);
 
 export const UI_UNITS = Object.freeze({
@@ -10,8 +10,8 @@ export const UI_UNITS = Object.freeze({
 
 export const UI_LABELS = Object.freeze({
   APP: {
-    TITLE: 'Student Handbook Assistant',
-    USER_SUBTITLE: 'React Frontend with RAG & Google Gemini',
+    TITLE: 'SpendWise Assistant',
+    USER_SUBTITLE: 'Intelligent Finance & Knowledge Base Assistant',
     ADMIN_SUBTITLE: 'Admin Knowledge Base Manager',
     SWITCH_TO_ADMIN_TITLE: 'Switch to Knowledge Management',
     SWITCH_TO_USER_TITLE: 'Switch back to Chat Interface',
@@ -46,7 +46,7 @@ export const UI_LABELS = Object.freeze({
     PAGINATION_SHOWING: (from, to, total) => `Showing ${from}–${to} of ${total}`,
   },
   CHAT_FORM: {
-    INPUT_PLACEHOLDER: 'Ask about tuition, programs, scholarships, dorms, or exam rules...',
+    INPUT_PLACEHOLDER: 'Ask a question about policies, guidelines, services, or procedures...',
     SEND_BUTTON: 'Send',
     STOP_BUTTON: 'Stop',
   },
@@ -58,8 +58,8 @@ export const UI_LABELS = Object.freeze({
   },
   ANSWER_SECTION: {
     SUPPORTING_SOURCES: 'Supporting Sources & Evidence:',
-    DEFAULT_DOC_NAME: 'Student Handbook',
-    DEFAULT_SECTION_TITLE: 'Handbook Section',
+    DEFAULT_DOC_NAME: 'Knowledge Base Document',
+    DEFAULT_SECTION_TITLE: 'Document Section',
     SECTION_PREFIX: 'Section',
     RETRIEVER_RANK_TITLE: 'Retriever rank',
     CHUNK_ID_TITLE: 'Chunk identifier',
@@ -132,7 +132,7 @@ export const UI_LABELS = Object.freeze({
     ADD_NEW_DOC: 'Add New Document',
     EDIT_DOC_PREFIX: 'Edit: ',
     FILENAME_LABEL: 'Filename (must end in .md)',
-    FILENAME_PLACEHOLDER: 'e.g. academic_regulations.md',
+    FILENAME_PLACEHOLDER: 'e.g. general_guidelines.md',
     CONTENT_LABEL: 'Content (Use "## Section Title" for chunks)',
     CONTENT_PLACEHOLDER: '## Section Title\n\nDescription...',
     SAVE_BTN: 'Save Document',

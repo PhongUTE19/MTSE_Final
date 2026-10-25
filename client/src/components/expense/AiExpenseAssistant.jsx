@@ -1,37 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import ReceiptReview from './ReceiptReview';
-import TransactionFields, { VIETNAMESE_TRANSACTION_LABELS } from './TransactionFields';
+import TransactionFields from './TransactionFields';
 import { MAX_RECEIPT_SIZE_BYTES, RECEIPT_ACCEPTED_TYPES } from './expenseConstants';
 import { formatMoney } from './expenseFormatters';
 import { loadExpenseAssistantHistory, makeConversation, saveExpenseAssistantHistory } from './expenseAssistantHistory';
-
-const QUICK_ACTIONS = [
-  ['⌕', 'Tìm giao dịch', 'Tìm các giao dịch chi tiêu gần đây của tôi.'],
-  ['◴', 'Tổng hợp thu chi', 'Tháng này tôi đã thu và chi bao nhiêu tiền?'],
-  ['◌', 'Chi tiêu theo danh mục', 'Tháng này tôi chi nhiều nhất vào danh mục nào?'],
-  ['＋', 'Thêm giao dịch', 'Hôm nay tôi mua cà phê 45.000 đồng.'],
-];
-
-function WalletSparklesIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path
-        className="assistant-icon__wallet"
-        d="M4 7.5A2.5 2.5 0 0 1 6.5 5H17a2 2 0 0 1 2 2v1H6.5a2.5 2.5 0 0 0 0 5H20v3.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 4 16.5v-9ZM20 9v4h-2.5a2 2 0 1 1 0-4H20Z"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.7"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path
-        className="assistant-icon__sparkle"
-        d="m18.5 2 .45 1.05L20 3.5l-1.05.45L18.5 5l-.45-1.05L17 3.5l1.05-.45L18.5 2Zm3 3 .32.68L22.5 6l-.68.32L21.5 7l-.32-.68L20.5 6l.68-.32L21.5 5Z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
+import { WalletSparklesIcon } from '../common/Icons';
+import { ASSISTANT_LABELS, ASSISTANT_QUICK_ACTIONS } from './expenseAssistantLabels';
 
 function ResultCard({ message }) {
   const result = message.result;
@@ -41,11 +15,11 @@ function ResultCard({ message }) {
     return (
       <section className="agent-result-card">
         <div className="agent-result-heading">
-          <h3>Giao dịch tìm được</h3>
-          <span>{result.total} kết quả</span>
+          <h3>{ASSISTANT_LABELS.SEARCH_RESULTS_TITLE}</h3>
+          <span>{ASSISTANT_LABELS.RESULTS_COUNT(result.total)}</span>
         </div>
         {result.total === 0 ? (
-          <p className="agent-empty">Không có giao dịch phù hợp.</p>
+          <p className="agent-empty">{ASSISTANT_LABELS.EMPTY_SEARCH}</p>
         ) : (
           <ul className="agent-transaction-list">
             {result.transactions.map((item) => (
@@ -69,20 +43,20 @@ function ResultCard({ message }) {
     return (
       <section className="agent-result-card">
         <div className="agent-result-heading">
-          <h3>Tổng kết chi tiêu</h3>
+          <h3>{ASSISTANT_LABELS.SPENDING_SUMMARY_TITLE}</h3>
           <span>{result.period?.from} → {result.period?.to}</span>
         </div>
         <div className="agent-summary-grid">
           <div>
-            <span>Tổng thu</span>
+            <span>{ASSISTANT_LABELS.TOTAL_INCOME}</span>
             <strong className="income">{formatMoney(result.totalIncome)}</strong>
           </div>
           <div>
-            <span>Tổng chi</span>
+            <span>{ASSISTANT_LABELS.TOTAL_EXPENSE}</span>
             <strong className="expense">{formatMoney(result.totalExpense)}</strong>
           </div>
           <div>
-            <span>Số dư</span>
+            <span>{ASSISTANT_LABELS.BALANCE}</span>
             <strong>{formatMoney(result.balance)}</strong>
           </div>
         </div>
@@ -102,24 +76,24 @@ function ResultCard({ message }) {
 }
 
 function Proposal({ proposal, onConfirm, onCancel, busy }) {
-  // Giữ amount là chuỗi trong lúc gõ để người dùng có thể xóa rồi nhập lại.
+  // Keep amount as a string while typing so users can delete and re-enter values.
   const [draft, setDraft] = useState({ ...proposal.transaction, amount: String(proposal.transaction.amount) });
   const [validationError, setValidationError] = useState('');
 
   function submit() {
     const amount = Number(draft.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      setValidationError('Số tiền phải lớn hơn 0.');
+      setValidationError(ASSISTANT_LABELS.AMOUNT_POSITIVE_ERROR);
       return;
     }
-    // Dấu âm không quyết định loại giao dịch: chỉ gửi amount dương và type rõ ràng.
+    // Negative signs do not determine transaction type: send positive amount with explicit type.
     onConfirm({ ...draft, amount, items: draft.items || [] });
   }
 
   return (
     <section className="agent-proposal">
-      <h3>Kiểm tra trước khi lưu</h3>
-      <p>Đây là proposal, chưa được lưu vào Supabase.</p>
+      <h3>{ASSISTANT_LABELS.PROPOSAL_TITLE}</h3>
+      <p>{ASSISTANT_LABELS.PROPOSAL_DISCLAIMER}</p>
       <TransactionFields
         values={draft}
         onChange={(next) => {
@@ -127,21 +101,21 @@ function Proposal({ proposal, onConfirm, onCancel, busy }) {
           setValidationError('');
         }}
         disabled={busy}
-        labels={VIETNAMESE_TRANSACTION_LABELS}
         className="agent-proposal-fields"
       />
       {validationError && <p className="form-error">{validationError}</p>}
       <div className="modal-actions">
         <button className="secondary-button" type="button" onClick={onCancel} disabled={busy}>
-          Hủy
+          {ASSISTANT_LABELS.PROPOSAL_CANCEL}
         </button>
         <button className="primary-button" type="button" onClick={submit} disabled={busy}>
-          {busy ? 'Đang lưu…' : 'Xác nhận'}
+          {busy ? ASSISTANT_LABELS.PROPOSAL_SAVING : ASSISTANT_LABELS.PROPOSAL_CONFIRM}
         </button>
       </div>
     </section>
   );
 }
+
 
 export default function AiExpenseAssistant({
   userId,
@@ -214,7 +188,7 @@ export default function AiExpenseAssistant({
   }
 
   function removeConversation(id) {
-    if (!window.confirm('Xóa lịch sử hội thoại này? Giao dịch đã lưu sẽ không bị xóa.')) return;
+    if (!window.confirm(ASSISTANT_LABELS.DELETE_CONVERSATION_CONFIRM)) return;
     const remaining = conversations.filter((item) => item.id !== id);
     const next = remaining[0] || makeConversation();
     setConversations(remaining.length ? remaining : [next]);
@@ -227,7 +201,7 @@ export default function AiExpenseAssistant({
     onOpenChange?.(next);
   }
 
-  // Enter gửi ngay như chat; Shift + Enter giữ hành vi xuống dòng của textarea.
+  // Enter sends immediately like a chat message; Shift + Enter preserves newline in textarea.
   function handleComposerKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
@@ -246,13 +220,13 @@ export default function AiExpenseAssistant({
     append('user', text);
     try {
       const response = await onAsk(text, history);
-      append('assistant', response.answer || 'Đã xử lý yêu cầu.', { toolName: response.toolName, result: response.toolResult });
+      append('assistant', response.answer || ASSISTANT_LABELS.DEFAULT_SUCCESS_ANSWER, { toolName: response.toolName, result: response.toolResult });
       if (response.toolName === 'create_transaction') {
         setProposal(response.toolResult?.proposal || null);
       }
     } catch (requestError) {
       setError(requestError.message);
-      append('assistant', 'Không thể xử lý yêu cầu. Vui lòng thử lại.');
+      append('assistant', ASSISTANT_LABELS.ERROR_GENERIC);
     } finally {
       setBusy(false);
     }
@@ -264,7 +238,7 @@ export default function AiExpenseAssistant({
     try {
       await onConfirmProposal(proposal.id, transaction);
       setProposal(null);
-      append('assistant', 'Đã lưu giao dịch thành công.');
+      append('assistant', ASSISTANT_LABELS.TRANSACTION_SAVED);
       await onTransactionsChanged();
     } catch (requestError) {
       setError(requestError.message);
@@ -279,7 +253,7 @@ export default function AiExpenseAssistant({
     try {
       await onCancelProposal(proposal.id);
       setProposal(null);
-      append('assistant', 'Đã hủy proposal. Chưa có giao dịch nào được lưu.');
+      append('assistant', ASSISTANT_LABELS.PROPOSAL_CANCELLED);
     } catch (requestError) {
       setError(requestError.message);
     } finally {
@@ -293,7 +267,7 @@ export default function AiExpenseAssistant({
     setMenuOpen(false);
     if (!file) return;
     if (!RECEIPT_ACCEPTED_TYPES.includes(file.type) || file.size > MAX_RECEIPT_SIZE_BYTES) {
-      setError('Chỉ nhận JPG, PNG hoặc WebP tối đa 5 MB.');
+      setError(ASSISTANT_LABELS.RECEIPT_RESTRICTION);
       return;
     }
     const previewUrl = URL.createObjectURL(file);
@@ -315,7 +289,7 @@ export default function AiExpenseAssistant({
     await onReceiptConfirm(receipt.id, transaction);
     URL.revokeObjectURL(receipt.previewUrl);
     setReceipt(null);
-    append('assistant', 'Đã xác nhận và lưu giao dịch từ hóa đơn.');
+    append('assistant', ASSISTANT_LABELS.RECEIPT_SAVED);
     await onTransactionsChanged();
   }
 
@@ -324,32 +298,32 @@ export default function AiExpenseAssistant({
     await onReceiptDiscard(receipt.id);
     URL.revokeObjectURL(receipt.previewUrl);
     setReceipt(null);
-    append('assistant', 'Đã hủy hóa đơn nháp.');
+    append('assistant', ASSISTANT_LABELS.RECEIPT_DISCARDED);
   }
 
   return (
     <div className="ai-assistant">
-      <button className="ai-fab" type="button" onClick={() => setAssistantOpen(!open)} aria-label="Mở Spendwise Assistant">
+      <button className="ai-fab" type="button" onClick={() => setAssistantOpen(!open)} aria-label={`Open ${ASSISTANT_LABELS.HEADER_TITLE}`}>
         <WalletSparklesIcon />
       </button>
       {open && (
-        <section className="ai-chat-card" aria-label="Spendwise Assistant">
+        <section className="ai-chat-card" aria-label={ASSISTANT_LABELS.HEADER_TITLE}>
           <header className="ai-chat-header">
             <span className="ai-avatar"><WalletSparklesIcon /></span>
             <div>
-              <h2>Spendwise Assistant</h2>
-              <small>Expense Assistant</small>
+              <h2>{ASSISTANT_LABELS.HEADER_TITLE}</h2>
+              <small>{ASSISTANT_LABELS.HEADER_SUBTITLE}</small>
             </div>
             <div className="ai-header-actions">
-              <button type="button" onClick={newConversation} title="Tạo cuộc trò chuyện mới">＋</button>
-              <button type="button" onClick={() => setTab('history')} title="Lịch sử">◴</button>
-              <button type="button" onClick={() => setAssistantOpen(false)} title="Đóng">×</button>
+              <button type="button" onClick={newConversation} title={ASSISTANT_LABELS.NEW_CHAT_TOOLTIP}>＋</button>
+              <button type="button" onClick={() => setTab('history')} title={ASSISTANT_LABELS.HISTORY_TOOLTIP}>◴</button>
+              <button type="button" onClick={() => setAssistantOpen(false)} title={ASSISTANT_LABELS.CLOSE_TOOLTIP}>×</button>
             </div>
           </header>
 
           <div className="ai-tabs">
-            <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>Chat</button>
-            <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>Lịch sử</button>
+            <button className={tab === 'chat' ? 'active' : ''} onClick={() => setTab('chat')}>{ASSISTANT_LABELS.TAB_CHAT}</button>
+            <button className={tab === 'history' ? 'active' : ''} onClick={() => setTab('history')}>{ASSISTANT_LABELS.TAB_HISTORY}</button>
           </div>
 
           {tab === 'history' ? (
@@ -359,7 +333,7 @@ export default function AiExpenseAssistant({
                   <button type="button" onClick={() => { setActiveId(item.id); setTab('chat'); }}>
                     {item.title}
                   </button>
-                  <button type="button" onClick={() => removeConversation(item.id)} aria-label="Xóa hội thoại">
+                  <button type="button" onClick={() => removeConversation(item.id)} aria-label={ASSISTANT_LABELS.DELETE_CONVERSATION_LABEL}>
                     ⌫
                   </button>
                 </div>
@@ -372,10 +346,10 @@ export default function AiExpenseAssistant({
                   <>
                     <section className="ai-welcome">
                       <span className="ai-avatar"><WalletSparklesIcon /></span>
-                      <h3>Hôm nay mình có thể giúp gì cho bạn?</h3>
+                      <h3>{ASSISTANT_LABELS.WELCOME_QUESTION}</h3>
                     </section>
                     <div className="ai-quick-actions">
-                      {QUICK_ACTIONS.map(([icon, label, prompt]) => (
+                      {ASSISTANT_QUICK_ACTIONS.map(([icon, label, prompt]) => (
                         <button type="button" key={label} onClick={() => setMessage(prompt)}>
                           <span>{icon}</span>
                           {label}
@@ -399,7 +373,7 @@ export default function AiExpenseAssistant({
                 {busy && (
                   <article className="ai-message ai-message--assistant">
                     <span className="ai-avatar"><WalletSparklesIcon /></span>
-                    <p>Đang xử lý…</p>
+                    <p>{ASSISTANT_LABELS.PROCESSING}</p>
                   </article>
                 )}
                 {error && <p className="form-error">{error}</p>}
@@ -424,13 +398,13 @@ export default function AiExpenseAssistant({
 
               <form className="ai-chat-input" onSubmit={send}>
                 <div className="ai-plus">
-                  <button type="button" onClick={() => setMenuOpen((value) => !value)} aria-label="Thêm hóa đơn">
+                  <button type="button" onClick={() => setMenuOpen((value) => !value)} aria-label={ASSISTANT_LABELS.ADD_RECEIPT_LABEL}>
                     +
                   </button>
                   {menuOpen && (
                     <div>
                       <button type="button" onClick={() => imageInputRef.current?.click()}>
-                        Tải ảnh hóa đơn
+                        {ASSISTANT_LABELS.ATTACH_RECEIPT}
                       </button>
                     </div>
                   )}
@@ -446,11 +420,11 @@ export default function AiExpenseAssistant({
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   onKeyDown={handleComposerKeyDown}
-                  placeholder="Nhập tin nhắn…"
+                  placeholder={ASSISTANT_LABELS.INPUT_PLACEHOLDER}
                   disabled={busy}
                 />
                 <button className="primary-button" type="submit" disabled={busy || !message.trim()}>
-                  Gửi
+                  {ASSISTANT_LABELS.SEND_BUTTON}
                 </button>
               </form>
             </>

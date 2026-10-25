@@ -1,28 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { expenseApi } from '../../services/expenseApi';
-import ExpenseSidebar from './ExpenseSidebar';
+import AppSidebar from '../layout/AppSidebar';
 import ReceiptReview from './ReceiptReview';
 import TransactionForm from './TransactionForm';
 import TransactionTable from './TransactionTable';
 import AiExpenseAssistant from './AiExpenseAssistant';
-import { INITIAL_TRANSACTION, MAX_RECEIPT_SIZE_BYTES, RECEIPT_ACCEPTED_TYPES } from './expenseConstants';
+import {
+  INITIAL_TRANSACTION,
+  INITIAL_TRANSACTION_FILTERS,
+  EXPENSE_VIEWS,
+  EXPENSE_VIEW_TITLES,
+  MAX_RECEIPT_SIZE_BYTES,
+  RECEIPT_ACCEPTED_TYPES,
+} from './expenseConstants';
 import { formatMoney } from './expenseFormatters';
 import './expenseTracker.css';
 
-const INITIAL_FILTERS = {
-  search: '', type: '', category: '', from: '', to: '',
-  page: '1', pageSize: '10', sortBy: 'date', sortOrder: 'desc',
-};
-
-function pageTitle(view) {
-  return { transactions: 'Transactions', receipt: 'Scan a receipt', categories: 'Categories' }[view];
-}
-
 export default function ExpenseTrackerApp({ user, onSignOut }) {
-  const [view, setView] = useState('transactions');
+  const location = useLocation();
+  const [view, setView] = useState(() => location.state?.view || EXPENSE_VIEWS.TRANSACTIONS);
+
+  useEffect(() => {
+    if (location.state?.view) {
+      setView(location.state.view);
+    }
+  }, [location.state?.view]);
+
   const [data, setData] = useState({ transactions: [], total: 0, page: 1, pageSize: 10 });
-  const [filters, setFilters] = useState(INITIAL_FILTERS);
+  const [filters, setFilters] = useState(INITIAL_TRANSACTION_FILTERS);
   const [loading, setLoading] = useState(true);
+
   const [error, setError] = useState('');
   const [editingTransaction, setEditingTransaction] = useState(null);
   const [receipt, setReceipt] = useState(null);
@@ -43,7 +51,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
     }
   }
 
-  // Tải lại danh sách khi bộ lọc hoặc phân trang phía server thay đổi.
+  // Reload transaction list when filters or server-side pagination change.
   useEffect(() => {
     loadTransactions();
   }, [
@@ -58,7 +66,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
   ]);
 
   useEffect(() => {
-    if (view === 'receipt') loadPendingReviews();
+    if (view === EXPENSE_VIEWS.RECEIPT) loadPendingReviews();
   }, [view]);
 
   async function loadPendingReviews() {
@@ -98,7 +106,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
     return expenseApi.cancelAgentProposal(id);
   }
 
-  // Floating Assistant tái sử dụng nguyên API Receipt OCR; không chạm vào flow Receipt hiện có.
+  // Floating Assistant reuses the Receipt OCR API without modifying the existing receipt flow.
   async function uploadAssistantReceipt(file) {
     return expenseApi.upload(file);
   }
@@ -207,15 +215,15 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
 
   return (
     <main className={`expense-shell${assistantOpen ? ' expense-shell--assistant-open' : ''}`}>
-      <ExpenseSidebar activeView={view} onNavigate={setView} user={user} onSignOut={onSignOut} />
+      <AppSidebar activeView={view} onNavigate={setView} user={user} onSignOut={onSignOut} />
 
       <section className="expense-main">
         <header className="expense-header">
           <div>
             <p className="eyebrow">PERSONAL FINANCE</p>
-            <h1>{pageTitle(view)}</h1>
+            <h1>{EXPENSE_VIEW_TITLES[view] || view}</h1>
           </div>
-          {view === 'transactions' && (
+          {view === EXPENSE_VIEWS.TRANSACTIONS && (
             <button className="primary-button" onClick={() => setEditingTransaction(INITIAL_TRANSACTION)}>
               + New transaction
             </button>
@@ -231,7 +239,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
           </div>
         )}
 
-        {view === 'receipt' && (
+        {view === EXPENSE_VIEWS.RECEIPT && (
           <div className="upload-card" aria-busy={Boolean(processingReceipt)}>
             <h2>Upload a receipt</h2>
             <p>Upload an image to prepare an expense transaction. You will always review and confirm the extracted data before it is saved.</p>
@@ -309,14 +317,14 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
           </div>
         )}
 
-        {view === 'categories' && (
+        {view === EXPENSE_VIEWS.CATEGORIES && (
           <div className="coming-soon">
             <h2>Categories are a secondary flow</h2>
             <p>The final-project core is receipt-to-transaction and transaction CRUD. This page stays out of the primary demo flow until the core is validated.</p>
           </div>
         )}
 
-        {view === 'transactions' && (
+        {view === EXPENSE_VIEWS.TRANSACTIONS && (
           <>
             <section className="summary-grid" aria-label="Transaction page summary">
               <article className="summary-card summary-card--income">

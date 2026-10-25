@@ -50,8 +50,8 @@ export const CREATE_TRANSACTION_TOOL = Object.freeze({
 let clientFactory = null;
 export function setGeminiExpenseAgentClientFactoryForTests(factory) { clientFactory = factory; }
 
-// Supabase transaction_date là ngày lịch địa phương. Dùng múi giờ Việt Nam
-// thay vì UTC của server để “hôm qua/tháng này” không bị lệch ngày lúc nửa đêm.
+// Supabase transaction_date is local calendar date. Use Vietnam time zone
+// instead of server UTC so "yesterday / this month" dates do not shift at midnight.
 export function getVietnamDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-GB', {
     timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -113,9 +113,9 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
   const generationConfig = {
     systemInstruction: instruction,
     tools: [{ functionDeclarations: declarations }],
-    // AUTO để Gemini có thể xin làm rõ ngày mơ hồ thay vì tự đoán điều kiện lọc.
-    // Gemini API chỉ cho phép allowedFunctionNames ở mode ANY. AUTO giữ khả
-    // năng hỏi lại khi ngày mơ hồ; tool declaration đã chỉ chứa đúng một tool.
+    // AUTO allows Gemini to ask for clarification on ambiguous dates instead of guessing filters.
+    // Gemini API only allows allowedFunctionNames in ANY mode. AUTO preserves the ability
+    // to ask follow-up questions for ambiguous dates; tool declaration already has only target tools.
     toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
   };
 

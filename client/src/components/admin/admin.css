@@ -6,3 +6,4 @@
 .admin-card__actions .auth-primary-button { box-sizing: border-box; text-decoration: none; }
 .admin-secondary-link, .admin-signout { justify-self: start; padding: 0; border: 0; background: transparent; color: var(--color-primary); font: var(--font-weight-semibold) var(--font-size-sm) var(--font-family-sans); text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
 .admin-signout { color: var(--color-text-secondary); }
+.expense-main > .dashboard-container { margin-top: 24px; }

@@ -6,5 +6,9 @@ export { notFoundHandler } from './notFoundHandler.js';
 export {
   apiRateLimiter,
   chatRateLimiter,
+  expenseAgentRateLimiter,
+  receiptOcrRateLimiter,
   indexingRateLimiter,
+  createLimiter,
+  resolveRateLimitKey,
 } from './rateLimiter.js';

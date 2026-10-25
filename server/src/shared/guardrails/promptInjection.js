@@ -31,7 +31,8 @@ const INJECTION_PATTERNS = [
  * in assistant outputs.
  */
 const SYSTEM_PROMPT_SIGNATURES = [
-  'You are the Student Handbook Assistant for Lumen Institute of Technology.',
+  'You are the SpendWise Assistant',
+  'Base all factual claims about SpendWise exclusively on',
   'Answer the user\'s question using ONLY the provided context below.',
   'Strict rules:',
   '1. Grounding:',

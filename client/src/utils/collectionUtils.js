@@ -209,3 +209,39 @@ export function getNextSortDirection(currentDirection) {
   if (currentDirection === 'asc') return 'desc';
   return null;
 }
+
+/**
+ * Serializes an object of parameters into a URL query string, omitting empty,
+ * null, undefined values, and optional ignore values (e.g. 'all').
+ * Handles arrays, dates, numbers, and strings cleanly.
+ *
+ * @param {Record<string, any>} [params={}] - Parameters object
+ * @param {object} [options={}]
+ * @param {boolean} [options.prefix=true] - Whether to prepend '?' when non-empty
+ * @param {any[]} [options.ignoreValues=['', null, undefined]] - Values to filter out
+ * @returns {string} Serialized query string (e.g. "?page=1&type=expense" or "")
+ */
+export function toQueryString(params = {}, { prefix = true, ignoreValues = ['', null, undefined] } = {}) {
+  if (!params || typeof params !== 'object') return '';
+  const searchParams = new URLSearchParams();
+  const ignoreSet = new Set(ignoreValues);
+
+  for (const [key, value] of Object.entries(params)) {
+    if (ignoreSet.has(value)) continue;
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (!ignoreSet.has(item)) {
+          searchParams.append(key, String(item));
+        }
+      }
+    } else if (value instanceof Date) {
+      searchParams.set(key, value.toISOString());
+    } else {
+      searchParams.set(key, String(value));
+    }
+  }
+
+  const qs = searchParams.toString();
+  return qs ? (prefix ? `?${qs}` : qs) : '';
+}

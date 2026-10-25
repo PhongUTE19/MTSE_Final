@@ -2,7 +2,7 @@ import * as expenseService from './expenses.service.js';
 import * as receiptService from './receipt.service.js';
 import { HTTP_STATUS } from '../../constants/index.js';
 
-// Chuyển lỗi nghiệp vụ về error handler dùng chung của Express.
+// Forward business errors to Express shared error handler.
 async function respond(action, req, res, next) {
   try {
     await action();

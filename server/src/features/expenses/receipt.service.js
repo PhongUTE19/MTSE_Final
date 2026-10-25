@@ -1,4 +1,4 @@
-import { AppError, NotFoundError } from '../../shared/errors/index.js';
+import { AppError, NotFoundError, handleDatabaseError } from '../../shared/errors/index.js';
 import { HTTP_STATUS } from '../../constants/index.js';
 import { createUserScopedSupabaseClient, getSupabaseClient } from '../../shared/integrations/supabase.js';
 import { extractReceiptImage } from '../../shared/integrations/ai/index.js';
@@ -10,15 +10,12 @@ export function setReceiptDependenciesForTests(dependencies = {}) { clientFactor
 function userClient(user) { const client = clientFactory ? clientFactory.user(user) : createUserScopedSupabaseClient(user.token); if (!client) throw new AppError('Receipt service is not configured.', HTTP_STATUS.INTERNAL_SERVER_ERROR); return client; }
 function serverClient() { const client = clientFactory ? clientFactory.server() : getSupabaseClient(); if (!client) throw new AppError('Receipt storage is not configured.', HTTP_STATUS.INTERNAL_SERVER_ERROR); return client; }
 function dbError(operation, error) {
-  // Keep provider/database details out of the browser, but make production
-  // receipt failures diagnosable from the server terminal.
-  console.error(`[ReceiptService] ${operation} failed`, {
-    code: error?.code ?? null,
-    message: error?.message ?? null,
-    details: error?.details ?? null,
-    hint: error?.hint ?? null,
-  });
-  return new AppError('Receipt service is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  return handleDatabaseError(
+    'ReceiptService',
+    operation,
+    error,
+    'Receipt service is temporarily unavailable.'
+  );
 }
 function result(data, error, operation = 'Supabase operation') { if (error) throw dbError(operation, error); return data; }
 function one(data) { return Array.isArray(data) ? data[0] : data; }

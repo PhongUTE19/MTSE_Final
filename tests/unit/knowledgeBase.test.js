@@ -15,22 +15,22 @@ const knowledgeDir = path.join(projectRoot, 'data', 'knowledge');
 
 describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
   describe('1. Document Loading and Section-Aware Chunking', () => {
-    it('loads all 12 sections from the student handbook markdown', () => {
+    it('loads all 12 sections from the SpendWise user guide markdown', () => {
       const chunks = loadAndChunkMarkdown(knowledgeDir);
-      assert.equal(chunks.length, 12, 'Expected exactly 12 sections in the handbook');
+      assert.equal(chunks.length, 12, 'Expected exactly 12 sections in the user guide');
 
       const expectedSections = [
-        { num: 1, title: 'About This Handbook' },
-        { num: 2, title: 'Programs at a Glance' },
-        { num: 3, title: 'Paying Tuition' },
-        { num: 4, title: 'Course Registration and Credit Overload' },
-        { num: 5, title: 'Library' },
-        { num: 6, title: 'Scholarships' },
-        { num: 7, title: 'Exam Rules' },
-        { num: 8, title: 'Dormitory' },
-        { num: 9, title: 'Academic Warning and Probation' },
-        { num: 10, title: 'Graduation Requirements' },
-        { num: 11, title: 'Amendments (approved November 2026)' },
+        { num: 1, title: 'About SpendWise' },
+        { num: 2, title: 'Platform Features at a Glance' },
+        { num: 3, title: 'Personal Expense Tracking' },
+        { num: 4, title: 'Transaction Categories and Filtering' },
+        { num: 5, title: 'Receipt Scanning and OCR Review' },
+        { num: 6, title: 'AI Expense Assistant' },
+        { num: 7, title: 'Knowledge Base Management' },
+        { num: 8, title: 'Vector Indexing and Qdrant Search' },
+        { num: 9, title: 'AI Usage Analytics and Observability' },
+        { num: 10, title: 'Authentication and Security Architecture' },
+        { num: 11, title: 'System Configuration and Limits' },
         { num: 12, title: 'Frequently Asked Questions' },
       ];
 
@@ -39,7 +39,7 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
         assert.equal(chunk.sectionNumber, expected.num, `Chunk ${idx} section number mismatch`);
         assert.equal(chunk.sectionTitle, expected.title, `Chunk ${idx} section title mismatch`);
         assert.ok(chunk.id.includes(`sec${expected.num}`), `Chunk ID should contain sec${expected.num}`);
-        assert.equal(chunk.source, 'KB-A_Lumen-Institute-Student-Handbook.md');
+        assert.equal(chunk.source, 'spendwise_user_guide.md');
         assert.ok(chunk.content.length > 0, `Chunk ${expected.num} content must not be empty`);
       });
     });
@@ -50,31 +50,30 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
       assert.ok(sec2, 'Section 2 chunk must exist');
 
       // Table header and separator
-      assert.ok(sec2.content.includes('| Item | Standard Program | Honors Program |'));
+      assert.ok(sec2.content.includes('| Feature | Manual Transaction | Receipt Scan Draft |'));
       assert.ok(sec2.content.includes('|---|---|---|'));
 
       // Verify all table data rows are intact and aligned with columns
-      assert.ok(sec2.content.includes('| Tuition per semester | 42,000,000 VND | 58,000,000 VND |'));
-      assert.ok(sec2.content.includes('| Minimum credits per semester | 12 | 15 |'));
-      assert.ok(sec2.content.includes('| Maximum credits per semester | 24 | 27 |'));
-      assert.ok(sec2.content.includes('| Credits required to graduate | 132 | 140 |'));
-      assert.ok(sec2.content.includes('| Minimum GPA to remain in good standing | 2.0 | 3.2 |'));
+      assert.ok(sec2.content.includes('| Creation Method | Form or AI Assistant | Camera / Image Upload |'));
+      assert.ok(sec2.content.includes('| Supported Types | Income and Expense | Expense |'));
+      assert.ok(sec2.content.includes('| Maximum Attachment Size | N/A | 5 MB |'));
+      assert.ok(sec2.content.includes('| Processing Status | Instant | OCR Review Required |'));
+      assert.ok(sec2.content.includes('| Multi-item Breakdown | Optional item list | Extracted line items |'));
     });
 
-    it('preserves Section 11 Amendments with all override provisions', () => {
+    it('preserves Section 11 System Configuration with limits and safeguards', () => {
       const chunks = loadAndChunkMarkdown(knowledgeDir);
       const sec11 = chunks.find((c) => c.sectionNumber === 11);
       assert.ok(sec11, 'Section 11 chunk must exist');
 
-      assert.ok(sec11.content.includes('make-up exam fee in Section 7 is increased to 200,000 VND'));
-      assert.ok(sec11.content.includes('library late fine in Section 5 is increased to 3,000 VND per book per day'));
-      assert.ok(sec11.content.includes('installment plan in Section 3 is no longer available to Honors Program students'));
+      assert.ok(sec11.content.includes('Receipt uploads are limited to 5 MB per file.'));
+      assert.ok(sec11.content.includes('Rate limiters protect API endpoints'));
     });
 
     it('splits text recursively using fallback hierarchy respecting chunkSize and chunkOverlap', () => {
       const sampleText = 'Paragraph 1: General rules and conduct.\n\n' +
-        'Paragraph 2: Detailed payment terms and semester schedules.\n\n' +
-        'Paragraph 3: Library fine regulations and textbook borrowing policy.';
+        'Paragraph 2: Specific operational instructions for accounts.\n\n' +
+        'Paragraph 3: Additional safeguards and compliance policies for financial records.';
 
       const chunks = recursiveCharacterTextSplit(sampleText, {
         chunkSize: 70,
@@ -89,7 +88,7 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
     });
 
     it('splits oversized sections into sub-chunks with parent headings and metadata', () => {
-      const chunks = loadAndChunkMarkdown(knowledgeDir, { chunkSize: 250, chunkOverlap: 50 });
+      const chunks = loadAndChunkMarkdown(knowledgeDir, { chunkSize: 140, chunkOverlap: 30 });
       assert.ok(chunks.length > 12, 'Oversized sections must split into more than 12 chunks');
 
       const subChunk = chunks.find((c) => c.totalParts > 1);
@@ -98,7 +97,7 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
       assert.ok(subChunk.title.includes('Part '), 'Sub-chunk title must retain parent heading with part info');
       assert.ok(subChunk.sectionNumber > 0, 'Must preserve sectionNumber');
       assert.ok(subChunk.sectionTitle.length > 0, 'Must preserve sectionTitle');
-      assert.equal(subChunk.source, 'KB-A_Lumen-Institute-Student-Handbook.md');
+      assert.equal(subChunk.source, 'spendwise_user_guide.md');
     });
   });
 
@@ -106,19 +105,19 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
     it('formats retrieved chunks with Document, Section, and Chunk ID headers', () => {
       const sampleChunks = [
         {
-          id: 'KB-A_Lumen-Institute-Student-Handbook_sec2',
-          title: '2. Programs at a Glance',
-          source: 'KB-A_Lumen-Institute-Student-Handbook.md',
-          content: '| Tuition per semester | 42,000,000 VND | 58,000,000 VND |',
+          id: 'spendwise_user_guide_sec2',
+          title: '2. Platform Features at a Glance',
+          source: 'spendwise_user_guide.md',
+          content: '| Maximum Attachment Size | N/A | 5 MB |',
         },
       ];
 
-      const prompt = buildGroundedPrompt('What is the tuition fee?', sampleChunks, 'Custom Prompt Instructions');
+      const prompt = buildGroundedPrompt('What is the maximum receipt attachment size?', sampleChunks, 'Custom Prompt Instructions');
 
       assert.ok(prompt.includes('Custom Prompt Instructions'));
-      assert.ok(prompt.includes('Source 1: Document: KB-A_Lumen-Institute-Student-Handbook.md | Section: 2. Programs at a Glance | Chunk ID: KB-A_Lumen-Institute-Student-Handbook_sec2'));
-      assert.ok(prompt.includes('| Tuition per semester | 42,000,000 VND | 58,000,000 VND |'));
-      assert.ok(prompt.includes('User Question:\nWhat is the tuition fee?'));
+      assert.ok(prompt.includes('Source 1: Document: spendwise_user_guide.md | Section: 2. Platform Features at a Glance | Chunk ID: spendwise_user_guide_sec2'));
+      assert.ok(prompt.includes('| Maximum Attachment Size | N/A | 5 MB |'));
+      assert.ok(prompt.includes('User Question:\nWhat is the maximum receipt attachment size?'));
     });
 
     it('formats context sections with document, section, and chunk ID headers', () => {
@@ -126,21 +125,21 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
         {
           id: 'chunk_1',
           title: 'Section 1',
-          source: 'handbook.md',
+          source: 'spendwise_user_guide.md',
           content: 'Content for section 1.',
         },
         {
           id: 'chunk_2',
           title: 'Section 2',
-          source: 'handbook.md',
+          source: 'spendwise_user_guide.md',
           content: 'Content for section 2.',
         },
       ];
 
       const formatted = formatContextSections(chunks);
-      assert.ok(formatted.includes('[Source 1: Document: handbook.md | Section: Section 1 | Chunk ID: chunk_1]'));
+      assert.ok(formatted.includes('[Source 1: Document: spendwise_user_guide.md | Section: Section 1 | Chunk ID: chunk_1]'));
       assert.ok(formatted.includes('Content for section 1.'));
-      assert.ok(formatted.includes('[Source 2: Document: handbook.md | Section: Section 2 | Chunk ID: chunk_2]'));
+      assert.ok(formatted.includes('[Source 2: Document: spendwise_user_guide.md | Section: Section 2 | Chunk ID: chunk_2]'));
       assert.ok(formatted.includes('Content for section 2.'));
     });
 
@@ -150,7 +149,7 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
     });
 
     it('returns safe fallback when executeRAG receives empty chunks', async () => {
-      const result = await executeRAG('What is linear algebra?', {
+      const result = await executeRAG('What is an expense category?', {
         retrieverFn: async () => [],
       });
       assert.equal(result.status, 'INSUFFICIENT');

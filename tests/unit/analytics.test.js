@@ -131,8 +131,8 @@ describe('AI Usage Analytics Suite', () => {
 
   describe('2. Prompt Versioning Determinism and Tool Execution', () => {
     it('produces identical SHA-256 hash for identical resolved prompts', () => {
-      const prompt1 = 'You are a helpful student handbook assistant for HCMUTE.';
-      const prompt2 = 'You are a helpful student handbook assistant for HCMUTE.';
+      const prompt1 = 'You are a helpful SpendWise assistant.';
+      const prompt2 = 'You are a helpful SpendWise assistant.';
       const hash1 = hashPrompt(prompt1);
       const hash2 = hashPrompt(prompt2);
 
@@ -142,8 +142,8 @@ describe('AI Usage Analytics Suite', () => {
     });
 
     it('produces different hashes when prompt content changes', () => {
-      const promptA = 'You are a helpful student handbook assistant.';
-      const promptB = 'You are a helpful student handbook assistant. Be concise.';
+      const promptA = 'You are a helpful SpendWise assistant.';
+      const promptB = 'You are a helpful SpendWise assistant. Be concise.';
       const hashA = hashPrompt(promptA);
       const hashB = hashPrompt(promptB);
 

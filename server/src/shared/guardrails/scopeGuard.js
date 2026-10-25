@@ -5,21 +5,8 @@ import { SERVER_MESSAGES } from '../../constants/index.js';
  * Checked with word boundaries to avoid false positives (e.g. 'late' inside 'chocolate').
  */
 const HANDBOOK_DOMAIN_TERMS = [
-  'tuition', 'fee', 'fees', 'payment', 'installment', 'refund',
-  'scholarship', 'financial aid', 'grant', 'honors', 'standard',
-  'program', 'curriculum', 'degree', 'major', 'minor', 'credit', 'credits',
-  'overload', 'underload', 'course', 'courses', 'syllabus', 'prerequisite',
-  'add/drop', 'add drop', 'withdrawal', 'withdraw', 'registration', 'register',
-  'exam', 'exams', 'midterm', 'final', 'finals', 'make-up', 'makeup', 'grade', 'gpa',
-  'grading', 'pass/fail', 'probation', 'suspension', 'expulsion',
-  'attendance', 'absence', 'absent', 'tardy', 'misconduct', 'integrity',
-  'plagiarism', 'cheating', 'code of conduct', 'disciplinary',
-  'curfew', 'dorm', 'dormitory', 'housing', 'residence', 'roommate', 'quiet hours',
-  'library', 'book', 'borrow', 'overdue',
-  'graduation', 'commencement', 'transcript', 'diploma', 'alumni',
-  'handbook', 'lumen', 'institute', 'university', 'campus', 'student',
-  'faculty', 'dean', 'advisor', 'rector', 'amendment', 'policy', 'rule', 'rules', 'regulation',
-  'academic', 'semester', 'term', 'internship', 'thesis', 'capstone',
+  'spendwise', 'expense', 'expenses', 'transaction', 'transactions', 'receipt', 'receipts',
+  'category', 'categories', 'budget', 'spending', 'income', 'ocr', 'analytics', 'token',
 ];
 
 /**

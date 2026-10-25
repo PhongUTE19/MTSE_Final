@@ -1,14 +1,10 @@
 import { apiRequest, apiJsonRequest } from './apiClient.js';
+import { toQueryString } from '../utils/collectionUtils.js';
 
 export const expenseApi = {
-  // Bỏ query rỗng vì backend enum chỉ nhận giá trị filter hợp lệ.
-  list: (query = {}) => {
-    const populatedQuery = Object.fromEntries(
-      Object.entries(query).filter(([, value]) => value !== '' && value !== undefined && value !== null),
-    );
-    const qs = new URLSearchParams(populatedQuery).toString();
-    return apiRequest(`/api/transactions${qs ? `?${qs}` : ''}`);
-  },
+  // Exclude empty queries because backend enum only accepts valid filter values.
+  list: (query = {}) =>
+    apiRequest(`/api/transactions${toQueryString(query)}`),
   create: (data) =>
     apiJsonRequest('/api/transactions', 'POST', data),
   update: (id, data) =>

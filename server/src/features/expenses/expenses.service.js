@@ -1,4 +1,4 @@
-import { AppError } from '../../shared/errors/index.js';
+import { AppError, handleDatabaseError } from '../../shared/errors/index.js';
 import { HTTP_STATUS } from '../../constants/index.js';
 import { createUserScopedSupabaseClient } from '../../shared/integrations/supabase.js';
 import { EXPENSE_MESSAGES } from './expenses.constants.js';
@@ -17,13 +17,12 @@ function clientFor(user) {
 }
 
 function databaseError(error, operation = 'database operation') {
-  // Do not leak PostgREST/schema details to clients.
-  console.error(`[ExpenseService] ${operation} failed`, {
-    code: error?.code ?? null,
-    message: error?.message ?? null,
-    details: error?.details ?? null,
-  });
-  return new AppError('Expense persistence is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
+  return handleDatabaseError(
+    'ExpenseService',
+    operation,
+    error,
+    'Expense persistence is temporarily unavailable.'
+  );
 }
 
 function notFound() { return new AppError(EXPENSE_MESSAGES.TRANSACTION_NOT_FOUND, HTTP_STATUS.NOT_FOUND); }
@@ -81,15 +80,15 @@ export async function listTransactions(user, query) {
 }
 
 function toMoneyCents(value) {
-  // Cộng bằng số nguyên nhỏ nhất để 0.1 + 0.2 không tạo sai số JavaScript.
+  // Sum using integer cents so JavaScript floating-point (0.1 + 0.2) does not cause rounding errors.
   return Math.round(Number(value) * 100);
 }
 
 function fromMoneyCents(cents) { return cents / 100; }
 
 /**
- * Tính báo cáo từ toàn bộ giao dịch trong kỳ của một user. Đây không dùng
- * listTransactions vì listTransactions có pagination dành cho giao diện.
+ * Calculates summary report from all transactions for a user within a period.
+ * Does not use listTransactions because listTransactions is paginated for UI display.
  */
 export async function getSpendingSummary(user, period) {
   const buildQuery = () => {

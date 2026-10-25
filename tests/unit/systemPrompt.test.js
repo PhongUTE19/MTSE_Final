@@ -17,7 +17,7 @@ describe('System Prompt Service and Schemas Unit Suite', () => {
     it('promptService provides default system prompt and validates prompt length', () => {
       const prompt = getSystemPrompt();
       assert.ok(prompt.length > 50, 'Prompt should have substantial content');
-      assert.ok(prompt.includes('Student Handbook'), 'Prompt should reference Student Handbook');
+      assert.ok(prompt.includes('SpendWise'), 'Prompt should reference SpendWise');
 
       assert.throws(
         () => saveSystemPrompt('Too short'),
@@ -39,7 +39,7 @@ describe('System Prompt Service and Schemas Unit Suite', () => {
 
   describe('2. System Prompt Zod Schema Validation', () => {
     it('valid inputs pass validation for system prompt schema', () => {
-      const validPrompt = 'You are an intelligent Student Handbook assistant helping students.';
+      const validPrompt = 'You are an intelligent SpendWise assistant helping users manage finances.';
       const promptParsed = validate(updateSystemPromptSchema, { prompt: validPrompt });
       assert.equal(promptParsed.prompt, validPrompt);
     });

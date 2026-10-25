@@ -4,7 +4,7 @@ import { createTransaction, getSpendingSummary, listTransactions } from '../expe
 import { createTransactionArgsSchema, searchTransactionsArgsSchema, spendingSummaryArgsSchema } from './expenseAgent.schemas.js';
 import { runGeminiExpenseAgent } from './geminiExpenseAgent.js';
 
-const MAX_AGENT_STEPS = 2; // Gemini gọi tool một lần, sau đó chỉ tổng hợp câu trả lời.
+const MAX_AGENT_STEPS = 2; // Gemini calls tool once, then summarizes response.
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
 const proposals = new Map();
 let now = () => Date.now();
@@ -20,7 +20,7 @@ export async function searchTransactionsForUser(user, message, options = {}) {
     if (!parsed.success) throw new AppError('Gemini returned invalid search filters.', HTTP_STATUS.BAD_REQUEST);
     const args = parsed.data;
 
-    // Tái sử dụng Expense Service để giữ cùng RLS-aware client và owner predicate.
+    // Reuse Expense Service to maintain same RLS-aware client and owner predicate.
     const result = await (options.listTransactions || listTransactions)(user, {
       search: args.merchant || '', category: args.category, type: args.type,
       from: args.from, to: args.to, minAmount: args.minAmount, maxAmount: args.maxAmount,
@@ -33,7 +33,7 @@ export async function searchTransactionsForUser(user, message, options = {}) {
     return await (options.agentRunner || runGeminiExpenseAgent)(message, executeTool, options);
   } catch (error) {
     if (error instanceof AppError) throw error;
-    // Không log prompt, token, tham số hay raw provider error vì có thể chứa dữ liệu tài chính.
+    // Do not log prompts, tokens, parameters or raw provider errors to protect financial data.
     console.error('[ExpenseAgent] Search failed', { name: error?.name || 'UnknownError' });
     throw new AppError('Expense search is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
@@ -49,7 +49,7 @@ export async function getSpendingSummaryForUser(user, message, options = {}) {
     const parsed = spendingSummaryArgsSchema.safeParse(rawArgs);
     if (!parsed.success) throw new AppError('Gemini returned invalid summary period.', HTTP_STATUS.BAD_REQUEST);
 
-    // User identity luôn đến từ JWT đã xác thực, không lấy từ Gemini args.
+    // User identity always comes from authenticated JWT, never from Gemini args.
     return (options.getSpendingSummary || getSpendingSummary)(user, parsed.data);
   };
 
@@ -78,7 +78,7 @@ function createProposalFromArgs(user, rawArgs) {
   const id = crypto.randomUUID();
   const proposal = { id, userId: user.id, transaction: parsed.data, status: 'pending', expiresAt: now() + PROPOSAL_TTL_MS };
   proposals.set(id, proposal);
-  // Proposal chỉ nằm tạm trong memory; chưa gọi createTransaction/Supabase.
+  // Proposal is kept temporarily in memory; createTransaction/Supabase not called yet.
   return { proposal: { id, transaction: proposal.transaction, expiresAt: new Date(proposal.expiresAt).toISOString() } };
 }
 
@@ -96,7 +96,7 @@ export async function createTransactionProposalForUser(user, message, options = 
   }
 }
 
-/** Một chat endpoint, Gemini tự chọn 1 trong 3 tool đã khai báo. */
+/** Single chat endpoint where Gemini selects 1 of 3 declared tools. */
 export async function runExpenseAssistantForUser(user, message, options = {}) {
   let executedSteps = 0;
   const executeTool = async (toolName, rawArgs) => {
@@ -125,7 +125,7 @@ export async function runExpenseAssistantForUser(user, message, options = {}) {
 
   try {
     const context = (options.history || []).map((item) => `${item.role === 'user' ? 'User' : 'Assistant'}: ${item.text}`).join('\n');
-    // Chỉ gửi vài lượt hội thoại đã validate; danh tính/quyền vẫn luôn lấy từ JWT.
+    // Only send validated conversation turns; identity and authorization always derive from JWT.
     const prompt = context ? `Conversation context:\n${context}\n\nCurrent user request: ${message}` : message;
     return await (options.agentRunner || runGeminiExpenseAgent)(prompt, executeTool, { ...options, agentType: 'assistant' });
   } catch (error) {
@@ -139,7 +139,7 @@ export async function confirmTransactionProposal(user, proposalId, transaction, 
   const proposal = getOwnedPendingProposal(user, proposalId);
   const parsed = createTransactionArgsSchema.safeParse(transaction);
   if (!parsed.success) throw new AppError('Transaction confirmation is invalid.', HTTP_STATUS.BAD_REQUEST);
-  // Đánh dấu processing trước await để double-click không tạo hai giao dịch.
+  // Mark processing before await so double-clicks do not create duplicate transactions.
   proposal.status = 'processing';
   try {
     const saved = await (options.createTransaction || createTransaction)(user, parsed.data);

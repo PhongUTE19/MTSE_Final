@@ -144,7 +144,7 @@ describe('Client-Side Validation Module Tests', () => {
     });
 
     it('validateSystemPrompt: enforces 20–10,000 char boundaries matching server schema', () => {
-      const validPrompt = 'You are the helpful Student Handbook Assistant answering questions accurately.';
+      const validPrompt = 'You are the helpful SpendWise Assistant answering questions accurately.';
       assert.equal(validateSystemPrompt(validPrompt).isValid, true);
 
       const tooShort = 'Too short';

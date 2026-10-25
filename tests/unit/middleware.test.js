@@ -12,7 +12,11 @@ import {
   errorHandler,
   apiRateLimiter,
   chatRateLimiter,
+  expenseAgentRateLimiter,
+  receiptOcrRateLimiter,
   indexingRateLimiter,
+  createLimiter,
+  resolveRateLimitKey,
 } from '../../server/src/shared/middleware/index.js';
 
 import {
@@ -265,7 +269,11 @@ describe('Shared Middleware Suite', () => {
     it('exports configured rate limiter middleware instances', () => {
       assert.equal(typeof apiRateLimiter, 'function');
       assert.equal(typeof chatRateLimiter, 'function');
+      assert.equal(typeof expenseAgentRateLimiter, 'function');
+      assert.equal(typeof receiptOcrRateLimiter, 'function');
       assert.equal(typeof indexingRateLimiter, 'function');
+      assert.equal(typeof createLimiter, 'function');
+      assert.equal(typeof resolveRateLimitKey, 'function');
     });
 
     it('skips rate limiting in test environment without blocking requests', async () => {

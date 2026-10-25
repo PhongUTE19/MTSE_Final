@@ -3,7 +3,7 @@ import HealthBadge from './HealthBadge';
 import { ToastProvider } from '../context/ToastContext';
 
 /**
- * Shared page shell and header layout for the Student Handbook Assistant.
+ * Shared page shell and header layout for the Knowledge Base Assistant.
  * Provides the application container, responsive header, health badge, and toast system.
  *
  * @param {object} props

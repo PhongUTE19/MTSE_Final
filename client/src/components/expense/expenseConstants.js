@@ -27,3 +27,27 @@ export const RECEIPT_ACCEPTED_TYPES = Object.freeze([
 ]);
 
 export const MAX_RECEIPT_SIZE_BYTES = 5 * 1024 * 1024;
+
+export const INITIAL_TRANSACTION_FILTERS = Object.freeze({
+  search: '',
+  type: '',
+  category: '',
+  from: '',
+  to: '',
+  page: '1',
+  pageSize: '10',
+  sortBy: 'date',
+  sortOrder: 'desc',
+});
+
+export const EXPENSE_VIEWS = Object.freeze({
+  TRANSACTIONS: 'transactions',
+  RECEIPT: 'receipt',
+  CATEGORIES: 'categories',
+});
+
+export const EXPENSE_VIEW_TITLES = Object.freeze({
+  [EXPENSE_VIEWS.TRANSACTIONS]: 'Transactions',
+  [EXPENSE_VIEWS.RECEIPT]: 'Scan a receipt',
+  [EXPENSE_VIEWS.CATEGORIES]: 'Categories',
+});

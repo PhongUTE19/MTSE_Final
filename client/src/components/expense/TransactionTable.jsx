@@ -3,14 +3,7 @@ import { formatMoney } from './expenseFormatters';
 import SearchInput from '../common/SearchInput';
 import SortableHeader from '../common/SortableHeader';
 import Pagination from '../common/Pagination';
-
-function EditIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.8 5.2 18.8 10.2M4 20l4.1-.9L19.5 7.7a2.1 2.1 0 0 0-3-3L5.1 16.1 4 20Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-}
-
-function DeleteIcon() {
-  return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m-8 0 .8 13h8.4L17 7M10 11v5m4-5v5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
-}
+import { EditIcon, DeleteIcon } from '../common/Icons';
 
 export default function TransactionTable({ data, filters, loading, onChangeFilters, onEdit, onDelete, onSearch }) {
   const handleSort = (columnKey) => {

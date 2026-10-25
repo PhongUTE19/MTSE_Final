@@ -17,6 +17,10 @@ export function useAdminDashboard({ isOffline = false, defaultTab = ADMIN_TABS.K
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(defaultTab);
 
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
   const drawer = useDrawer(ADMIN_PANELS.DOCUMENTS);
   const chunksState = useChunks({ onError: toast.error });
 

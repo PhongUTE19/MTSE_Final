@@ -12,15 +12,15 @@ const summaryDateSchema = z.string()
   .regex(datePattern, 'Date must use YYYY-MM-DD.')
   .refine(isCalendarDate, 'Date must be a real calendar date.');
 
-// API chỉ nhận câu hỏi tự nhiên; Gemini sẽ tự chọn tool và tạo bộ lọc có cấu trúc.
+// API accepts natural language; Gemini selects tool and generates structured filters.
 export const expenseAgentRequestSchema = z.object({
   message: z.string().trim().min(1, 'Query message is required.').max(1000),
-  // Ngữ cảnh UI bị giới hạn chặt để không biến localStorage thành input không kiểm soát.
+  // UI context is strictly constrained to avoid unvalidated localStorage inputs.
   history: z.array(z.object({ role: z.enum(['user', 'assistant']), text: z.string().trim().min(1).max(1000) }))
     .max(8, 'History may contain at most 8 messages.').optional().default([]),
 });
 
-// Đây là ranh giới an toàn giữa Gemini và database. Không dùng args từ model khi chưa parse.
+// Boundary between Gemini and database. Never use unparsed model arguments.
 export const searchTransactionsArgsSchema = z.object({
   merchant: z.string().trim().min(1).max(120).optional(),
   category: z.string().trim().min(1).max(60).optional(),
@@ -37,7 +37,7 @@ export const searchTransactionsArgsSchema = z.object({
   message: 'minAmount must not be greater than maxAmount.', path: ['maxAmount'],
 });
 
-// Tool summary chỉ nhận khoảng ngày đã được Gemini chuẩn hoá thành ISO date.
+// Tool summary only accepts ISO date ranges normalized by Gemini.
 export const spendingSummaryArgsSchema = z.object({
   from: summaryDateSchema,
   to: summaryDateSchema,
@@ -45,8 +45,8 @@ export const spendingSummaryArgsSchema = z.object({
   message: 'from must not be after to.', path: ['to'],
 });
 
-// Proposal dùng cùng quy tắc CRUD, đồng thời chặn các ngày chỉ đúng định dạng
-// nhưng không tồn tại như 2026-02-30 trước khi chúng đi tới Supabase.
+// Proposal reuses CRUD rules while rejecting non-existent calendar dates
+// like 2026-02-30 before reaching Supabase.
 export const createTransactionArgsSchema = transactionSchema.superRefine((transaction, context) => {
   if (!isCalendarDate(transaction.date)) {
     context.addIssue({ code: z.ZodIssueCode.custom, path: ['date'], message: 'Date must be a real calendar date.' });
