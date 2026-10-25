@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   appUrl,
   exchangeCodeForSessionFromUrl,
@@ -6,6 +7,7 @@ import {
   safeNextPath,
   supabase,
 } from '../../services/supabaseAuth';
+import './auth.css';
 
 export default function AuthCallbackPage() {
   const [message, setMessage] = useState('Completing your secure sign-in…');
@@ -24,5 +26,5 @@ export default function AuthCallbackPage() {
     complete();
   }, []);
 
-  return <main className="auth-content auth-standalone"><section className="auth-card" aria-live="polite"><p className="auth-kicker">SPENDWISE</p><h1>Finishing up</h1><p>{message}</p><a className="auth-text-link" href="/auth.html">Return to sign in</a></section></main>;
+  return <main className="auth-content auth-standalone"><section className="auth-card" aria-live="polite"><p className="auth-kicker">SPENDWISE</p><h1>Finishing up</h1><p>{message}</p><Link className="auth-text-link" to="/auth">Return to sign in</Link></section></main>;
 }

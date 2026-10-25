@@ -1,58 +1,48 @@
-import React, { useState } from 'react';
-import HealthBadge from './components/HealthBadge';
-import UserChatView from './components/user/UserChatView';
-import AdminDashboard from './components/admin/AdminDashboard';
-import { ToastProvider } from './context/ToastContext';
-import { useHealth } from './hooks';
-import { USER_ROLES, UI_LABELS } from './constants';
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import HandbookView from './components/HandbookView';
+
+const AuthPage = lazy(() => import('./components/auth/AuthPage'));
+const AuthCallbackPage = lazy(() => import('./components/auth/AuthCallbackPage'));
+const ResetPasswordPage = lazy(() => import('./components/auth/ResetPasswordPage'));
+const ExpenseSessionGate = lazy(() => import('./components/expense/ExpenseSessionGate'));
+const AdminSessionGate = lazy(() => import('./components/admin/AdminSessionGate'));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="flex items-center justify-center min-h-screen text-slate-500">
+      <p>Loading...</p>
+    </div>
+  );
+}
 
 export default function App() {
-  const [role, setRole] = useState(USER_ROLES.USER);
-  const { health, checkHealth } = useHealth(role);
-
   return (
-    <ToastProvider>
-      <div className="app-container">
-        <header className="app-header">
-          <div className="split-layout">
-            <div>
-              <h1 className="app-title">{UI_LABELS.APP.TITLE}</h1>
-              <p className="app-subtitle">
-                {role === USER_ROLES.USER
-                  ? UI_LABELS.APP.USER_SUBTITLE
-                  : UI_LABELS.APP.ADMIN_SUBTITLE}
-              </p>
-            </div>
-            <div className="row-layout">
-              <button
-                type="button"
-                data-role={role}
-                className="btn btn-secondary"
-                onClick={() => {
-                  setRole(role === USER_ROLES.USER ? USER_ROLES.ADMIN : USER_ROLES.USER);
-                }}
-                title={role === USER_ROLES.USER ? UI_LABELS.APP.SWITCH_TO_ADMIN_TITLE : UI_LABELS.APP.SWITCH_TO_USER_TITLE}
-              >
-                {role === USER_ROLES.USER ? UI_LABELS.APP.SWITCH_TO_ADMIN_BTN : UI_LABELS.APP.SWITCH_TO_USER_BTN}
-              </button>
-            </div>
-          </div>
+    <BrowserRouter>
+      <Suspense fallback={<RouteLoadingFallback />}>
+        <Routes>
+          {/* Main Student Handbook Assistant application */}
+          <Route path="/" element={<HandbookView />} />
 
-          <HealthBadge
-            status={health.status}
-            indexedChunks={health.indexedChunks}
-            loading={health.loading}
-            error={health.error}
-            onRetry={checkHealth}
-          />
-        </header>
+          {/* Authentication routes */}
+          <Route path="/auth" element={<AuthPage />} />
 
-        {role === USER_ROLES.USER ? (
-          <UserChatView health={health} onRefreshHealth={checkHealth} />
-        ) : (
-          <AdminDashboard health={health} onRefreshHealth={checkHealth} />
-        )}
-      </div>
-    </ToastProvider>
+          {/* OAuth and Email Confirmation Callback routes */}
+          <Route path="/auth/callback" element={<AuthCallbackPage />} />
+
+          {/* Password Reset routes */}
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+
+          {/* Expense Tracker Workspace routes */}
+          <Route path="/expense" element={<ExpenseSessionGate />} />
+
+          {/* Admin Workspace Gate routes */}
+          <Route path="/admin" element={<AdminSessionGate />} />
+
+          {/* Catch-all fallback route */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
+    </BrowserRouter>
   );
 }

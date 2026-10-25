@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { appUrl, isSupabaseConfigured, signOut, supabase } from '../../services/supabaseAuth';
+import './admin.css';
 
 function redirectToSignIn() {
-  window.location.replace(`${appUrl('/auth.html')}?next=${encodeURIComponent('/admin.html')}`);
+  window.location.replace(`${appUrl('/auth')}?next=${encodeURIComponent('/admin')}`);
 }
 
 function redirectToExpense() {
-  window.location.replace(appUrl('/expense.html'));
+  window.location.replace(appUrl('/expense'));
 }
 
 export default function AdminSessionGate() {
@@ -34,7 +36,7 @@ export default function AdminSessionGate() {
       <h1 id="admin-title">Administrator workspace</h1>
       <p>You are signed in as <strong>{displayName}</strong>. Your administrator role has been verified.</p>
       <div className="admin-card__actions">
-        <a className="admin-secondary-link" href="/expense.html">Open expense workspace</a>
+        <Link className="admin-secondary-link" to="/expense">Open expense workspace</Link>
         <button type="button" className="admin-signout" onClick={async () => { await signOut(); redirectToSignIn(); }}>Sign out</button>
       </div>
     </section>

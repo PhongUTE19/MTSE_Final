@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { appUrl, exchangeCodeForSessionFromUrl, isSupabaseConfigured, supabase } from '../../services/supabaseAuth';
+import './auth.css';
 
 function PasswordField({ id, label, value, onChange, disabled }) {
   const [visible, setVisible] = useState(false);
@@ -73,7 +75,7 @@ export default function ResetPasswordPage() {
       }
       setCompleted(true);
       setMessage('Password updated. Redirecting you to sign in…');
-      window.setTimeout(() => window.location.replace(appUrl('/auth.html?reset=success')), 1200);
+      window.setTimeout(() => window.location.replace(appUrl('/auth?reset=success')), 1200);
     } catch (updateError) {
       setError(updateError instanceof Error ? updateError.message : 'We could not update your password. Please try again.');
     } finally {
@@ -81,5 +83,5 @@ export default function ResetPasswordPage() {
     }
   }
   const controlsDisabled = loading || completed;
-  return <main className="auth-content auth-standalone"><section className="auth-card"><p className="auth-kicker">ACCOUNT RECOVERY</p><h1>Choose a new password</h1><p className="auth-copy">Use a password with at least eight characters.</p><form className="auth-form" onSubmit={submit} noValidate>{error && <div className="auth-alert auth-alert--error" role="alert">{error}</div>}{message && <div className="auth-alert auth-alert--info" role="status">{message}</div>}<PasswordField id="new-password" label="New password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={controlsDisabled} /><PasswordField id="confirm-new-password" label="Confirm new password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={controlsDisabled} /><button className="auth-primary-button" disabled={controlsDisabled || !ready}>{loading ? 'Updating password…' : completed ? 'Password updated' : ready ? 'Update password' : 'Verifying reset link…'}</button></form><p className="auth-switch"><a href="/auth.html">Return to sign in</a></p></section></main>;
+  return <main className="auth-content auth-standalone"><section className="auth-card"><p className="auth-kicker">ACCOUNT RECOVERY</p><h1>Choose a new password</h1><p className="auth-copy">Use a password with at least eight characters.</p><form className="auth-form" onSubmit={submit} noValidate>{error && <div className="auth-alert auth-alert--error" role="alert">{error}</div>}{message && <div className="auth-alert auth-alert--info" role="status">{message}</div>}<PasswordField id="new-password" label="New password" value={password} onChange={(event) => setPassword(event.target.value)} disabled={controlsDisabled} /><PasswordField id="confirm-new-password" label="Confirm new password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} disabled={controlsDisabled} /><button className="auth-primary-button" disabled={controlsDisabled || !ready}>{loading ? 'Updating password…' : completed ? 'Password updated' : ready ? 'Update password' : 'Verifying reset link…'}</button></form><p className="auth-switch"><Link to="/auth">Return to sign in</Link></p></section></main>;
 }

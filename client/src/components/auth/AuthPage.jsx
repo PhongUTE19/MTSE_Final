@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { appUrl, isSupabaseConfigured, safeNextPath, supabase } from '../../services/supabaseAuth';
+import './auth.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -49,11 +50,11 @@ export default function AuthPage() {
     setLoading(true);
     try {
       if (isForgot) {
-        const { error: requestError } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: appUrl('/reset-password.html') });
+        const { error: requestError } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: appUrl('/reset-password') });
         if (requestError) setNotice(requestError.message);
         else setNotice('If an account exists for that email, a password-reset link has been sent.');
       } else if (isSignUp) {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { display_name: form.name.trim() }, emailRedirectTo: appUrl('/auth-callback.html') } });
+        const { data, error: signUpError } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { display_name: form.name.trim() }, emailRedirectTo: appUrl('/auth/callback') } });
         if (signUpError) setNotice(signUpError.message);
         else if (data.session) window.location.replace(appUrl(nextPath));
         else setNotice('Check your email to confirm your account before signing in.');
@@ -74,7 +75,7 @@ export default function AuthPage() {
     if (!isSupabaseConfigured || !supabase) { setNotice('Authentication is not configured for this environment.'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${appUrl('/auth-callback.html')}?next=${encodeURIComponent(nextPath)}` } });
+      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${appUrl('/auth/callback')}?next=${encodeURIComponent(nextPath)}` } });
       if (error) setNotice(error.message);
     } catch (authError) {
       setNotice(authError instanceof Error ? authError.message : 'We could not start Google sign-in. Please try again.');
@@ -82,6 +83,7 @@ export default function AuthPage() {
       setLoading(false);
     }
   }
+
 
   const title = isForgot ? 'Reset your password' : isSignUp ? 'Create your workspace' : 'Welcome back';
   const description = isForgot ? 'Enter your email and we’ll send a secure reset link.' : isSignUp ? 'Set up your Spendwise workspace in a few moments.' : 'Sign in to continue managing your money with confidence.';

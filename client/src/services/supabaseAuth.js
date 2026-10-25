@@ -20,7 +20,9 @@ export function appUrl(pathname) {
 }
 
 export function safeNextPath(value) {
-  return value === '/expense.html' || value === '/admin.html' ? value : '/expense.html';
+  if (!value) return '/expense';
+  const clean = value.replace(/\.html$/, '');
+  return clean === '/expense' || clean === '/admin' ? clean : '/expense';
 }
 
 export async function getAccessToken() {

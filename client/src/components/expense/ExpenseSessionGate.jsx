@@ -3,7 +3,7 @@ import ExpenseTrackerApp from './ExpenseTrackerApp';
 import { appUrl, isSupabaseConfigured, safeNextPath, signOut, supabase } from '../../services/supabaseAuth';
 
 function redirectToSignIn() {
-  window.location.replace(`${appUrl('/auth.html')}?next=${encodeURIComponent(safeNextPath(window.location.pathname))}`);
+  window.location.replace(`${appUrl('/auth')}?next=${encodeURIComponent(safeNextPath(window.location.pathname))}`);
 }
 
 export default function ExpenseSessionGate() {
