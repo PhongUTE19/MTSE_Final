@@ -33,4 +33,9 @@ export const expenseApi = {
   retryReceipt: (id) => request(`/api/receipts/${id}/retry`, { method: 'POST' }),
   confirmReceipt: (id, finalTransaction) => request(`/api/receipts/${id}/confirm`, { method: 'POST', body: JSON.stringify({ finalTransaction }) }),
   deleteReceipt: (id) => request(`/api/receipts/${id}`, { method: 'DELETE' }),
+  askExpenseAssistant: (message, history = []) => request('/api/expense-agent/assistant', { method: 'POST', body: JSON.stringify({ message, history }) }),
+  searchAgentTransactions: (message) => request('/api/expense-agent/search', { method: 'POST', body: JSON.stringify({ message }) }),
+  createAgentProposal: (message) => request('/api/expense-agent/create-proposal', { method: 'POST', body: JSON.stringify({ message }) }),
+  confirmAgentProposal: (id, transaction) => request(`/api/expense-agent/proposals/${id}/confirm`, { method: 'POST', body: JSON.stringify({ transaction }) }),
+  cancelAgentProposal: (id) => request(`/api/expense-agent/proposals/${id}`, { method: 'DELETE' }),
 };
