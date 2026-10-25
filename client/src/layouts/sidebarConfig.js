@@ -45,10 +45,20 @@ export function getSidebarNavigation(user) {
 export function isAdminItemActive(item, currentPath = '', activeView = '') {
   if (activeView && activeView === item.key) return true;
   if (currentPath && currentPath === item.path) return true;
-  if (item.path === APP_ROUTES.ADMIN_KNOWLEDGE && (currentPath === '/admin' || currentPath === '/admin/knowledge-base' || activeView === 'knowledge')) {
+  if (
+    item.path === APP_ROUTES.ADMIN_KNOWLEDGE &&
+    (currentPath === '/admin' ||
+      currentPath === '/admin/knowledge-base' ||
+      activeView === 'knowledge')
+  ) {
     return true;
   }
-  if (item.path === APP_ROUTES.ADMIN_ANALYTICS && (currentPath === '/analytics' || currentPath === '/admin/analytics' || activeView === 'analytics')) {
+  if (
+    item.path === APP_ROUTES.ADMIN_ANALYTICS &&
+    (currentPath === '/analytics' ||
+      currentPath === '/admin/analytics' ||
+      activeView === 'analytics')
+  ) {
     return true;
   }
   return false;

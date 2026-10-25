@@ -51,8 +51,8 @@ The system consists of two containerized application services managed by Docker 
 1. **User Submits Query**: Student asks a handbook question in `UserChatView.jsx`.
 2. **HTTP Dispatch**: `client/src/services/userApi.js` sends `POST /api/user/chat` (synchronous) or `POST /api/user/chat/stream` (SSE).
 3. **Request Validation**: Express route invokes `validateRequest({ body: chatRequestSchema })`. Invalid payloads immediately return `400 Bad Request` JSON before SSE headers are sent.
-4. **Chat Orchestration (`server/src/features/chat/chat.service.js`)**:
-   - Delegates retrieval to `server/src/features/knowledge/ragService.js`.
+4. **Assistant/Chat Orchestration (`server/src/features/assistant/assistant.service.js`)**:
+   - Delegates retrieval to `server/src/features/knowledgeBase/ragService.js`.
    - Embeds query using active AI provider (`embedText()`).
    - Retrieves top-$K$ candidates ($K=4$) from Qdrant Cloud via `retriever.js`.
    - Checks relevance threshold ($0.60$) and Section 11 Amendment boost ($0.55$).

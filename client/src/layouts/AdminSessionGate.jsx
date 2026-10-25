@@ -13,7 +13,7 @@ import { ToastProvider } from '../shared/contexts/ToastContext';
 import AdminDashboard from './AdminDashboard';
 import { ADMIN_TABS, APP_ROUTES, USER_ROLES } from '../shared/constants';
 import '../features/expense/expenseTracker.css';
-import '../features/knowledgeBase/admin.css';
+import './adminSessionGate.css';
 
 function redirectToSignIn(targetPath = APP_ROUTES.ADMIN_ANALYTICS) {
   const next = encodeURIComponent(safeNextPath(targetPath) || APP_ROUTES.ADMIN_ANALYTICS);
@@ -54,8 +54,10 @@ export default function AdminSessionGate({ defaultTab = ADMIN_TABS.ANALYTICS }) 
     );
   }
 
-  const activeView = (location.pathname === APP_ROUTES.ADMIN_KNOWLEDGE || location.pathname === '/admin') ? 'knowledge' : 'analytics';
-  const pageTitle = activeView === 'analytics' ? 'AI Usage Analytics' : 'Knowledge Base';
+  const isKnowledgeView =
+    location.pathname === APP_ROUTES.ADMIN_KNOWLEDGE || location.pathname === '/admin';
+  const activeView = isKnowledgeView ? 'knowledge' : 'analytics';
+  const pageTitle = activeView === 'analytics' ? 'AI Usage' : 'Knowledge Base';
 
   const handleSignOut = async () => {
     await signOut();

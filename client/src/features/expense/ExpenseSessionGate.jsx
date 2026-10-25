@@ -5,7 +5,8 @@ import { appUrl, safeNextPath, signOut } from '../../shared/services/supabaseAut
 import { useSession } from '../../shared/hooks';
 
 function redirectToSignIn() {
-  window.location.replace(`${appUrl(APP_ROUTES.AUTH)}?next=${encodeURIComponent(safeNextPath(window.location.pathname))}`);
+  const next = encodeURIComponent(safeNextPath(window.location.pathname));
+  window.location.replace(`${appUrl(APP_ROUTES.AUTH)}?next=${next}`);
 }
 
 export default function ExpenseSessionGate() {

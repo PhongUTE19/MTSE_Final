@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { orchestrateChat } from '../../server/src/features/chat/chat.service.js';
+import { orchestrateChat } from '../../server/src/features/assistant/assistant.service.js';
 import { config } from '../../server/src/config.js';
 import { acceptanceCases } from './cases.js';
 
@@ -34,7 +34,7 @@ export async function runEvaluationSuite() {
     console.log(`QUERY: "${t.query}"`);
 
     try {
-      const res = await orchestrateChat(t.query);
+      const res = await orchestrateChat(t.query, { strategy: 'rag' });
       console.log(`ANSWER:\n${res.answer}`);
       console.log(`SOURCES:`, res.sources.map(s => `[${s.id}] ${s.title} (score: ${s.score})`));
 

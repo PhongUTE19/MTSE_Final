@@ -1,5 +1,5 @@
 import { EXPENSE_CATEGORIES } from './expenseConstants.js';
-import { categoriesForType } from './expenseFormatters.js';
+import { categoriesForType } from './expenseCategories.js';
 
 export const DEFAULT_TRANSACTION_LABELS = Object.freeze({
   type: 'Type',

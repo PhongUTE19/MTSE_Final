@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { executeRAG } from '../../server/src/features/knowledgeBase/ragService.js';
-import { orchestrateChat, ChatServiceError } from '../../server/src/features/chat/chat.service.js';
+import { orchestrateChat, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
 
 describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', () => {
   // Simulated chat processor logic mirroring chatService.js with injectable dependencies

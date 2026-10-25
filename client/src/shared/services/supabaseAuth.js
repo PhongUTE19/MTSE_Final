@@ -55,10 +55,18 @@ export function getUserRole(sessionOrUser) {
 export function getPostAuthPath(role, requestedNext) {
   const isAdmin = role === 'admin';
   if (isAdmin) {
-    if (requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE || requestedNext === '/admin' || requestedNext === '/admin/knowledge-base') {
+    if (
+      requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE ||
+      requestedNext === '/admin' ||
+      requestedNext === '/admin/knowledge-base'
+    ) {
       return APP_ROUTES.ADMIN_KNOWLEDGE;
     }
-    if (requestedNext === APP_ROUTES.ADMIN_ANALYTICS || requestedNext === '/analytics' || requestedNext === '/admin/analytics') {
+    if (
+      requestedNext === APP_ROUTES.ADMIN_ANALYTICS ||
+      requestedNext === '/analytics' ||
+      requestedNext === '/admin/analytics'
+    ) {
       return APP_ROUTES.ADMIN_ANALYTICS;
     }
     return APP_ROUTES.ADMIN_ANALYTICS;
@@ -107,7 +115,10 @@ export function formatAuthError(error, context = 'signup') {
       return message;
     }
     if (context === 'signup') {
-      return 'Too many sign-up requests or emails sent recently. Please wait a few minutes before trying again, or sign in if you already have an account.';
+      return (
+        'Too many sign-up requests or emails sent recently. ' +
+        'Please wait a few minutes before trying again, or sign in if you already have an account.'
+      );
     }
     if (context === 'forgot') {
       return 'Password reset requested too frequently. Please wait a few minutes before requesting another reset link.';

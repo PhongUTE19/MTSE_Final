@@ -14,15 +14,14 @@ Student_Handbook/
 │   ├── src/
 │   │   ├── components/                   # UI presentation layer
 │   │   │   ├── admin/                    # Administration modules (RAG & Analytics)
-│   │   │   │   ├── analytics/            # Telemetry dashboards, KPIs, timeseries & query logs
-│   │   │   │   ├── AdminDashboard.jsx    # Tab coordinator (Knowledge vs Analytics)
-│   │   │   │   ├── AdminSessionGate.jsx  # Route guard enforcing Supabase admin role
-│   │   │   │   ├── AdminStats.jsx        # Top-level index & sync status badges
+│   │   │   │   ├── analytics/            # Telemetry dashboards (AnalyticsDashboard, charts, KPIs)
+│   │   │   │   ├── KnowledgeBaseDashboard.jsx # Knowledge Base coordinator (documents, chunks, prompt)
+│   │   │   │   ├── KnowledgeBaseStats.jsx# Top-level index & sync status badges
+│   │   │   │   ├── systemPrompt/         # RAG system prompt configuration (SystemPromptEditor, API, hook)
 │   │   │   │   ├── ChunkCard.jsx         # Card renderer for vector chunk preview
 │   │   │   │   ├── ChunkReview.jsx       # Paginated chunk list with server-side query
 │   │   │   │   ├── DocumentEditor.jsx    # Markdown CRUD editor with upload & preview
-│   │   │   │   ├── DocumentTable.jsx     # Document inventory table with sort & search
-│   │   │   │   └── SystemPromptEditor.jsx# RAG system prompt configuration & factory reset
+│   │   │   │   └── DocumentTable.jsx     # Document inventory table with sort & search
 │   │   │   ├── auth/                     # Authentication views & components
 │   │   │   │   ├── AuthCallbackPage.jsx  # PKCE OAuth & magic link callback handler
 │   │   │   │   ├── AuthPage.jsx          # Public Sign In, Sign Up, & Forgot Password page
@@ -34,7 +33,7 @@ Student_Handbook/
 │   │   │   │   ├── SearchInput.jsx       # Debounced accessible search input
 │   │   │   │   └── SortableHeader.jsx    # Table column header with sort indicators
 │   │   │   ├── expense/                  # SpendWise personal finance workspace
-│   │   │   │   ├── AiExpenseAssistant.jsx# Floating chat assistant with tool results & proposals
+│   │   │   │   ├── assistant/            # Expense Assistant integration (ExpenseAssistant, TransactionProposalCard, ExpenseToolResult)
 │   │   │   │   ├── ExpenseSessionGate.jsx# Route guard for authenticated user workspace
 │   │   │   │   ├── ExpenseSidebar.jsx    # Sidebar navigation & balance breakdown
 │   │   │   │   ├── ExpenseTrackerApp.jsx # Main expense tracking coordinator & state manager
@@ -242,12 +241,12 @@ Student_Handbook/
 | `useChat` | `client/src/hooks/useChat.js` | Coordinates conversation message state, SSE streaming, and abort |
 | `useDocuments` | `client/src/hooks/useDocuments.js` | Manages document list fetching, editor state, saving, and deletion |
 | `useChunks` | `client/src/hooks/useChunks.js` | Handles paginated chunk review state and search filtering |
-| `useSystemPrompt`| `client/src/hooks/useSystemPrompt.js`| Fetches, updates, and resets RAG system prompt |
+| `useSystemPrompt`| `client/src/features/systemPrompt/useSystemPrompt.js`| Fetches, updates, and resets RAG system prompt |
 | `useAnalytics` | `client/src/hooks/useAnalytics.js` | Loads overview KPIs, timeseries charts, breakdowns, and logs |
 | `useAdminDashboard`| `client/src/hooks/useAdminDashboard.js`| Aggregates knowledge base, documents, chunks, and drawer states |
 | `useHealth` | `client/src/hooks/useHealth.js` | Polls backend `/api/health` vector database connection status |
 | `useKnowledgeBase`| `client/src/hooks/useKnowledgeBase.js`| Checks status and triggers re-indexing workflow |
-| `useDrawer` | `client/src/hooks/useDrawer.js` | Manages drawer open/closed state and active panel switching |
+| `useDrawer` | `client/src/shared/hooks/useDrawer.js` | Manages slide-out drawer state, accessibility focus, Escape dismissal, and scroll lock |
 | `useTextReveal` | `client/src/hooks/useTextReveal.js` | Animated grapheme-by-grapheme text reveal for streaming answers |
 
 ### 3.3. Client Utilities & Formatters
@@ -277,8 +276,8 @@ Student_Handbook/
 
 | Function | File Path | Callers | Responsibility |
 | :--- | :--- | :--- | :--- |
-| `orchestrateChat` | `server/src/features/chat/chat.service.js` | `chat.controller.js`, `evals/rag/runner.js` | Coordinates RAG retrieval, threshold checks, and LLM answer generation |
-| `orchestrateChatStream` | `server/src/features/chat/chat.service.js` | `chat.controller.js` | Coordinates RAG retrieval and streams SSE deltas to client |
+| `orchestrateChat` | `server/src/features/assistant/assistant.service.js` | `assistant.controller.js`, `evals/rag/runner.js` | Central orchestrator selecting AI strategy, coordinating tools & generation |
+| `orchestrateChatStream` | `server/src/features/assistant/assistant.service.js` | `assistant.controller.js` | Central streaming orchestrator streaming SSE deltas to client |
 | `retrieveChunks` | `server/src/features/knowledgeBase/retriever.js` | `ragService.js` | Queries Qdrant Cloud collection using 3072-dim cosine similarity |
 | `runIndexing` | `server/src/features/knowledgeBase/indexer.js` | `knowledgeBase.service.js` | Chunks markdown files, resets collection, embeds chunks, and upserts to Qdrant |
 | `recordUsage` | `server/src/features/analytics/usageTracker.js` | `geminiProvider.js` | Formats telemetry records and enqueues to batch writer queue |

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import http from 'http';
 import express from '../../server/node_modules/express/index.js';
 
-import chatRouter from '../../server/src/features/chat/chat.routes.js';
+import chatRouter from '../../server/src/features/assistant/assistant.routes.js';
 import adminRoute from '../../server/src/routes/adminRoute.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
 import { removeDocument } from '../../server/src/features/documents/documents.service.js';

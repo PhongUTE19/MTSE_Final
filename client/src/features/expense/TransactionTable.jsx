@@ -1,5 +1,5 @@
 import { EXPENSE_CATEGORIES } from './expenseConstants';
-import { formatMoney } from './expenseFormatters';
+import { formatMoney } from '../../shared/utils/formatters';
 import SearchInput from '../../shared/components/SearchInput';
 import SortableHeader from '../../shared/components/SortableHeader';
 import Pagination from '../../shared/components/Pagination';

@@ -1,72 +1,21 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useDrawer as useSharedDrawer } from '../../shared/hooks/useDrawer';
 import { UI_LABELS, ADMIN_PANELS } from '../../shared/constants';
 
 /**
- * Custom hook to manage slide-out drawer state, accessibility focus,
- * keyboard Escape dismissal, body scroll locking, and drawer header titles.
+ * Knowledge Base drawer hook.
+ * Composes shared drawer state and provides panel-switching and title-resolution logic.
  */
-export function useDrawer(initialPanel = ADMIN_PANELS.DOCUMENTS) {
+export function useKnowledgeBaseDrawer(initialPanel = ADMIN_PANELS.DOCUMENTS) {
   const [activePanel, setActivePanel] = useState(initialPanel);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-
-  const drawerRef = useRef(null);
-  const closeBtnRef = useRef(null);
-  const triggerRef = useRef(null);
+  const drawer = useSharedDrawer();
 
   const openDrawer = useCallback((panelName, event) => {
-    if (event?.currentTarget) {
-      triggerRef.current = event.currentTarget;
-    }
     if (panelName) {
       setActivePanel(panelName);
     }
-    setIsDrawerOpen(true);
-  }, []);
-
-  const closeDrawer = useCallback(() => {
-    setIsDrawerOpen(false);
-    if (triggerRef.current && typeof triggerRef.current.focus === 'function') {
-      triggerRef.current.focus();
-    }
-  }, []);
-
-  // Keyboard Escape listener
-  useEffect(() => {
-    if (!isDrawerOpen) return;
-
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        closeDrawer();
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isDrawerOpen, closeDrawer]);
-
-  // Focus drawer when opened
-  useEffect(() => {
-    if (isDrawerOpen) {
-      const timer = setTimeout(() => {
-        if (closeBtnRef.current) {
-          closeBtnRef.current.focus();
-        } else if (drawerRef.current) {
-          drawerRef.current.focus();
-        }
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [isDrawerOpen]);
-
-  // Body scroll lock while drawer is open
-  useEffect(() => {
-    if (!isDrawerOpen) return;
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [isDrawerOpen]);
+    drawer.openDrawer(event);
+  }, [drawer]);
 
   const getDrawerTitle = useCallback(() => {
     switch (activePanel) {
@@ -81,14 +30,12 @@ export function useDrawer(initialPanel = ADMIN_PANELS.DOCUMENTS) {
   }, [activePanel]);
 
   return {
+    ...drawer,
     activePanel,
     setActivePanel,
-    isDrawerOpen,
-    drawerRef,
-    closeBtnRef,
-    triggerRef,
     openDrawer,
-    closeDrawer,
     getDrawerTitle,
   };
 }
+
+export const useDrawer = useKnowledgeBaseDrawer;

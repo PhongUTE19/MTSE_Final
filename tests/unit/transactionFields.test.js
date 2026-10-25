@@ -6,7 +6,7 @@ import {
   updateTransactionField,
   validateTransactionData,
 } from '../../client/src/features/expense/transactionFieldsUtils.js';
-import { categoriesForType } from '../../client/src/features/expense/expenseFormatters.js';
+import { categoriesForType } from '../../client/src/features/expense/expenseCategories.js';
 import { EXPENSE_CATEGORIES } from '../../client/src/features/expense/expenseConstants.js';
 
 describe('TransactionFields & Form Consolidation Suite', () => {

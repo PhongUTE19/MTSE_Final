@@ -2,12 +2,12 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { validate, validateRequest } from '../../server/src/shared/middleware/validateRequest.js';
-import { chatRequestSchema } from '../../server/src/features/chat/chat.schemas.js';
+import { chatRequestSchema } from '../../server/src/features/assistant/assistant.schemas.js';
 import { paginationQuerySchema } from '../../server/src/features/knowledgeBase/knowledgeBase.schemas.js';
 import { filenameSchema, documentContentSchema, createDocumentSchema, documentParamsSchema } from '../../server/src/features/documents/documents.schemas.js';
 import { AppError, ValidationError } from '../../server/src/shared/errors/index.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
-import * as chatController from '../../server/src/features/chat/chat.controller.js';
+import * as chatController from '../../server/src/features/assistant/assistant.controller.js';
 import { SERVER_MESSAGES, PAGINATION_LIMITS } from '../../server/src/constants/index.js';
 
 describe('Centralized Backend Input Validation with Zod Suite', () => {

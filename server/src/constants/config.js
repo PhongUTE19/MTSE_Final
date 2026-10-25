@@ -63,6 +63,7 @@ export const SERVER_CONFIG_DEFAULTS = Object.freeze({
   AI_PROVIDER: 'gemini',
   QDRANT_COLLECTION: 'spendwise',
   PLACEHOLDER_KEY: 'your_gemini_api_key_here',
+  CHAT_STRATEGY: 'agent',
 });
 
 export const RATE_LIMIT_CONFIG = Object.freeze({

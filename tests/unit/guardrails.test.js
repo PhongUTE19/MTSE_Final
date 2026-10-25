@@ -14,7 +14,7 @@ import {
 } from '../../server/src/shared/guardrails/index.js';
 import { SERVER_MESSAGES, GUARDRAIL_CONFIG, HTTP_STATUS } from '../../server/src/constants/index.js';
 import { executeRAG } from '../../server/src/features/knowledgeBase/ragService.js';
-import { orchestrateChat, orchestrateChatStream, ChatServiceError } from '../../server/src/features/chat/chat.service.js';
+import { orchestrateChat, orchestrateChatStream, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
 
 describe('Guardrails Comprehensive Test Suite', () => {
   describe('1. Prompt Injection Guardrails', () => {
@@ -176,7 +176,7 @@ describe('Guardrails Comprehensive Test Suite', () => {
     });
 
     it('orchestrateChat returns polite guidance for out-of-scope queries', async () => {
-      const response = await orchestrateChat('Recipe for chocolate chip cookies');
+      const response = await orchestrateChat('Recipe for chocolate chip cookies', { strategy: 'rag' });
       assert.equal(response.answer, SERVER_MESSAGES.ERRORS.OUT_OF_SCOPE);
       assert.deepEqual(response.sources, []);
       assert.equal(response.retrieval.guardrail, 'out_of_scope');

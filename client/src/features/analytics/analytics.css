@@ -1,0 +1,132 @@
+/* ==========================================================================
+   Analytics Dashboard Styles
+   Feature-specific styles for charts, filter bar layout, and attempt inspection.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   Filter Toolbar Layout
+   -------------------------------------------------------------------------- */
+.analytics-filters-bar {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-surface-subtle);
+  border: var(--border-default);
+  border-radius: var(--radius-lg);
+}
+
+.analytics-filter-item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 140px;
+  flex: 1 1 auto;
+}
+
+.analytics-filter-action {
+  min-width: auto;
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------------------------
+   Charts Section & Pure SVG Visualizations
+   -------------------------------------------------------------------------- */
+.analytics-charts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: var(--space-4);
+}
+
+.analytics-svg-chart {
+  width: 100%;
+  height: 180px;
+  overflow: visible;
+}
+
+.analytics-chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-top: var(--space-2);
+}
+
+.analytics-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.analytics-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.analytics-legend-dot--success {
+  background: var(--color-green-600, #16a34a);
+}
+
+.analytics-legend-dot--failure {
+  background: var(--color-red-600, #dc2626);
+}
+
+.analytics-legend-dot--refusal {
+  background: var(--color-amber-600, #d97706);
+}
+
+.analytics-legend-dot--token {
+  background: var(--color-sky-600, #0284c7);
+}
+
+/* --------------------------------------------------------------------------
+   Request History Table Failure Details Box
+   -------------------------------------------------------------------------- */
+.analytics-history-detail-row {
+  background: var(--color-surface-subtle);
+}
+
+.analytics-history-detail-box {
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-default);
+  border-radius: var(--radius-md);
+  margin: var(--space-2) 0;
+  font-size: var(--font-size-xs);
+}
+
+.analytics-detail-item {
+  margin-bottom: var(--space-1);
+}
+
+.analytics-detail-category {
+  margin-left: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.analytics-attempts-list {
+  margin: var(--space-1) 0 0 var(--space-4);
+  padding: 0;
+}
+
+/* --------------------------------------------------------------------------
+   Responsive Behavior
+   -------------------------------------------------------------------------- */
+@media (max-width: 640px) {
+  .analytics-charts-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analytics-filters-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .analytics-filter-action .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}

@@ -13,7 +13,7 @@ import {
 import { RATE_LIMIT_CONFIG } from '../../server/src/constants/config.js';
 import { config } from '../../server/src/config.js';
 
-import chatRouter from '../../server/src/features/chat/chat.routes.js';
+import chatRouter from '../../server/src/features/assistant/assistant.routes.js';
 import expenseAgentRouter from '../../server/src/features/expenseAgent/expenseAgent.routes.js';
 import expenseRouter from '../../server/src/features/expenses/expenses.routes.js';
 

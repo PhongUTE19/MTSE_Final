@@ -46,10 +46,6 @@ export default function App() {
             element={<AdminSessionGate defaultTab={ADMIN_TABS.KNOWLEDGE} />}
           />
 
-          {/* Canonical Admin redirects */}
-          <Route path="/admin" element={<Navigate to={APP_ROUTES.ADMIN_KNOWLEDGE} replace />} />
-          <Route path="/analytics" element={<Navigate to={APP_ROUTES.ADMIN_ANALYTICS} replace />} />
-
           {/* Catch-all fallback route */}
           <Route path="*" element={<Navigate to={APP_ROUTES.HOME} replace />} />
         </Routes>

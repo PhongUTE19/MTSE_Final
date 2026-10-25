@@ -25,7 +25,19 @@ const validTransaction = {
 };
 
 const testUser = { id: 'user-a', token: 'verified-token' };
-const row = { id: 'txn-a', user_id: 'user-a', type: 'expense', amount: 120000, transaction_date: '2026-10-21', category: 'Food & dining', merchant: 'Test cafe', note: 'Test receipt', items: [{ name: 'Coffee', amount: 120000 }], created_at: '2026-10-21T00:00:00.000Z', updated_at: '2026-10-21T00:00:00.000Z' };
+const row = {
+  id: 'txn-a',
+  user_id: 'user-a',
+  type: 'expense',
+  amount: 120000,
+  transaction_date: '2026-10-21',
+  category: 'Food & dining',
+  merchant: 'Test cafe',
+  note: 'Test receipt',
+  items: [{ name: 'Coffee', amount: 120000 }],
+  created_at: '2026-10-21T00:00:00.000Z',
+  updated_at: '2026-10-21T00:00:00.000Z',
+};
 
 function mockClient(result = { data: row, count: 1, error: null }) {
   const calls = [];

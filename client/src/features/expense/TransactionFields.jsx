@@ -1,5 +1,5 @@
 import { EXPENSE_CATEGORIES } from './expenseConstants';
-import { categoriesForType } from './expenseFormatters';
+import { categoriesForType } from './expenseCategories';
 import {
   DEFAULT_TRANSACTION_LABELS,
   VIETNAMESE_TRANSACTION_LABELS,

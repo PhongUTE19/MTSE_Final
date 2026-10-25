@@ -12,6 +12,7 @@ dotenv.config({ path: path.join(projectRoot, '.env') });
 
 export const config = {
   port: parseInt(process.env.PORT || SERVER_CONFIG_DEFAULTS.DEFAULT_PORT_STR, 10),
+  chatStrategy: (process.env.CHAT_STRATEGY || SERVER_CONFIG_DEFAULTS.CHAT_STRATEGY || 'agent').toLowerCase(),
   aiProvider: (process.env.AI_PROVIDER || SERVER_CONFIG_DEFAULTS.AI_PROVIDER).toLowerCase(),
   geminiApiKey: process.env.GEMINI_API_KEY || '',
   geminiModel: process.env.GEMINI_MODEL || SERVER_CONFIG_DEFAULTS.GEMINI_MODEL,

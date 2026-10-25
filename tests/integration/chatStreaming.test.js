@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { orchestrateChatStream } from '../../server/src/features/chat/chat.service.js';
-import * as chatController from '../../server/src/features/chat/chat.controller.js';
+import { orchestrateChatStream } from '../../server/src/features/assistant/assistant.service.js';
+import * as chatController from '../../server/src/features/assistant/assistant.controller.js';
 
 describe('Server-Sent Events (SSE) Streaming Lifecycle and Parser Integration Suite', () => {
   it('parses SSE events across fragmented chunks and handles multiple events per read', () => {

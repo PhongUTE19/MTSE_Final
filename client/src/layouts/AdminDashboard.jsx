@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import AdminAnalyticsDashboard from '../features/analytics/AdminAnalyticsDashboard';
-import AdminKnowledgeBaseDashboard from '../features/knowledgeBase/AdminKnowledgeBaseDashboard';
+import AnalyticsDashboard from '../features/analytics/AnalyticsDashboard';
+import KnowledgeBaseDashboard from '../features/knowledgeBase/KnowledgeBaseDashboard';
 import { ADMIN_TABS } from '../shared/constants';
 
 /**
  * Route and tab coordinator for the Admin workspace.
- * Selectively renders AdminAnalyticsDashboard or AdminKnowledgeBaseDashboard
+ * Selectively renders AnalyticsDashboard or KnowledgeBaseDashboard
  * based on current tab/route selection while preserving authorization and health state.
  */
 export default function AdminDashboard({
@@ -22,9 +22,9 @@ export default function AdminDashboard({
   return (
     <div className="dashboard-container">
       {activeTab === ADMIN_TABS.ANALYTICS ? (
-        <AdminAnalyticsDashboard />
+        <AnalyticsDashboard />
       ) : (
-        <AdminKnowledgeBaseDashboard
+        <KnowledgeBaseDashboard
           health={health}
           onRefreshHealth={onRefreshHealth}
         />

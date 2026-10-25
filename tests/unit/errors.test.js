@@ -10,11 +10,11 @@ import {
   TooManyRequestsError,
 } from '../../server/src/shared/errors/index.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
-import { ChatServiceError } from '../../server/src/features/chat/chat.service.js';
+import { ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
 import { KnowledgeServiceError, AdminServiceError } from '../../server/src/features/knowledgeBase/knowledgeBase.service.js';
 import { DocumentServiceError } from '../../server/src/features/documents/documents.service.js';
 import { PromptServiceError } from '../../server/src/features/systemPrompt/systemPrompt.service.js';
-import * as chatController from '../../server/src/features/chat/chat.controller.js';
+import * as chatController from '../../server/src/features/assistant/assistant.controller.js';
 
 describe('Centralized Backend Error Handling & Operational Errors Suite', () => {
   it('AppError base class sets operational flag, status code, and captures stack trace', () => {

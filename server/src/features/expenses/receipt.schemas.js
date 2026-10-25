@@ -40,17 +40,46 @@ export const receiptExtractionSchema = z.object({
   documentType: z.enum(['receipt', 'invoice', 'unknown']).default('receipt'),
   transactionType: z.enum(['expense', 'income', 'unknown']).default('expense'),
   merchant: nullableText(120),
-  transactionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional().transform((value) => value || null),
-  totalAmount: z.coerce.number().positive().nullable().optional().transform((value) => Number.isFinite(value) ? value : null),
+  transactionDate: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional()
+    .transform((value) => value || null),
+  totalAmount: z.coerce
+    .number()
+    .positive()
+    .nullable()
+    .optional()
+    .transform((value) => (Number.isFinite(value) ? value : null)),
   currency: z.string().trim().length(3).toUpperCase().default('VND'),
   // Gemini may use a valid real-world label outside the application's fixed
   // category set. Normalize it before validation so a reviewable receipt is
   // never discarded solely for that non-critical field.
-  category: z.preprocess(normalizeReceiptCategory, z.enum(RECEIPT_CATEGORIES).default('Other expenses')),
+  category: z.preprocess(
+    normalizeReceiptCategory,
+    z.enum(RECEIPT_CATEGORIES).default('Other expenses')
+  ),
   note: nullableText(500),
   // Itemization is useful but optional. Keep valid lines and discard malformed
   // AI lines instead of rejecting an otherwise reviewable receipt.
-  items: z.preprocess(normalizeReceiptItems, z.array(z.object({ name: z.string().trim().min(1).max(120), amount: z.coerce.number().nonnegative().nullable().optional().transform((value) => Number.isFinite(value) ? value : null) })).max(50).default([])),
+  items: z.preprocess(
+    normalizeReceiptItems,
+    z
+      .array(
+        z.object({
+          name: z.string().trim().min(1).max(120),
+          amount: z.coerce
+            .number()
+            .nonnegative()
+            .nullable()
+            .optional()
+            .transform((value) => (Number.isFinite(value) ? value : null)),
+        })
+      )
+      .max(50)
+      .default([])
+  ),
   warnings: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
 }).strict().transform((extraction) => {
   // Vietnamese receipts commonly use a period as a thousands separator
@@ -58,20 +87,46 @@ export const receiptExtractionSchema = z.object({
   // 183000 after visual parsing. VND has no commonly used fractional unit;
   // small positive values are therefore normalized for receipt review.
   if (extraction.currency !== 'VND') return extraction;
-  const totalAmount = extraction.totalAmount === null ? null : normalizeLikelyVndThousands(extraction.totalAmount);
+  const totalAmount =
+    extraction.totalAmount === null
+      ? null
+      : normalizeLikelyVndThousands(extraction.totalAmount);
   const items = extraction.items.map((item) => ({
     ...item,
     amount: item.amount === null ? null : normalizeLikelyVndThousands(item.amount),
   }));
-  const changed = totalAmount !== extraction.totalAmount || items.some((item, index) => item.amount !== extraction.items[index].amount);
+  const changed =
+    totalAmount !== extraction.totalAmount ||
+    items.some((item, index) => item.amount !== extraction.items[index].amount);
   return {
     ...extraction,
     totalAmount,
     items,
-    warnings: changed ? [...extraction.warnings, 'VND values under 1,000 were normalized as thousands; please review before saving.'] : extraction.warnings,
+    warnings: changed
+      ? [
+          ...extraction.warnings,
+          'VND values under 1,000 were normalized as thousands; please review before saving.',
+        ]
+      : extraction.warnings,
   };
 });
 
 export const receiptConfirmSchema = z.object({
-  finalTransaction: z.object({ type: z.enum(['income', 'expense']), amount: z.coerce.number().positive(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), category: z.string().trim().min(1).max(60), merchant: z.string().trim().min(1).max(120), note: z.string().trim().max(500).optional().default(''), items: z.array(z.object({ name: z.string().trim().min(1), amount: z.coerce.number().nonnegative() })).optional().default([]) }),
+  finalTransaction: z.object({
+    type: z.enum(['income', 'expense']),
+    amount: z.coerce.number().positive(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    category: z.string().trim().min(1).max(60),
+    merchant: z.string().trim().min(1).max(120),
+    note: z.string().trim().max(500).optional().default(''),
+    items: z
+      .array(
+        z.object({
+          name: z.string().trim().min(1),
+          amount: z.coerce.number().nonnegative(),
+        })
+      )
+      .optional()
+      .default([]),
+  }),
 });

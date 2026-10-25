@@ -43,13 +43,17 @@ export const AUTH_LABELS = Object.freeze({
   },
   NOTICES: {
     RESET_SUCCESS: 'Password updated. Sign in using your new password.',
-    NOT_CONFIGURED: 'Authentication is not configured for this environment. Add the public VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY variables to enable sign-in.',
+    NOT_CONFIGURED:
+      'Authentication is not configured for this environment. Add the public ' +
+      'VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY variables to enable sign-in.',
     NOT_CONFIGURED_GENERIC: 'Authentication is not configured for this environment.',
     RESET_LINK_SENT: 'If an account exists for that email, a password-reset link has been sent.',
     ACCOUNT_EXISTS: 'An account with this email address already exists. Please sign in or reset your password.',
     CONFIRM_EMAIL: 'Check your email to confirm your account before signing in.',
     VALIDATION_SUMMARY: 'Please correct the highlighted fields and try again.',
-    TERMS_NOTICE: 'By creating an account, you agree to the terms and privacy policy that will be provided when authentication is enabled.',
+    TERMS_NOTICE:
+      'By creating an account, you agree to the terms and privacy policy that ' +
+      'will be provided when authentication is enabled.',
   },
   VALIDATION: {
     NAME_REQUIRED: 'Enter the name you want to use in Spendwise.',

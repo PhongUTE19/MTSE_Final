@@ -1,7 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { APP_ROUTES } from '../../shared/constants';
-import { appUrl, exchangeCodeForSessionFromUrl, isSupabaseConfigured, supabase } from '../../shared/services/supabaseAuth';
+import {
+  appUrl,
+  exchangeCodeForSessionFromUrl,
+  isSupabaseConfigured,
+  supabase,
+} from '../../shared/services/supabaseAuth';
 import { validateStringLength } from '../../shared/utils/validation';
 import { AUTH_LABELS, AUTH_MODES } from './authConstants';
 import PasswordField from './PasswordField';
@@ -18,22 +23,35 @@ export default function ResetPasswordPage() {
 
   useEffect(() => {
     let active = true;
+
     async function establishRecoverySession() {
       if (!isSupabaseConfigured || !supabase) return;
       try {
         const { session, error: sessionError } = await exchangeCodeForSessionFromUrl();
         if (!active) return;
         if (sessionError || !session) {
-          setError(sessionError?.message || 'This password-reset link is invalid or has expired. Request a new link and try again.');
+          setError(
+            sessionError?.message ||
+              'This password-reset link is invalid or has expired. Request a new link and try again.'
+          );
           return;
         }
         setReady(true);
       } catch (sessionError) {
-        if (active) setError(sessionError instanceof Error ? sessionError.message : 'We could not verify this password-reset link.');
+        if (active) {
+          setError(
+            sessionError instanceof Error
+              ? sessionError.message
+              : 'We could not verify this password-reset link.'
+          );
+        }
       }
     }
+
     establishRecoverySession();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, []);
 
   async function submit(event) {
@@ -65,15 +83,31 @@ export default function ResetPasswordPage() {
       }
       setCompleted(true);
       setMessage('Password updated. Redirecting you to sign in…');
-      window.setTimeout(() => window.location.replace(appUrl(`${APP_ROUTES.AUTH}?reset=success`)), 1200);
+      window.setTimeout(
+        () => window.location.replace(appUrl(`${APP_ROUTES.AUTH}?reset=success`)),
+        1200
+      );
     } catch (updateError) {
-      setError(updateError instanceof Error ? updateError.message : 'We could not update your password. Please try again.');
+      setError(
+        updateError instanceof Error
+          ? updateError.message
+          : 'We could not update your password. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
   }
 
   const controlsDisabled = loading || completed;
+
+  let buttonText = 'Verifying reset link…';
+  if (loading) {
+    buttonText = 'Updating password…';
+  } else if (completed) {
+    buttonText = 'Password updated';
+  } else if (ready) {
+    buttonText = 'Update password';
+  }
 
   return (
     <main className="auth-content auth-standalone">
@@ -111,7 +145,7 @@ export default function ResetPasswordPage() {
           />
 
           <button className="auth-primary-button" disabled={controlsDisabled || !ready}>
-            {loading ? 'Updating password…' : completed ? 'Password updated' : ready ? 'Update password' : 'Verifying reset link…'}
+            {buttonText}
           </button>
         </form>
 

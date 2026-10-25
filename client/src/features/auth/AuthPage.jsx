@@ -17,9 +17,16 @@ import './auth.css';
 
 function validate(form, mode) {
   const errors = {};
-  if (mode === AUTH_MODES.SIGNUP && !form.name.trim()) errors.name = AUTH_LABELS.VALIDATION.NAME_REQUIRED;
-  if (!validateEmail(form.email).isValid) errors.email = AUTH_LABELS.VALIDATION.EMAIL_INVALID;
-  if (mode !== AUTH_MODES.FORGOT && !validateStringLength(form.password, { min: 8, trim: false }).isValid) {
+  if (mode === AUTH_MODES.SIGNUP && !form.name.trim()) {
+    errors.name = AUTH_LABELS.VALIDATION.NAME_REQUIRED;
+  }
+  if (!validateEmail(form.email).isValid) {
+    errors.email = AUTH_LABELS.VALIDATION.EMAIL_INVALID;
+  }
+  if (
+    mode !== AUTH_MODES.FORGOT &&
+    !validateStringLength(form.password, { min: 8, trim: false }).isValid
+  ) {
     errors.password = AUTH_LABELS.VALIDATION.PASSWORD_LENGTH;
   }
   if (mode === AUTH_MODES.SIGNUP && form.password !== form.confirmPassword) {
