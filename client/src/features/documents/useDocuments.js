@@ -8,6 +8,7 @@ import {
 } from './documentsApi';
 import { UI_LABELS, APP_MESSAGES } from '../../shared/constants';
 import { validateDocumentFilename, validateDocumentContent, validateFile } from '../../shared/utils';
+import { useConfirm } from '../../shared/hooks';
 
 /**
  * Custom hook to manage document inventory, file uploads, and document create/edit/delete operations.
@@ -26,6 +27,7 @@ export function useDocuments({
   clearFeedback,
   onOpenDocumentPanel,
 } = {}) {
+  const { confirm } = useConfirm();
   const [documents, setDocuments] = useState([]);
   const [editingDoc, setEditingDoc] = useState(null); // { filename, content, isNew }
   const [editorLoading, setEditorLoading] = useState(false);
@@ -118,7 +120,14 @@ export function useDocuments({
 
   // Delete Document
   const handleDeleteDocument = useCallback(async (filename) => {
-    if (!window.confirm(UI_LABELS.ADMIN_DASHBOARD.DELETE_CONFIRMATION(filename))) {
+    const isConfirmed = await confirm({
+      title: 'Delete Document',
+      message: UI_LABELS.ADMIN_DASHBOARD.DELETE_CONFIRMATION(filename),
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!isConfirmed) {
       return;
     }
 
@@ -132,7 +141,7 @@ export function useDocuments({
         onError(err.message || APP_MESSAGES.ERROR.DELETE_DOC_FAILED);
       }
     }
-  }, [clearFeedback, onSuccess, onRefresh, onError]);
+  }, [confirm, clearFeedback, onSuccess, onRefresh, onError]);
 
   // Upload File handler
   const handleFileUpload = useCallback(async (event) => {

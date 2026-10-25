@@ -6,6 +6,7 @@ import {
 } from './chatHistory.js';
 import { sendChatMessage } from './chatApi.js';
 import { useChatScroll } from '../../shared/hooks/useChatScroll.js';
+import { useConfirm } from '../../shared/hooks/index.js';
 
 /**
  * State and interaction hook for the Chat drawer / floating popup.
@@ -18,6 +19,7 @@ export function useChat({
   storage = typeof window !== 'undefined' ? window.localStorage : null,
   onOpenChange,
 } = {}) {
+  const { confirm } = useConfirm();
   const [open, setOpen] = useState(false);
   const [maximized, setMaximized] = useState(false);
   const [tab, setTab] = useState('chat');
@@ -100,8 +102,15 @@ export function useChat({
     return next;
   }
 
-  function removeConversation(id, confirmPrompt = 'Delete this conversation?') {
-    if (typeof window !== 'undefined' && !window.confirm(confirmPrompt)) {
+  async function removeConversation(id, confirmPrompt = 'Delete this conversation?') {
+    const isConfirmed = await confirm({
+      title: 'Delete Conversation',
+      message: confirmPrompt,
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!isConfirmed) {
       return;
     }
     const remaining = conversations.filter((item) => item.id !== id);

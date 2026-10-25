@@ -43,11 +43,11 @@ No regressions, circular dependencies, or stale imports were introduced. The ful
 
 ---
 
-### Finding 2: Session Subscription and Gate Lifecycle in `AdminSessionGate` and `ExpenseSessionGate`
+### Finding 2: Session Subscription and Gate Lifecycle in `AdminRouteGuard` and `AuthenticatedRouteGuard`
 - **Classification**: **Resolved**
 - **Verification Evidence**:
   - [useSession.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/hooks/useSession.js) encapsulates Supabase session initialization, auth state change subscription, cleanup on unmount, and unauthorized callbacks.
-  - [AdminSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/AdminSessionGate.jsx#L38-L41) and [ExpenseSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/ExpenseSessionGate.jsx#L28-L31) both call `useSession()`.
+  - [AdminRouteGuard.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/AdminRouteGuard.jsx#L38-L41) and [AuthenticatedRouteGuard.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/AuthenticatedRouteGuard.jsx#L28-L31) both call `useSession()`.
 - **Architectural Assessment**: Gates retain their distinct authorization rules (Admin requires `'admin'` metadata role; Expense allows any authenticated user) and domain-specific loading shells without duplicating subscription plumbing.
 
 ---
@@ -122,7 +122,7 @@ No regressions, circular dependencies, or stale imports were introduced. The ful
 - **Current Status**: **Still Unconsolidated / Architecture Consistency**
 - **Evidence**:
   - [ToastProvider](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/context/ToastContext.jsx#L9) is mounted only inside [HandbookLayout.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/HandbookLayout.jsx#L28).
-  - Expense Tracker views (`ExpenseTrackerApp`) and Auth views (`AuthPage`) manage local error and notification banner state (`<div className="expense-banner">{error}</div>`).
+  - Expense Tracker views (`ExpensePage`) and Auth views (`AuthPage`) manage local error and notification banner state (`<div className="expense-banner">{error}</div>`).
 - **Recommended Action**:
   - Mount `ToastProvider` at root level in `App.jsx` to allow transient feedback (e.g., "Transaction saved", "Receipt deleted") to persist across route navigations if desired.
   - Keep inline validation error messages next to form fields (do not replace field errors with toasts).

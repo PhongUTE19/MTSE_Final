@@ -14,8 +14,8 @@ Student_Handbook/
 │   ├── src/
 │   │   ├── components/                   # UI presentation layer
 │   │   │   ├── admin/                    # Administration modules (RAG & Analytics)
-│   │   │   │   ├── analytics/            # Telemetry dashboards (AnalyticsDashboard, charts, KPIs)
-│   │   │   │   ├── KnowledgeBaseDashboard.jsx # Knowledge Base coordinator (documents, chunks, prompt)
+│   │   │   │   ├── analytics/            # Telemetry dashboards (AnalyticsPage, charts, KPIs)
+│   │   │   │   ├── KnowledgeBasePage.jsx # Knowledge Base coordinator (documents, chunks, prompt)
 │   │   │   │   ├── KnowledgeBaseStats.jsx# Top-level index & sync status badges
 │   │   │   │   ├── systemPrompt/         # RAG system prompt configuration (SystemPromptEditor, API, hook)
 │   │   │   │   ├── ChunkCard.jsx         # Card renderer for vector chunk preview
@@ -34,9 +34,9 @@ Student_Handbook/
 │   │   │   │   └── SortableHeader.jsx    # Table column header with sort indicators
 │   │   │   ├── expense/                  # SpendWise personal finance workspace
 │   │   │   │   ├── assistant/            # Expense Assistant integration (ExpenseAssistant, TransactionProposalCard, ExpenseToolResult)
-│   │   │   │   ├── ExpenseSessionGate.jsx# Route guard for authenticated user workspace
+│   │   │   │   ├── AuthenticatedRouteGuard.jsx# Route guard for authenticated user workspace
 │   │   │   │   ├── ExpenseSidebar.jsx    # Sidebar navigation & balance breakdown
-│   │   │   │   ├── ExpenseTrackerApp.jsx # Main expense tracking coordinator & state manager
+│   │   │   │   ├── ExpensePage.jsx # Main expense tracking coordinator & state manager
 │   │   │   │   ├── ReceiptReview.jsx     # 3-step OCR receipt review & confirmation dialog
 │   │   │   │   ├── TransactionForm.jsx   # Create/Edit transaction modal form
 │   │   │   │   └── TransactionTable.jsx  # Transaction history table with filters & pagination
@@ -144,8 +144,8 @@ Student_Handbook/
   - [authenticate.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/authenticate.js) validates the Bearer token with Supabase Auth (`getUser(token)`), populating `req.user = { id, email, role: user.app_metadata?.role || 'user', token }`.
   - [authorize.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/shared/middleware/authorize.js) verifies `req.user.role === requiredRole`, returning `403 Forbidden` if unauthorized.
 - **Client Route Protection**:
-  - [AdminSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/AdminSessionGate.jsx) (`/admin`, `/analytics`): Verifies `getUserRole(session) === 'admin'`. Redirects non-admins to `/expense`.
-  - [ExpenseSessionGate.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/ExpenseSessionGate.jsx) (`/expense`): Verifies valid authenticated session. Redirects unauthenticated users to `/auth`.
+  - [AdminRouteGuard.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/admin/AdminRouteGuard.jsx) (`/admin`, `/analytics`): Verifies `getUserRole(session) === 'admin'`. Redirects non-admins to `/expense`.
+  - [AuthenticatedRouteGuard.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/expense/AuthenticatedRouteGuard.jsx) (`/expense`): Verifies valid authenticated session. Redirects unauthenticated users to `/auth`.
 - **Demo Mode Distinction**:
   - Routes `/handbook` and `/demo` render [HandbookView.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/HandbookView.jsx) in demo mode. The role switch button modifies client React state (`internalRole`) only and **does not grant access** to `/admin`, `/analytics`, or backend admin endpoints.
 
@@ -243,7 +243,7 @@ Student_Handbook/
 | `useChunks` | `client/src/hooks/useChunks.js` | Handles paginated chunk review state and search filtering |
 | `useSystemPrompt`| `client/src/features/systemPrompt/useSystemPrompt.js`| Fetches, updates, and resets RAG system prompt |
 | `useAnalytics` | `client/src/hooks/useAnalytics.js` | Loads overview KPIs, timeseries charts, breakdowns, and logs |
-| `useAdminDashboard`| `client/src/hooks/useAdminDashboard.js`| Aggregates knowledge base, documents, chunks, and drawer states |
+| `useKnowledgeBaseDashboard`| `client/src/hooks/useKnowledgeBaseDashboard.js`| Aggregates knowledge base, documents, chunks, and drawer states |
 | `useHealth` | `client/src/hooks/useHealth.js` | Polls backend `/api/health` vector database connection status |
 | `useKnowledgeBase`| `client/src/hooks/useKnowledgeBase.js`| Checks status and triggers re-indexing workflow |
 | `useDrawer` | `client/src/shared/hooks/useDrawer.js` | Manages slide-out drawer state, accessibility focus, Escape dismissal, and scroll lock |
@@ -286,7 +286,7 @@ Student_Handbook/
 | `getSpendingSummary` | `server/src/features/expenses/expenses.service.js` | `expenses.controller.js`, `expenseAgent.service.js` | Calculates total income, expense, balance, and category totals in VND |
 | `uploadReceipt` | `server/src/features/expenses/receipt.service.js` | `expenses.controller.js` | Executes upload RPC, stores image in Supabase Storage, and extracts draft |
 | `runExpenseAssistantForUser` | `server/src/features/expenseAgent/expenseAgent.service.js` | `expenseAgent.controller.js` | Executes Gemini multi-tool calling agent for search, summary, or proposals |
-| `getUserRole` | `client/src/services/supabaseAuth.js` | `AdminSessionGate.jsx`, `AuthPage.jsx`, `tests` | Resolves trusted role from `app_metadata.role` (defaults to `'user'`) |
+| `getUserRole` | `client/src/services/supabaseAuth.js` | `AdminRouteGuard.jsx`, `AuthPage.jsx`, `tests` | Resolves trusted role from `app_metadata.role` (defaults to `'user'`) |
 | `apiRequest` | `client/src/services/apiClient.js` | All client API services (`chatApi`, `documentsApi`, etc.) | Unified fetch wrapper with Bearer token injection and error handling |
 
 ---
@@ -303,8 +303,8 @@ Student_Handbook/
                  ▼                              ▼                              ▼
      ┌───────────────────────┐      ┌───────────────────────┐      ┌───────────────────────┐
      │      Auth Views       │      │   Student Handbook    │      │  SpendWise Workspace  │
-     │  (AuthPage, Callback, │      │  (HandbookView, Chat, │      │  (ExpenseSessionGate, │
-     │    ResetPassword)     │      │   AdminDashboard)     │      │   ExpenseTrackerApp)  │
+     │  (AuthPage, Callback, │      │  (HandbookView, Chat, │      │  (AuthenticatedRouteGuard, │
+     │    ResetPassword)     │      │   AdminDashboard)     │      │   ExpensePage)  │
      └───────────┬───────────┘      └───────────┬───────────┘      └───────────┬───────────┘
                  │                              │                              │
                  │     ┌────────────────────────┴────────────────────────┐     │

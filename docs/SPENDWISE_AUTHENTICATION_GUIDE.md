@@ -187,7 +187,7 @@ Then open `http://localhost:5173/auth.html`.
 | OAuth/email callback | `client/src/components/auth/AuthCallbackPage.jsx` |
 | Password update | `client/src/components/auth/ResetPasswordPage.jsx` |
 | Session and token helper | `client/src/services/supabaseAuth.js` |
-| Expense/admin route gates | `client/src/components/expense/ExpenseSessionGate.jsx`, `client/src/components/admin/AdminSessionGate.jsx` |
+| Expense/admin route gates | `client/src/components/expense/AuthenticatedRouteGuard.jsx`, `client/src/components/admin/AdminRouteGuard.jsx` |
 | JWT verification and role middleware | `server/src/shared/middleware/authenticate.js`, `server/src/shared/middleware/authorize.js` |
 | Protected admin API mount | `server/src/routes/adminRoute.js` |
 | Controlled role assignment | `server/scripts/set-user-role.js` |

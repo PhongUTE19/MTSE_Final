@@ -36,8 +36,8 @@ Lệnh live có thể dùng API trả phí; không chạy trong demo nếu chưa
 
 ## 2. Kịch bản demo chính
 
-1. **Sign in:** `ExpenseSessionGate.jsx` chỉ render app khi có Supabase session; `expenseApi.js` thêm Bearer token.
-2. **Mở scanner:** Chọn Receipts. `ExpenseTrackerApp.jsx` tải các `review_required` draft để resume sau refresh.
+1. **Sign in:** `AuthenticatedRouteGuard.jsx` chỉ render app khi có Supabase session; `expenseApi.js` thêm Bearer token.
+2. **Mở scanner:** Chọn Receipts. `ExpensePage.jsx` tải các `review_required` draft để resume sau refresh.
 3. **Upload hóa đơn thật:** Chọn JPG/PNG/WebP ≤ 5 MB. UI preview + “PROCESSING RECEIPT” xuất hiện, không cho upload ảnh khác trong lúc xử lý.
 4. **Validation/server:** Nêu `uploadReceiptImage()` kiểm tra loại file/magic bytes/dimensions rồi `uploadReceipt()` tạo private path và gọi Gemini.
 5. **Structured output:** Khi thành công, `ReceiptReview` hiển thị ảnh và các field merchant, date, total amount, category, note đã prefill. Nhấn mạnh đây là draft; kiểm tra số VND, đặc biệt `183.000` phải là `183000`/hiển thị `₫183,000`.

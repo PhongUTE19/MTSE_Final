@@ -1,27 +1,22 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useDrawer } from './useDrawer';
 import { useKnowledgeBase } from './useKnowledgeBase';
 import { useDocuments } from '../documents/useDocuments';
 import { useChunks } from '../documents/useChunks';
 import { useToast } from '../../shared/contexts/ToastContext';
-import { ADMIN_PANELS, ADMIN_TABS } from '../../shared/constants';
 
 /**
- * Custom hook to coordinate admin dashboard state, panel drawer, tab navigation,
- * and multi-resource refresh coordinator.
+ * Coordinates Knowledge Base dashboard data synchronization: documents, chunks,
+ * vector status, and the multi-resource refresh coordinator.
  *
- * @returns {object} Admin dashboard operations, tabs, and panel states
+ * @param {object} [options]
+ * @param {boolean} [options.isOffline=false] - Whether backend is currently offline
+ * @param {Function} [options.onOpenDocumentPanel] - Callback to open document panel on new/edit
+ * @returns {object} Knowledge Base dashboard operations and data states
  */
-export function useAdminDashboard({ isOffline = false, defaultTab = ADMIN_TABS.KNOWLEDGE } = {}) {
+export function useKnowledgeBaseDashboard({ isOffline = false, onOpenDocumentPanel } = {}) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(defaultTab);
 
-  useEffect(() => {
-    setActiveTab(defaultTab);
-  }, [defaultTab]);
-
-  const drawer = useDrawer(ADMIN_PANELS.DOCUMENTS);
   const chunksState = useChunks({ onError: toast.error });
 
   // Use a coordinator ref to prevent circular hook dependency while refreshing all panels
@@ -42,7 +37,7 @@ export function useAdminDashboard({ isOffline = false, defaultTab = ADMIN_TABS.K
     onRefresh: handleRefresh,
     onError: toast.error,
     onSuccess: toast.success,
-    onOpenDocumentPanel: () => drawer.openDrawer(ADMIN_PANELS.DOCUMENTS),
+    onOpenDocumentPanel,
   });
 
   refreshCoordinatorRef.current = async () => {
@@ -75,9 +70,6 @@ export function useAdminDashboard({ isOffline = false, defaultTab = ADMIN_TABS.K
 
   return {
     loading,
-    activeTab,
-    setActiveTab,
-    drawer,
     chunksState,
     kb,
     docs,

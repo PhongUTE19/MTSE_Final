@@ -68,6 +68,6 @@ initVectorStore()
     console.warn('[Server] Qdrant initialization warning:', err.message);
   });
 
-app.listen(config.port, () => {
+app.listen(config.port, '0.0.0.0', () => {
   console.log(`[Server] SpendWise Assistant running at http://localhost:${config.port}`);
 });

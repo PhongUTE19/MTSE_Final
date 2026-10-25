@@ -225,7 +225,7 @@ Student_Handbook/
 │   │   ├── components/
 │   │   │   ├── admin/                    # Admin management modules
 │   │   │   │   ├── analytics/            # Analytics dashboard components
-│   │   │   │   │   ├── AdminAnalyticsDashboard.jsx
+│   │   │   │   │   ├── AnalyticsPage.jsx
 │   │   │   │   │   ├── AnalyticsCharts.jsx
 │   │   │   │   │   ├── AnalyticsFilters.jsx
 │   │   │   │   │   ├── AnalyticsHistoryTable.jsx
@@ -255,7 +255,7 @@ Student_Handbook/
 │   │   ├── constants/                    # UI messages, labels, and config
 │   │   ├── context/                      # ToastContext for alert toasts
 │   │   ├── hooks/                        # Custom hooks for state & logic
-│   │   │   ├── useAdminDashboard.js
+│   │   │   ├── useKnowledgeBaseDashboard.js
 │   │   │   ├── useAnalytics.js
 │   │   │   ├── useChat.js
 │   │   │   ├── useChunks.js

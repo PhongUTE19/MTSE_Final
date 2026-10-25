@@ -9,3 +9,4 @@ export { useChatScroll, isUserScrolledUp } from './useChatScroll.js';
 export { useHealth } from './useHealth.js';
 export { useSession } from './useSession.js';
 export { useTextReveal } from './useTextReveal.js';
+export { useConfirm } from '../contexts/ConfirmContext';

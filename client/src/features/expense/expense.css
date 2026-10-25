@@ -1,197 +1,25 @@
-/* Scoped expense-workspace redesign. */ html, body, #root {
-  min-height: 100%;
-  margin: 0;
-}
-
-body:has(.expense-shell) {
-  padding: 0;
-  background: var(--color-bg-page);
-}
-
-.expense-shell {
-  min-height: 100vh;
-  padding-left: var(--shell-sidebar-width);
-  background: var(--color-bg-page);
-  color: var(--color-text-primary);
-}
-
-.sidebar-signout {
-  margin-left: auto;
-  padding: 5px 0;
-  border: 0;
-  background: transparent;
-  color: var(--color-sidebar-muted);
-  font: var(--font-weight-semibold) 11px var(--font-family-sans);
-  cursor: pointer;
-}
-
-.sidebar-signout:hover, .sidebar-signout:focus-visible {
-  color: var(--color-sidebar-fg);
-  text-decoration: underline;
-}
-
-.sidebar-signout:focus-visible {
-  outline: 2px solid var(--color-white);
-  outline-offset: 2px;
-}
-
-.expense-sidebar {
-  position: fixed;
-  z-index: 5;
-  inset: 0 auto 0 0;
-  box-sizing: border-box;
-  width: var(--shell-sidebar-width);
-  padding: 26px 16px 16px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: var(--gradient-sidebar);
-  color: var(--color-sidebar-fg);
-  border-right: 1px solid var(--workspace-rail-border);
-  box-shadow: 10px 0 30px rgba(15,23,42,.14);
-  backdrop-filter: blur(18px);
-}
-
-.brand, .sidebar-user, .expense-header, .modal-heading, .review-title, .modal-actions, .pagination, .panel-heading {
+/* Expense feature styles. Shell, sidebar and header live in layouts/workspaceLayout.css. */
+.modal-heading,
+.review-title,
+.modal-actions,
+.pagination,
+.panel-heading {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-4);
 }
 
-.brand {
-  justify-content: flex-start;
-  padding: 0 8px;
-  gap: 10px;
-}
-
-.brand-mark {
-  display: grid;
-  width: 30px;
-  height: 30px;
-  place-items: center;
-  border-radius: var(--radius-md);
-  background: var(--color-white);
-  color: var(--color-sidebar);
-  font-size: 16px;
-}
-
-.brand strong {
-  display: block;
-  font-size: 18px;
-  letter-spacing: -.6px;
-}
-
-.brand small, .sidebar-user small, .sidebar-section-label {
-  display: block;
-  color: var(--color-sidebar-muted);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: .09em;
-  text-transform: uppercase;
-}
-
-.expense-sidebar nav {
-  display: grid;
-  flex: 1;
-  align-content: start;
-  gap: 3px;
-  min-height: 0;
-  margin-top: 38px;
-  overflow-y: auto;
-}
-
-.sidebar-section-label {
-  margin: 0 8px 8px;
-}
-
-.sidebar-section-label--admin {
-  margin-top: 18px;
-}
-
-.expense-sidebar nav button {
-  min-height: 42px;
-  padding: 10px 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: inherit;
-  font: var(--font-weight-semibold) 14px var(--font-family-sans);
-  text-align: left;
-  cursor: pointer;
-  transition: background-color 150ms, border-color 150ms;
-}
-
-.expense-sidebar nav button:hover {
-  background: var(--workspace-rail-hover);
-}
-
-.expense-sidebar nav button.active {
-  border-color: var(--color-sidebar-active);
-  background: var(--color-sidebar-active);
-}
-
-.expense-sidebar nav button:focus-visible {
-  outline: 2px solid white;
-  outline-offset: 2px;
-}
-
-.sidebar-user {
-  flex: 0 0 auto;
-  padding: 16px 8px 0;
-  justify-content: flex-start;
-  border-top: 1px solid var(--workspace-rail-border);
-}
-
-.sidebar-user > span {
-  display: grid;
-  width: 32px;
-  height: 32px;
-  place-items: center;
-  border-radius: var(--radius-full);
-  background: var(--color-sidebar-avatar);
-  font-size: 12px;
-  font-weight: var(--font-weight-bold);
-}
-
-.sidebar-user strong {
-  display: block;
-  font-size: 13px;
-}
-
-.expense-main {
-  width: min(100%, 1340px);
-  box-sizing: border-box;
-  margin: 0 auto;
-  padding: 42px 48px 56px;
-}
-
-.expense-header {
-  align-items: end;
-  padding-bottom: 28px;
-  border-bottom: var(--border-default);
-}
-
-.eyebrow {
-  margin: 0 0 8px;
-  color: var(--color-text-muted);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: .1em;
-  text-transform: uppercase;
-}
-
-.expense-header h1, .expense-modal h2, .receipt-review h2, .panel-heading h2 {
+.expense-modal h2,
+.receipt-review h2,
+.panel-heading h2 {
   margin: 0;
   color: var(--color-text-primary);
   letter-spacing: -.8px;
 }
 
-.expense-header h1 {
-  font-size: 30px;
-}
-
-.primary-button, .secondary-button {
+.primary-button,
+.secondary-button {
   min-height: var(--button-min-height);
   padding: 9px 14px;
   border-radius: var(--button-radius);
@@ -204,7 +32,7 @@ body:has(.expense-shell) {
   border: 1px solid transparent;
   background: var(--button-primary-bg);
   color: var(--button-primary-fg);
-  box-shadow: 0 4px 10px rgba(0,0,0,.14);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .14);
 }
 
 .primary-button:hover:not(:disabled) {
@@ -224,23 +52,28 @@ body:has(.expense-shell) {
   transform: translateY(-1px);
 }
 
-.primary-button:disabled, .secondary-button:disabled {
+.primary-button:disabled,
+.secondary-button:disabled {
   cursor: not-allowed;
   opacity: .56;
 }
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(3,minmax(0,1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   margin: 24px 0 16px;
 }
 
-.summary-card, .transaction-panel, .upload-card, .coming-soon, .receipt-review {
+.summary-card,
+.transaction-panel,
+.upload-card,
+.coming-soon,
+.receipt-review {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   background: var(--glass-surface);
-  box-shadow: 0 5px 14px rgba(0,0,0,.07);
+  box-shadow: 0 5px 14px rgba(0, 0, 0, .07);
   backdrop-filter: blur(14px);
 }
 
@@ -273,7 +106,10 @@ body:has(.expense-shell) {
   background: var(--color-primary);
 }
 
-.summary-card:hover, .upload-card:hover, .coming-soon:hover, .receipt-review:hover {
+.summary-card:hover,
+.upload-card:hover,
+.coming-soon:hover,
+.receipt-review:hover {
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-3px);
 }
@@ -328,7 +164,7 @@ body:has(.expense-shell) {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(180px,1.35fr) repeat(4,minmax(112px,.72fr)) auto;
+  grid-template-columns: minmax(180px, 1.35fr) repeat(4, minmax(112px, .72fr)) auto;
   align-items: end;
   gap: 10px;
   padding: 14px 20px;
@@ -351,7 +187,11 @@ body:has(.expense-shell) {
   min-height: var(--button-min-height);
 }
 
-.filters input, .filters select, .form-grid input, .form-grid select, .form-grid textarea {
+.filters input,
+.filters select,
+.form-grid input,
+.form-grid select,
+.form-grid textarea {
   width: 100%;
   min-height: 38px;
   box-sizing: border-box;
@@ -363,7 +203,11 @@ body:has(.expense-shell) {
   font: 13px var(--font-family-sans);
 }
 
-.filters input:focus, .filters select:focus, .form-grid input:focus, .form-grid select:focus, .form-grid textarea:focus {
+.filters input:focus,
+.filters select:focus,
+.form-grid input:focus,
+.form-grid select:focus,
+.form-grid textarea:focus {
   outline: none;
   border-color: var(--field-border-focus);
   box-shadow: 0 0 0 3px var(--color-focus-ring);
@@ -371,44 +215,6 @@ body:has(.expense-shell) {
 
 .table-wrap {
   overflow: auto;
-}
-
-table {
-  width: 100%;
-  min-width: 740px;
-  border-collapse: collapse;
-}
-
-th {
-  padding: 9px 20px;
-  border-block: var(--border-default);
-  background: var(--color-surface-subtle);
-  color: var(--color-text-muted);
-  text-align: left;
-  font-size: 10px;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-}
-
-td {
-  padding: 15px 20px;
-  border-bottom: var(--border-default);
-  font-size: 13px;
-}
-
-tbody tr:hover {
-  background: var(--color-surface-subtle);
-}
-
-td small {
-  display: block;
-  max-width: 260px;
-  margin-top: 3px;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .category-pill {
@@ -431,7 +237,9 @@ td small {
   font-weight: var(--font-weight-bold);
 }
 
-.row-action, .sort-button, .icon-button {
+.row-action,
+.sort-button,
+.icon-button {
   border: 0;
   background: transparent;
   color: var(--color-text-secondary);
@@ -455,7 +263,7 @@ td small {
   font-size: 13px;
 }
 
-.pagination > div {
+.pagination>div {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -472,12 +280,12 @@ td small {
 }
 
 .expense-modal {
-  width: min(620px,100%);
+  width: min(620px, 100%);
   padding: 24px;
   border: var(--border-default);
   border-radius: var(--radius-lg);
   background: var(--color-surface);
-  box-shadow: 0 20px 48px rgba(24,24,27,.2);
+  box-shadow: 0 20px 48px rgba(24, 24, 27, .2);
 }
 
 .modal-heading {
@@ -490,7 +298,7 @@ td small {
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2,1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 14px;
   margin: 20px 0;
 }
@@ -513,39 +321,21 @@ td small {
   border-top: var(--border-default);
 }
 
-.form-error, .page-error {
-  margin: 14px 0;
-  padding: 11px 12px;
-  border: 1px solid var(--color-error-border);
-  border-radius: var(--radius-md);
-  background: var(--color-error-bg);
-  color: var(--color-error-text);
-  font-size: 13px;
-}
-
-.page-error {
-  display: flex;
-  justify-content: space-between;
-}
-
-.page-error button {
-  border: 0;
-  background: none;
-  font-size: 20px;
-  cursor: pointer;
-}
-
-.upload-card, .coming-soon {
+.upload-card,
+.coming-soon {
   max-width: 860px;
   padding: 28px;
 }
 
-.upload-card h2, .coming-soon h2 {
+.upload-card h2,
+.coming-soon h2 {
   margin: 0;
   font-size: 20px;
 }
 
-.upload-card p, .coming-soon p, .review-title p {
+.upload-card p,
+.coming-soon p,
+.review-title p {
   margin: 8px 0 22px;
   color: var(--color-text-muted);
   line-height: var(--line-height-relaxed);
@@ -597,117 +387,77 @@ td small {
   color: var(--color-text-secondary);
 }
 
-.receipt-preview span, .receipt-preview small {
+.receipt-preview span,
+.receipt-preview small {
   color: var(--color-text-muted);
   font-size: 12px;
 }
 
 @media (max-width: 1120px) {
-  .expense-shell {
-    padding-left: 178px;
-  }
-  .expense-sidebar {
-    width: 178px;
-    padding: 22px 10px 12px;
-  }
-  .sidebar-section-label, .sidebar-user div {
-    display: none;
-  }
-  .expense-sidebar nav {
-    margin-top: 40px;
-    gap: 6px;
-  }
-  .expense-main {
-    padding: 32px 30px 44px;
-  }
   .filters {
-    grid-template-columns: minmax(180px,1fr) repeat(2,minmax(130px,1fr));
+    grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(130px, 1fr));
   }
+
   .filter-actions {
     grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 840px) {
-  .expense-main {
-    padding: 28px 22px 40px;
-  }
-  .expense-header {
-    align-items: flex-start;
-    flex-direction: column;
-    padding-bottom: 20px;
-  }
-  .summary-grid, .review-grid {
+
+  .summary-grid,
+  .review-grid {
     grid-template-columns: 1fr;
   }
+
   .filters {
-    grid-template-columns: repeat(2,minmax(0,1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
   .filter-search {
     grid-column: 1 / -1;
   }
 }
 
 @media (max-width: 540px) {
-  .expense-shell {
-    display: block;
-    padding-left: 0;
-  }
-  .expense-sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
-    min-height: 0;
-    padding: 14px 16px 0;
-    display: block;
-  }
-  .expense-sidebar nav {
-    display: flex;
-    width: calc(100% + 32px);
-    margin: 14px -16px 0;
-    padding: 0 8px;
-    overflow-x: auto;
-  }
-  .expense-sidebar nav button {
-    flex: 1 0 auto;
-    min-height: 39px;
-    padding: 8px 12px;
-    border-radius: var(--radius-md) var(--radius-md) 0 0;
-  }
-  .sidebar-user {
-    display: none;
-  }
-  .expense-main {
-    padding: 22px 14px 32px;
-  }
-  .expense-header h1 {
-    font-size: 26px;
-  }
-  .summary-grid, .form-grid, .filters {
+
+  .summary-grid,
+  .form-grid,
+  .filters {
     grid-template-columns: 1fr;
   }
-  .filter-search, .filter-actions {
+
+  .filter-search,
+  .filter-actions {
     grid-column: auto;
   }
+
   .filter-actions {
     justify-content: space-between;
   }
+
   .panel-heading {
     align-items: flex-start;
   }
+
   .expense-modal-backdrop {
     padding: 0;
     place-items: end stretch;
   }
+
   .expense-modal {
     width: 100%;
-    max-height: min(100dvh,680px);
+    max-height: min(100dvh, 680px);
     padding: 20px 16px;
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
   }
-  .receipt-review, .upload-card, .coming-soon {
+
+  .receipt-review,
+  .upload-card,
+  .coming-soon {
     padding: 18px;
   }
+
   .pagination {
     align-items: flex-start;
     flex-direction: column;
@@ -772,10 +522,12 @@ td small {
   .receipt-processing {
     grid-template-columns: 1fr;
   }
+
   .receipt-processing img {
     width: 100%;
     height: 180px;
   }
+
   .receipt-spinner {
     justify-self: start;
   }
@@ -831,7 +583,7 @@ td small {
   font-size: 15px;
 }
 
-.pending-receipts > div > p:not(.eyebrow) {
+.pending-receipts>div>p:not(.eyebrow) {
   margin: 6px 0 0;
   color: var(--color-text-muted);
   font-size: 13px;
@@ -856,7 +608,8 @@ td small {
   background: var(--color-surface);
 }
 
-.pending-receipts li strong, .pending-receipts li small {
+.pending-receipts li strong,
+.pending-receipts li small {
   display: block;
 }
 
@@ -877,9 +630,11 @@ td small {
     align-items: flex-start;
     flex-direction: column;
   }
+
   .pending-receipt-actions {
     width: 100%;
   }
+
   .pending-receipt-actions button {
     flex: 1;
   }
@@ -929,7 +684,7 @@ td small {
   margin: 0;
 }
 
-.agent-proposal > p {
+.agent-proposal>p {
   color: var(--color-text-muted);
   font-size: 12px;
 }
@@ -954,7 +709,7 @@ td small {
   border-radius: 50%;
   background: var(--button-primary-bg);
   color: var(--button-primary-fg);
-  box-shadow: 0 8px 22px rgba(0,0,0,.22);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .22);
   font: 24px var(--font-family-sans);
   cursor: pointer;
 }
@@ -964,11 +719,13 @@ td small {
   transform: translateY(-1px);
 }
 
-.ai-chat-card, .agent-result-card, .agent-proposal {
+.ai-chat-card,
+.agent-result-card,
+.agent-proposal {
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-lg);
   background: var(--glass-surface);
-  box-shadow: 0 14px 38px rgba(0,0,0,.18);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .18);
 }
 
 .ai-chat-card {
@@ -1103,7 +860,7 @@ td small {
   font-size: 14px;
 }
 
-.agent-result-heading > span {
+.agent-result-heading>span {
   color: var(--color-text-muted);
   font-size: 11px;
 }
@@ -1112,7 +869,8 @@ td small {
   min-width: 480px;
 }
 
-.agent-result-card th, .agent-result-card td {
+.agent-result-card th,
+.agent-result-card td {
   padding: 9px 12px;
 }
 
@@ -1159,7 +917,8 @@ td small {
   background: var(--color-surface-subtle);
 }
 
-.agent-summary-grid span, .agent-summary-grid strong {
+.agent-summary-grid span,
+.agent-summary-grid strong {
   display: block;
 }
 
@@ -1201,7 +960,7 @@ td small {
   box-shadow: none;
 }
 
-.agent-proposal > p {
+.agent-proposal>p {
   margin: 8px 0 0;
   color: var(--color-text-muted);
   font-size: 12px;
@@ -1216,7 +975,8 @@ td small {
   gap: 8px;
 }
 
-.agent-proposal .primary-button, .agent-proposal .secondary-button {
+.agent-proposal .primary-button,
+.agent-proposal .secondary-button {
   padding: 8px 10px;
 }
 
@@ -1225,30 +985,38 @@ td small {
     right: 12px;
     bottom: 12px;
   }
+
   .ai-chat-card {
     width: calc(100vw - 24px);
     max-height: calc(100dvh - 82px);
   }
+
   .ai-chat-input {
     align-items: stretch;
     flex-direction: column;
   }
+
   .agent-summary-grid {
     grid-template-columns: 1fr;
   }
+
   .ai-examples {
     display: grid;
   }
+
   .ai-examples button {
     text-align: left;
   }
+
   .agent-result-heading {
     align-items: flex-start;
     flex-direction: column;
   }
 }
 
-/* Floating Assistant is standalone and does not alter the layout or sidebar of Expense Tracker. */ .ai-fab svg, .ai-avatar svg {
+/* Floating Assistant is standalone and does not alter the layout or sidebar of Expense Tracker. */
+.ai-fab svg,
+.ai-avatar svg {
   width: 21px;
   height: 21px;
 }
@@ -1257,7 +1025,7 @@ td small {
   gap: 9px;
 }
 
-.ai-chat-header > div:nth-child(2) {
+.ai-chat-header>div:nth-child(2) {
   flex: 1;
 }
 
@@ -1283,7 +1051,8 @@ td small {
   gap: 2px;
 }
 
-.ai-header-actions button, .ai-plus > button {
+.ai-header-actions button,
+.ai-plus>button {
   display: grid;
   width: 32px;
   height: 32px;
@@ -1326,13 +1095,13 @@ td small {
   overflow-y: auto;
 }
 
-.ai-history > div {
+.ai-history>div {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.ai-history > div button:first-child {
+.ai-history>div button:first-child {
   flex: 1;
   overflow: hidden;
   padding: 10px;
@@ -1346,7 +1115,7 @@ td small {
   cursor: pointer;
 }
 
-.ai-history > div button:last-child {
+.ai-history>div button:last-child {
   border: 0;
   background: transparent;
   color: var(--color-error-text);
@@ -1364,7 +1133,7 @@ td small {
   justify-content: flex-end;
 }
 
-.ai-message--user > div {
+.ai-message--user>div {
   max-width: 82%;
   padding: 9px 11px;
   border-radius: var(--radius-md);
@@ -1401,7 +1170,8 @@ td small {
   font-size: 11px;
 }
 
-.agent-proposal input, .agent-proposal textarea {
+.agent-proposal input,
+.agent-proposal textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 8px;
@@ -1423,7 +1193,7 @@ td small {
   position: relative;
 }
 
-.ai-plus > div {
+.ai-plus>div {
   position: absolute;
   bottom: 42px;
   left: 0;
@@ -1436,7 +1206,7 @@ td small {
   box-shadow: var(--shadow-card-hover);
 }
 
-.ai-plus > div button {
+.ai-plus>div button {
   padding: 9px;
   border: 0;
   border-radius: var(--radius-sm);
@@ -1447,7 +1217,7 @@ td small {
   cursor: pointer;
 }
 
-.ai-plus > div button:hover {
+.ai-plus>div button:hover {
   background: var(--color-surface-muted);
 }
 
@@ -1487,16 +1257,19 @@ td small {
   color: #fff;
 }
 
-.ai-avatar .assistant-icon__wallet, .ai-fab .assistant-icon__wallet {
+.ai-avatar .assistant-icon__wallet,
+.ai-fab .assistant-icon__wallet {
   color: currentColor;
 }
 
 .assistant-icon__sparkle {
   color: #60a5fa;
 }
+
 /* Notion-like panel: desktop reserves width;
 
-mobile becomes a full-screen sheet. */ .expense-shell {
+mobile becomes a full-screen sheet. */
+.expense-shell {
   transition: padding-right 180ms ease;
 }
 
@@ -1515,7 +1288,8 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   pointer-events: none;
 }
 
-.ai-fab, .ai-chat-card {
+.ai-fab,
+.ai-chat-card {
   pointer-events: auto;
 }
 
@@ -1526,7 +1300,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   max-height: none;
   border-width: 0 0 0 1px;
   border-radius: 0;
-  box-shadow: -12px 0 30px rgba(15,23,42,.12);
+  box-shadow: -12px 0 30px rgba(15, 23, 42, .12);
 }
 
 .ai-chat-history {
@@ -1535,7 +1309,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
 
 .ai-quick-actions {
   display: grid;
-  grid-template-columns: repeat(2,minmax(0,1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
@@ -1560,16 +1334,21 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   .expense-shell--assistant-open {
     padding-right: 0;
   }
+
   .ai-chat-card {
     width: 100vw;
     max-width: none;
   }
-  .ai-chat-header, .ai-chat-input {
+
+  .ai-chat-header,
+  .ai-chat-input {
     flex: 0 0 auto;
   }
+
   .ai-chat-history {
     flex: 1 1 auto;
   }
+
   .ai-quick-actions {
     grid-template-columns: 1fr;
   }
@@ -1579,7 +1358,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
 .ai-chat-card,
 .ai-chat-history,
 .ai-message,
-.ai-message > div,
+.ai-message>div,
 .agent-result-card,
 .agent-proposal {
   min-width: 0;
@@ -1655,7 +1434,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   border-bottom: var(--border-default);
 }
 
-.agent-transaction-list li > div {
+.agent-transaction-list li>div {
   min-width: 0;
 }
 
@@ -1677,7 +1456,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   font-size: 10px;
 }
 
-.agent-transaction-list > li > strong {
+.agent-transaction-list>li>strong {
   flex: 0 0 auto;
   font-size: 11px;
   white-space: nowrap;
@@ -1693,7 +1472,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
 }
 
 .agent-summary-grid {
-  grid-template-columns: repeat(3,minmax(0,1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .agent-summary-grid strong {
@@ -1722,26 +1501,31 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   .agent-summary-grid {
     grid-template-columns: 1fr;
   }
+
   .agent-transaction-list li {
     align-items: flex-start;
     flex-direction: column;
     gap: 4px;
   }
-  .agent-transaction-list > li > strong {
+
+  .agent-transaction-list>li>strong {
     align-self: flex-end;
   }
+
   .ai-chat-input {
     padding: 10px;
   }
 }
 
-/* Mobile: panel covers the viewport with solid background so Transactions does not show behind. */ @media (max-width: 840px) {
+/* Mobile: panel covers the viewport with solid background so Transactions does not show behind. */
+@media (max-width: 840px) {
   .expense-shell--assistant-open .ai-assistant {
     position: fixed;
     z-index: 100;
     inset: 0;
     display: block;
   }
+
   .expense-shell--assistant-open .ai-chat-card {
     position: fixed;
     z-index: 101;
@@ -1757,7 +1541,8 @@ mobile becomes a full-screen sheet. */ .expense-shell {
   }
 }
 
-/* Mobile override: +, input, and Send button remain on a single row. */ @media (max-width: 540px) {
+/* Mobile override: +, input, and Send button remain on a single row. */
+@media (max-width: 540px) {
   .ai-chat-input {
     display: flex;
     align-items: center;
@@ -1765,6 +1550,7 @@ mobile becomes a full-screen sheet. */ .expense-shell {
     gap: 8px;
     padding: 10px 12px;
   }
+
   .ai-chat-input textarea {
     min-width: 0;
     min-height: 42px;
@@ -1772,21 +1558,25 @@ mobile becomes a full-screen sheet. */ .expense-shell {
     flex: 1 1 auto;
     resize: none;
   }
+
   .ai-chat-input .primary-button {
     min-width: 54px;
     min-height: 42px;
     padding: 8px 10px;
   }
+
   .ai-plus {
     flex: 0 0 auto;
   }
-  .ai-plus > button {
+
+  .ai-plus>button {
     width: 42px;
     height: 42px;
   }
 }
 
-/* Select uses input styling to keep proposal forms clean across desktop and mobile. */ .agent-proposal select {
+/* Select uses input styling to keep proposal forms clean across desktop and mobile. */
+.agent-proposal select {
   width: 100%;
   box-sizing: border-box;
   padding: 8px;

@@ -99,7 +99,7 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
     });
   });
 
-  describe('2. AdminSessionGate Security & Guard Verification', () => {
+  describe('2. AdminRouteGuard Security & Guard Verification', () => {
     it('strictly denies non-admin users and redirects to expense workspace', () => {
       const regularSession = {
         user: {

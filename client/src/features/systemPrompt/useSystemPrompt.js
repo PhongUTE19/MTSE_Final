@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchSystemPrompt, updateSystemPrompt, resetSystemPrompt } from './systemPromptApi';
 import { UI_LABELS, APP_MESSAGES } from '../../shared/constants';
+import { useConfirm } from '../../shared/hooks';
 
 /**
  * Custom hook to manage system prompt loading, updating, dirty checking, and resetting.
@@ -10,6 +11,7 @@ import { UI_LABELS, APP_MESSAGES } from '../../shared/constants';
  * @param {Function} [options.onSuccess] - Callback to report success feedback
  */
 export function useSystemPrompt({ onError, onSuccess, isOffline = false } = {}) {
+  const { confirm } = useConfirm();
   const [prompt, setPrompt] = useState('');
   const [initialPrompt, setInitialPrompt] = useState('');
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,14 @@ export function useSystemPrompt({ onError, onSuccess, isOffline = false } = {}) 
   }, [initialPrompt]);
 
   const handleResetToDefault = useCallback(async () => {
-    if (!window.confirm(UI_LABELS.SYSTEM_PROMPT_EDITOR.RESET_CONFIRMATION)) {
+    const isConfirmed = await confirm({
+      title: 'Reset System Prompt',
+      message: UI_LABELS.SYSTEM_PROMPT_EDITOR.RESET_CONFIRMATION,
+      confirmText: 'Reset to Default',
+      cancelText: 'Cancel',
+      variant: 'danger',
+    });
+    if (!isConfirmed) {
       return;
     }
     setSaving(true);
@@ -92,7 +101,7 @@ export function useSystemPrompt({ onError, onSuccess, isOffline = false } = {}) 
     } finally {
       setSaving(false);
     }
-  }, [onError, onSuccess]);
+  }, [confirm, onError, onSuccess]);
 
   const isDirty = prompt !== initialPrompt;
 

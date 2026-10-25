@@ -134,16 +134,16 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(typeof useSession, 'function');
     });
 
-    it('enforces gate validation rules: AdminSessionGate requires admin, ExpenseSessionGate accepts any user', () => {
+    it('enforces gate validation rules: AdminRouteGuard requires admin, AuthenticatedRouteGuard accepts any user', () => {
       const adminSession = { user: { id: 'u1', app_metadata: { role: 'admin' } } };
       const regularSession = { user: { id: 'u2', app_metadata: { role: 'user' } } };
 
-      // AdminSessionGate validate handler pattern:
+      // AdminRouteGuard validate handler pattern:
       const adminGateValidator = (session) => getUserRole(session) === 'admin';
       assert.equal(adminGateValidator(adminSession), true);
       assert.equal(adminGateValidator(regularSession), false);
 
-      // ExpenseSessionGate validate pattern:
+      // AuthenticatedRouteGuard validate pattern:
       const expenseGateValidator = (session) => Boolean(session?.user);
       assert.equal(expenseGateValidator(adminSession), true);
       assert.equal(expenseGateValidator(regularSession), true);

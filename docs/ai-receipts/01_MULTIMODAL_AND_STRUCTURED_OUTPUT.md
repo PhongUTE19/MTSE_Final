@@ -11,7 +11,7 @@ Luồng thực tế:
 ```mermaid
 sequenceDiagram
   participant U as Người dùng
-  participant FE as ExpenseTrackerApp
+  participant FE as ExpensePage
   participant API as Express /api/receipts/upload
   participant S as receipt.service
   participant DB as Supabase RPC + receipts
@@ -35,7 +35,7 @@ sequenceDiagram
 
 ### Nhập ảnh và kiểm tra trước Gemini
 
-- `client/src/components/expense/ExpenseTrackerApp.jsx` chặn phía trình duyệt: JPG/PNG/WebP, tối đa 5 MB, hiển thị trạng thái đang xử lý và khóa upload tiếp theo.
+- `client/src/components/expense/ExpensePage.jsx` chặn phía trình duyệt: JPG/PNG/WebP, tối đa 5 MB, hiển thị trạng thái đang xử lý và khóa upload tiếp theo.
 - `client/src/services/expenseApi.js` gửi `FormData` với field `receipt` tới `POST /api/receipts/upload`, kèm Bearer token.
 - `server/src/features/expenses/receiptUpload.middleware.js` dùng Multer memory storage; `inspectReceiptImage()` kiểm tra magic bytes, MIME phải khớp nội dung, kích thước tối đa 5 MB, ảnh giải mã được bằng Sharp và chiều rộng/cao không quá 8.000 px. Đồng thời tạo SHA-256.
 - `server/src/features/expenses/receipt.service.js` tạo row owner-scoped, tải ảnh vào bucket private `receipts`, lấy processing lease rồi gọi Gemini. Nếu upload/extraction lỗi, `cleanUpTemporaryReceipt()` cố xóa object và row tạm; nếu chính cleanup lỗi thì log server giữ thông tin phục hồi an toàn.
@@ -105,7 +105,7 @@ Như vậy merchant, date, amount, category và note được review/sửa trự
 Khi bấm **Confirm and save transaction**:
 
 1. `ReceiptReview.handleConfirm()` kiểm tra merchant và amount dương, chuyển amount sang Number, khóa nút khi đang lưu.
-2. `ExpenseTrackerApp.confirmReceipt()` gọi `expenseApi.confirmReceipt()`.
+2. `ExpensePage.confirmReceipt()` gọi `expenseApi.confirmReceipt()`.
 3. `expenseApi` gửi `POST /api/receipts/:id/confirm` với `{ finalTransaction }` và Bearer token.
 4. Route `server/src/features/expenses/expenses.routes.js` áp dụng `authenticate` và `receiptConfirmSchema`; controller gọi `receiptService.confirmReceipt()`.
 5. Client Supabase user-scoped gọi RPC `confirm_receipt_transaction`. SQL trong `supabase/migrations/202610230002_secure_receipts.sql` khóa receipt owner bằng `FOR UPDATE`, chỉ nhận `review_required`, validate transaction tối thiểu, insert `public.expense_transactions`, link `receipts.transaction_id`, rồi chuyển status `confirmed` trong cùng transaction.
@@ -118,7 +118,7 @@ RLS/ownership của receipt được enforce trong RPC và policies. Cần chạ
 
 | File và function | Input → output | Vai trò |
 | --- | --- | --- |
-| `ExpenseTrackerApp.jsx` — `uploadReceipt` | File browser → `receipt` state | Kiểm tra nhanh UI, preview, loading và gọi API. |
+| `ExpensePage.jsx` — `uploadReceipt` | File browser → `receipt` state | Kiểm tra nhanh UI, preview, loading và gọi API. |
 | `receiptUpload.middleware.js` — `inspectReceiptImage` | Multer file → metadata đã xác thực | Chặn file giả, sai MIME, quá lớn hoặc pixel bomb trước AI. |
 | `receipt.service.js` — `uploadReceipt` | User, bytes, metadata → receipt review | Tạo row/path riêng user, Storage private, khởi động lifecycle. |
 | `receipt.service.js` — `processStoredReceipt` | Receipt + image → draft review | Lấy lease, gọi extractor, hoàn thành RPC hoặc cleanup lỗi. |
