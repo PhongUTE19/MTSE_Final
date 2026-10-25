@@ -62,7 +62,7 @@ export const apiRateLimiter = createLimiter({
 });
 
 /**
- * Rate limiter for expensive Handbook AI chat and streaming endpoints.
+ * Rate limiter for expensive AI chat and streaming endpoints.
  * Configurable via RATE_LIMIT_CHAT_MAX (default: 30 req / min).
  */
 export const chatRateLimiter = createLimiter({

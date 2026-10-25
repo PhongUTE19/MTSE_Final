@@ -21,7 +21,7 @@ describe('Progressive Text Reveal Queue & Unicode Integrity Suite', () => {
   });
 
   it('splits Vietnamese diacritics and complex Unicode characters without corrupting surrogate pairs', () => {
-    const text = 'Chào mừng bạn đến với HCMUTE! 🎉 🇻🇳\n\n- Mục 1: Học phí\n- Mục 2: Học bổng';
+    const text = 'Chào mừng bạn đến với SpendWise! 🎉 🇻🇳\n\n- Mục 1: Chi tiêu\n- Mục 2: Ngân sách';
     const graphemes = splitGraphemes(text);
 
     // Graphemes must recombine into exact original string with zero character loss
@@ -39,7 +39,7 @@ describe('Progressive Text Reveal Queue & Unicode Integrity Suite', () => {
 
   it('gracefully drains short responses across ticks without dumping all characters when stream ends', () => {
     // 1. Very short response that ends before reveal queue is empty
-    const shortResponse = 'Xin chào bạn!';
+    const shortResponse = 'Hello there!';
     const graphemes = splitGraphemes(shortResponse);
 
     // Simulate initial arrival
@@ -84,9 +84,9 @@ describe('Progressive Text Reveal Queue & Unicode Integrity Suite', () => {
   it('simulates progressive queue buffering and catch-up acceleration for longer fast streams', () => {
     // 2. Longer response where incoming chunks arrive faster than they can be revealed
     const multiTokenChunks = [
-      'Sinh viên cần đóng học phí ',
-      'đúng thời hạn quy định trong sổ tay sinh viên. ',
-      'Học bổng khuyến khích học tập được xét dựa trên kết quả rèn luyện học tập.',
+      'Users can track their daily expenses ',
+      'and organize them into categories like food, groceries, and travel. ',
+      'Monthly budget limits help keep spending aligned with personal financial goals.',
     ];
 
     const queue = [];
@@ -162,7 +162,7 @@ describe('Progressive Text Reveal Queue & Unicode Integrity Suite', () => {
 
   it('halts reveal queue and preserves partial response immediately on cancellation or error', () => {
     // 5. Cancellation and errors while text remains queued
-    const chunk1 = 'Phần câu trả lời đã nhận được nhưng bị huỷ giữa chừng.';
+    const chunk1 = 'The partial response received before the stream was cancelled.';
     const queue = splitGraphemes(chunk1);
     let displayed = '';
 

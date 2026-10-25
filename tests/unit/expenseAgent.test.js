@@ -30,7 +30,7 @@ describe('Expense Agent search_transactions', () => {
   it('combines filters, keeps newest-first pagination, and returns an empty result unchanged', async () => {
     let capturedQuery;
     const result = await searchTransactionsForUser(user, 'dummy', {
-      agentRunner: async (_message, executeTool) => ({ answer: 'Không có giao dịch.', toolResult: await executeTool('search_transactions', {
+      agentRunner: async (_message, executeTool) => ({ answer: 'No transactions found.', toolResult: await executeTool('search_transactions', {
         merchant: 'Highlands', category: 'Food', type: 'expense', from: '2026-10-01', to: '2026-10-31', minAmount: 20000, maxAmount: 100000, page: 2, pageSize: 5,
       }) }),
       listTransactions: async (_user, query) => { capturedQuery = query; return { transactions: [], total: 0, page: 2, pageSize: 5 }; },
@@ -64,7 +64,7 @@ describe('Expense Agent search_transactions', () => {
         functionCalls: [{ name: 'search_transactions', args: { type: 'expense', from: '2026-10-24', to: '2026-10-24' } }],
         candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'search_transactions', args: {} } }] } }],
       };
-      return { text: 'Bạn có 1 giao dịch chi trong tháng 10.' };
+      return { text: 'You have 1 expense in October.' };
     } } };
     const output = await runGeminiExpenseAgent('Hôm qua tôi tiêu gì?', async (name, args) => {
       assert.equal(name, 'search_transactions');
@@ -72,14 +72,14 @@ describe('Expense Agent search_transactions', () => {
       assert.equal(args.from, '2026-10-24');
       return { transactions: [], total: 0 };
     }, { ai: fakeAi, today: '2026-10-25' });
-    assert.equal(output.answer, 'Bạn có 1 giao dịch chi trong tháng 10.');
+    assert.equal(output.answer, 'You have 1 expense in October.');
     assert.equal(calls[0].config.tools[0].functionDeclarations[0].name, 'search_transactions');
     assert.match(calls[0].config.systemInstruction, /hôm qua.*previous calendar day/i);
     assert.equal(calls[1].contents[2].parts[0].functionResponse.name, 'search_transactions');
   });
 
   it('returns Gemini clarification for an ambiguous date and safely maps Gemini failures', async () => {
-    const clarificationAi = { models: { generateContent: async () => ({ text: 'Bạn muốn ngày nào của tháng nào?' }) } };
+    const clarificationAi = { models: { generateContent: async () => ({ text: 'Which day of which month would you like?' }) } };
     const clarification = await runGeminiExpenseAgent('gần đây tôi tiêu gì?', async () => assert.fail('Tool must not execute'), { ai: clarificationAi });
     assert.equal(clarification.toolName, null);
 
@@ -96,7 +96,7 @@ describe('Expense Agent search_transactions', () => {
   it('stops a slow Gemini request at the configured timeout', async () => {
     const slowAi = { models: { generateContent: () => new Promise(() => {}) } };
     await assert.rejects(
-      () => runGeminiExpenseAgent('tìm giao dịch', async () => ({}), { ai: slowAi, timeoutMs: 1 }),
+      () => runGeminiExpenseAgent('find transactions', async () => ({}), { ai: slowAi, timeoutMs: 1 }),
       (error) => error.name === 'AIResponseTimeoutError',
     );
   });
@@ -115,19 +115,19 @@ describe('Expense Agent search_transactions', () => {
             };
           }
           return {
-            text: 'Tổng chi tháng 10 là 150.000 VND.',
+            text: 'Total spending in October is 150,000 VND.',
             usageMetadata: { promptTokenCount: 85, candidatesTokenCount: 22, totalTokenCount: 107 },
           };
         },
       },
     };
 
-    const output = await runGeminiExpenseAgent('Tháng 10 tiêu gì?', async (name, args) => {
+    const output = await runGeminiExpenseAgent('What did I spend in October?', async (name, args) => {
       assert.equal(name, 'search_transactions');
       return { transactions: [{ amount: 150000 }], total: 1 };
     }, { ai: fakeAi, today: '2026-10-25' });
 
-    assert.equal(output.answer, 'Tổng chi tháng 10 là 150.000 VND.');
+    assert.equal(output.answer, 'Total spending in October is 150,000 VND.');
     assert.equal(output.toolName, 'search_transactions');
 
     const recentRecords = getRecentUsageRecords(10).filter((r) => r.feature === 'expense_agent');
@@ -155,7 +155,7 @@ describe('Expense Agent search_transactions', () => {
     const clarificationAi = {
       models: {
         generateContent: async () => ({
-          text: 'Bạn muốn tìm trong ngày nào?',
+          text: 'Which day would you like to search?',
           usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 12, totalTokenCount: 42 },
         }),
       },
@@ -163,12 +163,12 @@ describe('Expense Agent search_transactions', () => {
 
     const startCount = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent').length;
 
-    const output = await runGeminiExpenseAgent('tìm giúp tôi', async () => {
+    const output = await runGeminiExpenseAgent('help me search', async () => {
       assert.fail('Tool should not be called');
     }, { ai: clarificationAi });
 
     assert.equal(output.toolName, null);
-    assert.equal(output.answer, 'Bạn muốn tìm trong ngày nào?');
+    assert.equal(output.answer, 'Which day would you like to search?');
 
     const endRecords = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent');
     assert.equal(endRecords.length, startCount + 1, 'Only one record should be created for clarification');
@@ -190,18 +190,18 @@ describe('Expense Agent search_transactions', () => {
             err.status = 503;
             throw err;
           }
-          return { text: 'Trả lời sau khi retry thành công.' };
+          return { text: 'Response after successful retry.' };
         },
       },
     };
 
-    const output = await runGeminiExpenseAgent('tìm giao dịch', async () => ({}), {
+    const output = await runGeminiExpenseAgent('find transactions', async () => ({}), {
       ai: retryAi,
       maxRetries: 2,
       initialDelayMs: 1,
     });
 
-    assert.equal(output.answer, 'Trả lời sau khi retry thành công.');
+    assert.equal(output.answer, 'Response after successful retry.');
     assert.equal(callCount, 2);
 
     const records = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent');
@@ -215,7 +215,7 @@ describe('Expense Agent search_transactions', () => {
   it('gracefully handles non-fatal telemetry tracking errors without breaking user flow', async () => {
     const ai = {
       models: {
-        generateContent: async () => ({ text: 'Câu trả lời an toàn.' }),
+        generateContent: async () => ({ text: 'Safe response.' }),
       },
     };
 
@@ -226,8 +226,8 @@ describe('Expense Agent search_transactions', () => {
     };
 
     try {
-      const output = await runGeminiExpenseAgent('tìm chi tiêu', async () => ({}), { ai });
-      assert.equal(output.answer, 'Câu trả lời an toàn.');
+      const output = await runGeminiExpenseAgent('find expenses', async () => ({}), { ai });
+      assert.equal(output.answer, 'Safe response.');
     } finally {
       store.add = originalAdd;
     }
@@ -236,14 +236,14 @@ describe('Expense Agent search_transactions', () => {
   it('falls back to shared getAIClient when no clientFactory or options.ai provided', async () => {
     const mockClient = {
       models: {
-        generateContent: async () => ({ text: 'Phản hồi từ shared singleton client.' }),
+        generateContent: async () => ({ text: 'Response from shared singleton client.' }),
       },
     };
 
     setAIClientForTests(mockClient);
     try {
-      const output = await runGeminiExpenseAgent('tìm kiếm', async () => ({}));
-      assert.equal(output.answer, 'Phản hồi từ shared singleton client.');
+      const output = await runGeminiExpenseAgent('search', async () => ({}));
+      assert.equal(output.answer, 'Response from shared singleton client.');
     } finally {
       setAIClientForTests(null);
     }

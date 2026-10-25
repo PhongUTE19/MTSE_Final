@@ -79,10 +79,10 @@ test('expense routes reject unauthenticated transaction and receipt-draft reques
     body: { fileName: 'receipt.png', fileType: 'image/png' },
   });
   const agentResponse = await dispatch(expenseAgentRouter, {
-    method: 'POST', path: '/search', body: { message: 'Tìm giao dịch Highlands' },
+    method: 'POST', path: '/search', body: { message: 'Find Highlands transaction' },
   });
   const summaryResponse = await dispatch(expenseAgentRouter, {
-    method: 'POST', path: '/summary', body: { message: 'Tổng chi tháng này' },
+    method: 'POST', path: '/summary', body: { message: 'Total spending this month' },
   });
 
   assert.equal(transactionResponse.status, 401);
@@ -98,8 +98,8 @@ test('expense routes enforce ownership at the HTTP boundary and reject non-admin
     return null;
   });
   setExpenseClientFactoryForTests(() => ownerAwareClient());
-  // DELETE transaction kiểm tra receipt liên kết trước khi xoá. Mock dependency
-  // này để test ownership không gọi Supabase thật bằng token giả.
+  // Transaction DELETE checks linked receipts before deleting. Mock this
+  // dependency so ownership testing does not call actual Supabase with fake tokens.
   setReceiptDependenciesForTests({
     clientFactory: { user: () => receiptClientWithoutLinkedTransaction(), server: () => null },
   });

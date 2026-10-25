@@ -14,8 +14,8 @@ export const WORKSPACE_NAV_ITEMS = Object.freeze([
  * Administration navigation items visible only to verified administrators.
  */
 export const ADMIN_NAV_ITEMS = Object.freeze([
-  Object.freeze({ key: 'knowledge', label: 'Knowledge Base', path: APP_ROUTES.ADMIN_KNOWLEDGE }),
   Object.freeze({ key: 'analytics', label: 'AI Usage', path: APP_ROUTES.ADMIN_ANALYTICS }),
+  // Object.freeze({ key: 'knowledge', label: 'Knowledge Base', path: APP_ROUTES.ADMIN_KNOWLEDGE }),
 ]);
 
 /**

@@ -7,19 +7,19 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
     it('selects agent strategy by default and normalizes response contract', async () => {
       const mockAgentRunner = async (user, message, options) => {
         return {
-          answer: 'Bạn đã chi 120.000 VND hôm nay.',
+          answer: 'You spent 120,000 VND today.',
           toolName: 'get_spending_summary',
           toolResult: { total: 120000 },
         };
       };
 
-      const result = await orchestrateChat('Chi tiêu hôm nay', {
+      const result = await orchestrateChat('Today expenses', {
         agentRunner: mockAgentRunner,
         user: { id: 'u1' },
       });
 
       assert.equal(result.strategy, 'agent');
-      assert.equal(result.answer, 'Bạn đã chi 120.000 VND hôm nay.');
+      assert.equal(result.answer, 'You spent 120,000 VND today.');
       assert.equal(result.toolName, 'get_spending_summary');
       assert.deepEqual(result.toolResult, { total: 120000 });
       assert.equal(result.proposal, null);
@@ -30,12 +30,12 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
     it('extracts proposal shortcut when create_transaction proposal is generated', async () => {
       const mockProposal = { id: 'prop-123', transaction: { amount: 50000 } };
       const mockAgentRunner = async () => ({
-        answer: 'Vui lòng xác nhận giao dịch.',
+        answer: 'Please confirm the transaction.',
         toolName: 'create_transaction',
         toolResult: { proposal: mockProposal },
       });
 
-      const result = await orchestrateChat('Cà phê 50k', {
+      const result = await orchestrateChat('Coffee 50k', {
         agentRunner: mockAgentRunner,
         user: { id: 'u1' },
       });
@@ -62,25 +62,25 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
     it('executes RAG workflow when explicitly selected via strategy: rag', async () => {
       const mockRagExecutor = async (query) => ({
         passedThreshold: true,
-        sources: [{ id: 'doc1', title: 'Quy chế', score: 0.9 }],
+        sources: [{ id: 'doc1', title: 'Spending Policy', score: 0.9 }],
         retrieval: { similarityThreshold: 0.6, bestScore: 0.9 },
         prompt: `Prompt for ${query}`,
       });
-      const mockLlmGenerator = async () => 'Sinh viên cần tích lũy tối thiểu 120 tín chỉ.';
+      const mockLlmGenerator = async () => 'Keep receipts for all tax-deductible expenses.';
 
-      const result = await orchestrateChat('Điều kiện tốt nghiệp', {
+      const result = await orchestrateChat('Expense policy', {
         strategy: 'rag',
         ragExecutor: mockRagExecutor,
         llmGenerator: mockLlmGenerator,
       });
 
       assert.equal(result.strategy, 'rag');
-      assert.equal(result.answer, 'Sinh viên cần tích lũy tối thiểu 120 tín chỉ.');
+      assert.equal(result.answer, 'Keep receipts for all tax-deductible expenses.');
       assert.equal(result.toolName, null);
       assert.equal(result.toolResult, null);
       assert.equal(result.proposal, null);
       assert.equal(result.sources.length, 1);
-      assert.equal(result.sources[0].title, 'Quy chế');
+      assert.equal(result.sources[0].title, 'Spending Policy');
       assert.equal(result.retrieval.bestScore, 0.9);
     });
   });
@@ -91,12 +91,12 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
       const emit = (event, data) => events.push({ event, data });
 
       const mockAgentRunner = async () => ({
-        answer: 'Chào bạn, tôi có thể giúp gì?',
+        answer: 'Hello, how can I help you?',
         toolName: null,
         toolResult: null,
       });
 
-      await orchestrateChatStream('Xin chào', emit, {
+      await orchestrateChatStream('Hello', emit, {
         agentRunner: mockAgentRunner,
       });
 
@@ -104,7 +104,7 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
       assert.equal(events[0].event, 'metadata');
       assert.equal(events[0].data.strategy, 'agent');
       assert.equal(events[1].event, 'delta');
-      assert.equal(events[1].data.text, 'Chào bạn, tôi có thể giúp gì?');
+      assert.equal(events[1].data.text, 'Hello, how can I help you?');
       assert.equal(events[2].event, 'done');
       assert.equal(events[2].data.strategy, 'agent');
     });

@@ -1,6 +1,6 @@
 ---
 name: implement-feature
-description: Implement a feature in the Student Handbook Assistant by following existing architecture, reuse patterns, validation, error handling, and testing conventions.
+description: Implement a feature in SpendWise by following existing architecture, reuse patterns, validation, error handling, and testing conventions.
 ---
 
 # Implement Feature

@@ -26,7 +26,7 @@ const transaction = {
 };
 
 async function proposal() {
-  return createTransactionProposalForUser(userA, 'cà phê', {
+  return createTransactionProposalForUser(userA, 'coffee', {
     agentRunner: async (_m, execute) => ({
       answer: 'Review proposal.',
       toolResult: await execute('create_transaction', transaction),
@@ -163,13 +163,13 @@ describe('create_transaction proposal confirmation', () => {
               candidates: [{ content: { role: 'model', parts: [] } }],
             };
           }
-          return { text: 'Hãy xác nhận proposal.' };
+          return { text: 'Please review and confirm the proposal.' };
         },
       },
     };
 
     const output = await runGeminiExpenseAgent(
-      'Mua cà phê',
+      'Buy coffee',
       async () => ({ proposal: { id: 'x' } }),
       { ai, agentType: 'create', today: '2026-10-25' }
     );
@@ -181,9 +181,9 @@ describe('create_transaction proposal confirmation', () => {
   });
 
   it('allows the unified assistant to create a proposal without persisting it', async () => {
-    const output = await runExpenseAssistantForUser(userA, 'Mua cà phê', {
+    const output = await runExpenseAssistantForUser(userA, 'Buy coffee', {
       agentRunner: async (_message, execute) => ({
-        answer: 'Hãy xác nhận.',
+        answer: 'Please confirm the proposal.',
         toolName: 'create_transaction',
         toolResult: await execute('create_transaction', transaction),
       }),
@@ -196,7 +196,7 @@ describe('create_transaction proposal confirmation', () => {
     for (const message of ['thêm vào 500k', 'nạp tiền vào ví 500.000đ']) {
       const output = await createTransactionProposalForUser(userA, message, {
         agentRunner: async () => ({
-          answer: 'Bạn muốn ghi là thu nhập hay chi tiêu?',
+          answer: 'Would you like to record this as income or expense?',
           toolName: null,
           toolResult: null,
         }),
@@ -210,7 +210,7 @@ describe('create_transaction proposal confirmation', () => {
     for (const amount of [500000, 500000]) {
       const output = await createTransactionProposalForUser(userA, 'thêm khoản chi', {
         agentRunner: async (_message, execute) => ({
-          answer: 'Hãy xác nhận.',
+          answer: 'Please confirm the proposal.',
           toolName: 'create_transaction',
           toolResult: await execute('create_transaction', { ...transaction, amount }),
         }),

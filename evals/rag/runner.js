@@ -10,7 +10,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 export async function runEvaluationSuite() {
   console.log('================================================================');
-  console.log('       STUDENT HANDBOOK RAG - ACCEPTANCE & VERIFICATION EVALS   ');
+  console.log('          SPENDWISE RAG - ACCEPTANCE & VERIFICATION EVALS       ');
   console.log('================================================================\n');
 
   const report = {

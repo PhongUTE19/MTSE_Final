@@ -93,10 +93,10 @@ describe('Collection and Table Utilities Suite', () => {
 
   describe('filterItems', () => {
     const items = [
-      { id: 1, name: 'Academic Handbook', category: 'Rules', pages: 12 },
-      { id: 2, name: 'Tuition Fees 2026', category: 'Finance', pages: 4 },
-      { id: 3, name: 'Dormitory Guidelines', category: 'Housing', pages: 8 },
-      { id: 4, name: 'Scholarship Details', category: 'Finance', pages: 6 },
+      { id: 1, name: 'SpendWise User Guide', category: 'Guides', pages: 12 },
+      { id: 2, name: 'Expense Tracking Policies', category: 'Finance', pages: 4 },
+      { id: 3, name: 'Receipt Guidelines', category: 'Features', pages: 8 },
+      { id: 4, name: 'Monthly Budgeting Details', category: 'Finance', pages: 6 },
     ];
 
     it('returns all items when query is empty or whitespace', () => {
@@ -115,9 +115,9 @@ describe('Collection and Table Utilities Suite', () => {
     });
 
     it('filters across object properties when no search fields are specified', () => {
-      const result = filterItems(items, 'dorm');
+      const result = filterItems(items, 'receipt');
       assert.strictEqual(result.length, 1);
-      assert.strictEqual(result[0].name, 'Dormitory Guidelines');
+      assert.strictEqual(result[0].name, 'Receipt Guidelines');
     });
 
     it('handles numeric queries correctly', () => {

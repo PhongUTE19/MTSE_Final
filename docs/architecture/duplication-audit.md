@@ -1,4 +1,4 @@
-# Codebase Duplication & Reuse Audit: Student Handbook Assistant & SpendWise
+# Codebase Duplication & Reuse Audit: SpendWise Platform
 
 > **Status**: Verified against active repository code (Post-Refactoring Audit)
 > **Date**: October 2026

@@ -1,4 +1,4 @@
-# Student Handbook Assistant — Agent Guidelines
+# SpendWise Assistant — Agent Guidelines
 
 This package is a draft for review before adding it to the repository.
 

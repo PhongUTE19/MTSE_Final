@@ -1,7 +1,7 @@
-# Architecture: Student Handbook Assistant (RAG)
+# Architecture: SpendWise Assistant (RAG)
 
 ## 1. Goal & Context
-* **Project**: A containerized Student Handbook Assistant using Retrieval-Augmented Generation (RAG).
+* **Project**: A containerized SpendWise Assistant using Retrieval-Augmented Generation (RAG).
 * **Stack**: React (Vite / Nginx) + Node.js (Express) + Qdrant Cloud + Google Gemini API + Supabase Analytics.
 * **Core Philosophy**: Feature-first modularization, provider-independent AI abstraction, robust validation, containerization via Docker Compose, and zero-loss telemetry persistence.
 
@@ -20,10 +20,10 @@ The system consists of two containerized application services managed by Docker 
 +--------------┼───────────────────────────────────────┼──────────────────────────────────+
 |              ▼                                       ▼                                  |
 |  +─────────────────────────+          +─────────────────────────+                       |
-|  | student-handbook-client |          | student-handbook-server |                       |
+|  | spendwise-client        |          | spendwise-server        |                       |
 |  |   (Nginx / Vite)        |          |   (Express :3000)       |                       |
 |  |                         |          |                         |                       |
-|  | - Student Chat View     |  proxy   | - Feature Routes        |                       |
+|  | - User Chat / Assistant |  proxy   | - Feature Routes        |                       |
 |  | - Admin Knowledge Mgt   |─────────►| - RAG Orchestration     |                       |
 |  | - AI Analytics Dashboard|          | - AI Provider Registry  |                       |
 |  | - Streaming Text Reveal |          | - Usage Tracking / Queue|                       |
@@ -38,7 +38,7 @@ The system consists of two containerized application services managed by Docker 
            | (Managed Cluster :6333) |   | (Official @google/genai)|   | (PostgreSQL Analytics)  |
            |                         |   |                         |   |                         |
            | - 3072-dim Cosine Index |   | - gemini-3.5-flash-lite |   | - ai_usage_analytics    |
-           | - Student_Handbook Coll |   | - gemini-embedding-001  |   | - Token & Cost Metrics  |
+           | - spendwise Collection  |   | - gemini-embedding-001  |   | - Token & Cost Metrics  |
            | - High-Performance HNSW |   | - Streaming SSE deltas  |   | - Latency Percentiles   |
            +─────────────────────────+   +─────────────────────────+   +─────────────────────────+
 ```
@@ -48,14 +48,14 @@ The system consists of two containerized application services managed by Docker 
 ## 3. Core Feature Workflows
 
 ### 3.1. User Chat & Streaming Workflow
-1. **User Submits Query**: Student asks a handbook question in `UserChatView.jsx`.
+1. **User Submits Query**: User asks a question in the assistant UI.
 2. **HTTP Dispatch**: `client/src/services/userApi.js` sends `POST /api/user/chat` (synchronous) or `POST /api/user/chat/stream` (SSE).
 3. **Request Validation**: Express route invokes `validateRequest({ body: chatRequestSchema })`. Invalid payloads immediately return `400 Bad Request` JSON before SSE headers are sent.
 4. **Assistant/Chat Orchestration (`server/src/features/assistant/assistant.service.js`)**:
    - Delegates retrieval to `server/src/features/knowledgeBase/ragService.js`.
    - Embeds query using active AI provider (`embedText()`).
    - Retrieves top-$K$ candidates ($K=4$) from Qdrant Cloud via `retriever.js`.
-   - Checks relevance threshold ($0.60$) and Section 11 Amendment boost ($0.55$).
+   - Checks relevance threshold ($0.60$).
 5. **Guardrail Decision**:
    - **Below Cutoff (< 0.60)**: Returns early refusal text without calling generative LLM, passing empty sources and retrieval diagnostics.
    - **Accepted (>= 0.60)**: Injects active system prompt (`prompts.service.js`) and retrieved chunks into `promptBuilder.js`.
@@ -66,7 +66,7 @@ The system consists of two containerized application services managed by Docker 
 7. **Client Rendering**: `AnswerContent.jsx` renders incremental chunks with an opacity fade-in animation (`streaming-text-fade`), transitioning to clean text upon completion.
 
 ### 3.2. Document Management CRUD Workflow
-* **Storage**: Authoritative markdown files residing in `data/knowledge/` (default: `KB-A_Lumen-Institute-Student-Handbook.md`).
+* **Storage**: Authoritative markdown files residing in `data/knowledge/` (default: `spendwise_user_guide.md`).
 * **Route**: Mounted under `/api/admin/documents` in `server/src/routes/adminRoute.js` $\rightarrow$ `server/src/features/documents/documents.routes.js`.
 * **Validation**: File names validated against path traversal (`sanitizeFilename`), contents validated for non-empty Level-2 Markdown headers.
 * **Service**: `documents.service.js` reads, writes, updates, or deletes files on disk and recalculates section counts.
@@ -77,12 +77,12 @@ The system consists of two containerized application services managed by Docker 
 * **Idempotent Cloud Indexing**: `POST /api/admin/index` runs `indexer.js`:
   1. Reads all `.md` files in `data/knowledge/`.
   2. Generates section chunks (splitting by Level-2 `## ` headers while preserving full tables).
-  3. Reinitializes Qdrant Cloud collection `Student_Handbook` (`initVectorStore({ reset: true })`).
+  3. Reinitializes Qdrant Cloud collection `spendwise` (`initVectorStore({ reset: true })`).
   4. Generates 3072-dim embeddings with exponential backoff retry.
   5. Upserts points into Qdrant Cloud with full metadata payload.
 
 ### 3.4. System Prompt Management Workflow
-* **Storage**: Persistent storage in `data/systemPrompt/system_prompt.txt`, with factory default in `data/systemPrompt/system_prompt_default.txt`.
+* **Storage**: Persistent storage in `data/prompts/system_prompt.txt`, with factory default in `data/prompts/system_prompt_default.txt`.
 * **Endpoints**:
   - `GET /api/admin/prompt`: Reads active prompt from file. If file is missing, seeds it from default.
   - `PUT /api/admin/prompt`: Validates length (20–10,000 characters) and updates active prompt.
@@ -121,18 +121,18 @@ The system consists of two containerized application services managed by Docker 
 * **Request Body**:
 ```json
 {
-  "message": "What is the tuition fee for the Standard Program?"
+  "message": "What is the maximum attachment size for receipt scans?"
 }
 ```
 * **Success Response (`200 OK`)**:
 ```json
 {
-  "answer": "The tuition fee for the Standard Program is 42,000,000 VND per semester [2. Programs at a Glance].",
+  "answer": "Receipt uploads are limited to 5 MB per file in JPG, PNG, or WebP format [2. Platform Features at a Glance].",
   "sources": [
     {
-      "id": "KB-A_Lumen-Institute-Student-Handbook_sec2",
-      "title": "2. Programs at a Glance",
-      "source": "KB-A_Lumen-Institute-Student-Handbook.md",
+      "id": "spendwise_user_guide_sec2",
+      "title": "2. Platform Features at a Glance",
+      "source": "spendwise_user_guide.md",
       "score": 0.8124
     }
   ],
@@ -345,8 +345,8 @@ Student_Handbook/
 │   └── package.json
 ├── data/
 │   ├── knowledge/                        # Markdown knowledge base files
-│   │   └── KB-A_Lumen-Institute-Student-Handbook.md
-│   └── systemPrompt/                          # System prompt files
+│   │   └── spendwise_user_guide.md
+│   └── prompts/                          # System prompt files
 │       ├── system_prompt.txt             # Active persisted prompt
 │       └── system_prompt_default.txt     # Factory default prompt template
 ├── docs/

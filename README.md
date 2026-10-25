@@ -1,24 +1,24 @@
-# Lumen Institute Student Handbook 2026–2027 RAG Assistant
+# SpendWise — AI Personal Finance & Knowledge Base Assistant
 
-An authoritative question-answering assistant for the **Lumen Institute of Technology — Student Handbook 2026–2027** built using Retrieval-Augmented Generation (RAG) with Google Gemini, Qdrant Cloud vector database, Supabase analytics, an Express.js backend, and a React frontend.
+An intelligent personal finance and expense management platform with Retrieval-Augmented Generation (RAG) powered by Google Gemini, Qdrant Cloud vector database, Supabase analytics, an Express.js backend, and a React frontend.
 
 ---
 
 ## Project Overview
 
-The Student Handbook Assistant helps undergraduate students at Lumen Institute of Technology query official university policies, tuition structures, credit overload rules, scholarships, dormitory curfews, exam rules, graduation requirements, and recent amendments.
+SpendWise helps users track personal expenses, scan and review receipts with multimodal AI OCR, compute spending summaries, manage transactions, and query platform documentation.
 
 ### Key Capabilities
 
-1. **Grounded Question Answering**: Retrieves authoritative section chunks and generates factually grounded responses citing specific handbook sections.
+1. **Grounded Question Answering**: Retrieves authoritative section chunks and generates factually grounded responses citing specific documentation sections.
 2. **Relevance Guardrail Gate**: Applies a cosine similarity cutoff (`SIMILARITY_THRESHOLD = 0.60`). Queries failing the threshold receive a safe refusal without calling generative LLMs, saving latency and API cost.
 3. **Real-time SSE Streaming**: Emits Server-Sent Events (`metadata`, `delta`, `done`, `error`) with smooth client-side token reveal and fade-in animations.
 4. **Interactive Retrieval Diagnostics**: In-UI transparency allowing inspection of candidate pools, similarity scores, ranks, and threshold pass/filter decisions.
 5. **Admin Knowledge Management**:
    - Section-aware Markdown parsing and chunk inspection with search, sorting, and pagination.
    - Document CRUD operations stored in `data/knowledge/`.
-   - One-click cloud re-indexing into Qdrant Cloud (`Student_Handbook` collection).
-   - System prompt customization with instant restore to default template (`data/systemPrompt/`).
+   - One-click cloud re-indexing into Qdrant Cloud (`spendwise` collection).
+   - System prompt customization with instant restore to default template (`data/prompts/`).
 6. **AI Provider Abstraction Layer**: Lightweight, provider-independent interface (`embedText`, `generateAnswer`, `generateAnswerStream`) supporting pluggable AI backends with Google Gemini as the reference implementation.
 7. **AI Usage Analytics & Telemetry**: Automatically tracks request counts, token usage (prompt, completion, total), latencies (P50, P95), and estimated costs with dual-mode persistence (Supabase PostgreSQL with in-memory buffer fallback).
 
@@ -31,7 +31,7 @@ The Student Handbook Assistant helps undergraduate students at Lumen Institute o
 * **AI Provider Abstraction**: Provider-independent registry in `server/src/shared/integrations/ai/`.
 * **Default LLM Provider & Model**: Google Gemini via official `@google/genai` SDK, model **`gemini-3.5-flash-lite`**.
 * **Embedding Model & Vector Dimension**: Google Gemini **`gemini-embedding-001`** (**3072** dimensions, `Cosine` metric).
-* **Vector Database**: **Qdrant Cloud** (managed cluster over HTTPS, collection: `Student_Handbook`).
+* **Vector Database**: **Qdrant Cloud** (managed cluster over HTTPS, collection: `spendwise`).
 * **Database & Telemetry**: **Supabase** (`@supabase/supabase-js`) for analytics persistence + in-memory circular fallback.
 * **Validation & Error Handling**: Zod runtime schema validation (`validateRequest.js`), centralized operational error pipeline (`AppError.js`, `errorHandler.js`).
 
@@ -40,19 +40,19 @@ The Student Handbook Assistant helps undergraduate students at Lumen Institute o
 ## Knowledge-Base Processing
 
 ### Source Document & Format
-* **Location**: `data/knowledge/KB-A_Lumen-Institute-Student-Handbook.md`
+* **Location**: `data/knowledge/spendwise_user_guide.md`
 * **Supported Format**: Markdown (`.md`) formatted with Level-2 headings (`## `) and Markdown tables.
 
 ### Chunking Strategy
 * **Implementation**: `server/src/features/knowledge/chunker.js`.
 * **Strategy**: Section-based chunking on Markdown Level-2 headings (`## `).
-* **Guarantees**: Chunking preserves entire logical sections without mid-table or mid-rule splits. Complex structured sections—such as the Section 2 Programs table and Section 11 Amendment overrides—remain intact within single coherent chunks.
+* **Guarantees**: Chunking preserves entire logical sections without mid-table or mid-rule splits. Complex structured sections—such as the Section 2 Platform Features table—remain intact within single coherent chunks.
 * **Extracted Chunk Metadata**:
-  - `id`: Unique identifier formatted as `${baseId}_sec${sectionNumber}` (e.g., `KB-A_Lumen-Institute-Student-Handbook_sec2`).
+  - `id`: Unique identifier formatted as `${baseId}_sec${sectionNumber}` (e.g., `spendwise_user_guide_sec2`).
   - `sectionNumber`: Integer extracted from the header (1 to 12).
-  - `sectionTitle`: Clean title string (e.g., `"Programs at a Glance"`).
-  - `title`: Full heading string (e.g., `"2. Programs at a Glance"`).
-  - `source`: Source filename (`KB-A_Lumen-Institute-Student-Handbook.md`).
+  - `sectionTitle`: Clean title string (e.g., `"Platform Features at a Glance"`).
+  - `title`: Full heading string (e.g., `"2. Platform Features at a Glance"`).
+  - `source`: Source filename (`spendwise_user_guide.md`).
   - `content`: Complete Markdown section body text.
 
 ### Embedding Generation & Indexing
@@ -85,9 +85,9 @@ Configure environment variables in a single `.env` file at the project root (see
 | `SIMILARITY_THRESHOLD` | Cosine similarity cutoff for RAG generation | `0.60` |
 | `QDRANT_URL` | Qdrant Cloud cluster endpoint | `https://<cluster-id>.<region>.cloud.qdrant.io:6333` |
 | `QDRANT_API_KEY` | Qdrant Cloud secret API key | `your_qdrant_cloud_api_key_here` |
-| `QDRANT_COLLECTION_NAME` | Vector collection name | `Student_Handbook` |
-| `PROMPT_FILE` | Persistent system prompt file path | `data/systemPrompt/system_prompt.txt` |
-| `PROMPT_FILE_DEFAULT` | Default system prompt template path | `data/systemPrompt/system_prompt_default.txt` |
+| `QDRANT_COLLECTION_NAME` | Vector collection name | `spendwise` |
+| `PROMPT_FILE` | Persistent system prompt file path | `data/prompts/system_prompt.txt` |
+| `PROMPT_FILE_DEFAULT` | Default system prompt template path | `data/prompts/system_prompt_default.txt` |
 | `KNOWLEDGE_DIR` | Knowledge base directory path | `data/knowledge` |
 | `SUPABASE_URL` | Supabase project URL (Analytics) | `https://your-project.supabase.co` |
 | `SUPABASE_SECRET_KEY` | Supabase service role key (or `SUPABASE_KEY`) | `your_supabase_service_role_key` |
@@ -109,7 +109,7 @@ npm run install:all
 ```bash
 npm run index
 ```
-*(Embeds all handbook sections and upserts them into Qdrant Cloud).*
+*(Embeds all documentation sections and upserts them into Qdrant Cloud).*
 
 ### 3. Start the Development Servers
 ```bash
@@ -182,7 +182,7 @@ node --test tests/integration/indexingWorkflow.test.js
 ```bash
 npm run eval:rag
 ```
-Runs 11 end-to-end acceptance evaluations against live Qdrant and Gemini models via `evals/rag/runner.js`, evaluating tuition rules, Section 11 overrides, make-up exam fees, out-of-scope refusals, and diagnostic metadata. Results are written to `test-results.json`.
+Runs 11 end-to-end acceptance evaluations against live Qdrant and Gemini models via `evals/rag/runner.js`, evaluating platform features, receipt OCR specs, spending categories, out-of-scope refusals, and diagnostic metadata. Results are written to `test-results.json`.
 
 ### 5. Run All Tests and Evaluations
 ```bash

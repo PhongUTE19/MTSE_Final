@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { executeRAG } from '../../server/src/features/knowledgeBase/ragService.js';
 import { orchestrateChat, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
+import { SERVER_MESSAGES } from '../../server/src/constants/index.js';
 
 describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', () => {
   // Simulated chat processor logic mirroring chatService.js with injectable dependencies
@@ -20,7 +21,7 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
 
     if (retrievalError) {
       return {
-        answer: 'Failed to retrieve relevant handbook information due to a vector database error.',
+        answer: SERVER_MESSAGES.ERRORS.RETRIEVAL_FAILED,
         sources: [],
         retrieval: {
           error: retrievalError,
@@ -50,7 +51,7 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
 
     if (!passedThreshold) {
       return {
-        answer: 'The provided Student Handbook does not contain enough information to answer this question.',
+        answer: SERVER_MESSAGES.ERRORS.INSUFFICIENT_INFORMATION,
         sources: [],
         retrieval: {
           similarityThreshold,
@@ -139,7 +140,7 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
         similarityThreshold: 0.60,
       });
 
-      assert.equal(res.answer, 'The provided Student Handbook does not contain enough information to answer this question.');
+      assert.equal(res.answer, SERVER_MESSAGES.ERRORS.INSUFFICIENT_INFORMATION);
       assert.equal(res.sources.length, 0, 'Sources must be empty on threshold rejection');
 
       assert.ok(res.retrieval);
@@ -199,16 +200,16 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
       const mockChunks = [
         {
           id: 'chunk_1',
-          title: 'Tuition Rules',
+          title: 'Features at a Glance',
           sectionNumber: 2,
-          sectionTitle: 'Programs',
-          source: 'handbook.md',
+          sectionTitle: 'Platform Features',
+          source: 'spendwise_user_guide.md',
           score: 0.82,
-          content: 'Tuition is 42,000,000 VND.',
+          content: 'Receipt scans are limited to 5 MB.',
         },
       ];
 
-      const result = await executeRAG('What is the tuition fee?', {
+      const result = await executeRAG('What is the maximum attachment size?', {
         topK: 5,
         similarityThreshold: 0.60,
         systemPrompt: 'Custom System Prompt',
@@ -219,9 +220,9 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
       assert.equal(result.passedThreshold, true);
       assert.equal(result.sources.length, 1);
       assert.equal(result.sources[0].id, 'chunk_1');
-      assert.ok(result.context.includes('Tuition is 42,000,000 VND.'));
+      assert.ok(result.context.includes('Receipt scans are limited to 5 MB.'));
       assert.ok(result.prompt.includes('Custom System Prompt'));
-      assert.ok(result.prompt.includes('User Question:\nWhat is the tuition fee?'));
+      assert.ok(result.prompt.includes('User Question:\nWhat is the maximum attachment size?'));
       assert.equal(result.retrieval.bestScore, 0.82);
       assert.equal(result.retrieval.usedChunks.length, 1);
     });
@@ -229,13 +230,13 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
     it('executeRAG returns INSUFFICIENT status when score falls below threshold', async () => {
       const mockChunks = [
         {
-          id: 'chunk_dorm',
-          title: 'Dormitory',
-          sectionNumber: 8,
-          sectionTitle: 'Dormitory',
-          source: 'handbook.md',
+          id: 'chunk_config',
+          title: 'Configuration',
+          sectionNumber: 11,
+          sectionTitle: 'System Configuration',
+          source: 'spendwise_user_guide.md',
           score: 0.45,
-          content: 'Dorm curfew is 23:00.',
+          content: 'Rate limiters protect API endpoints.',
         },
       ];
 

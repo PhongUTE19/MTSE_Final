@@ -1,17 +1,17 @@
 import { SERVER_MESSAGES } from '../../constants/index.js';
 
 /**
- * Key terms indicating in-scope student handbook, academic, campus, or institutional inquiries.
+ * Key terms indicating in-scope SpendWise, expense tracking, receipt, or documentation inquiries.
  * Checked with word boundaries to avoid false positives (e.g. 'late' inside 'chocolate').
  */
-const HANDBOOK_DOMAIN_TERMS = [
+const SPENDWISE_DOMAIN_TERMS = [
   'spendwise', 'expense', 'expenses', 'transaction', 'transactions', 'receipt', 'receipts',
   'category', 'categories', 'budget', 'spending', 'income', 'ocr', 'analytics', 'token',
 ];
 
 /**
  * Patterns matching topics that are unequivocally outside the mission and knowledge scope
- * of a Student Handbook Assistant (e.g. software engineering tasks, recipes, general trivia, medical advice).
+ * of the SpendWise Assistant (e.g. software engineering tasks, recipes, general trivia, medical advice).
  */
 const OUT_OF_SCOPE_PATTERNS = [
   // Coding, software development, debugging
@@ -64,11 +64,11 @@ const OUT_OF_SCOPE_PATTERNS = [
 ];
 
 /**
- * Classifies whether a user query is in-scope or out-of-scope for the Student Handbook Assistant.
+ * Classifies whether a user query is in-scope or out-of-scope for the SpendWise Assistant.
  *
  * Distinguishes:
- * 1. Out-of-scope requests: Unrelated non-university topics (e.g. coding, cooking, trivia) -> Polite decline
- * 2. In-scope questions: University, policy, academic, or general inquiries that might be covered -> Evaluated via RAG
+ * 1. Out-of-scope requests: Unrelated non-application topics (e.g. coding, cooking, trivia) -> Polite decline
+ * 2. In-scope questions: Expense, receipt, budgeting, or documentation inquiries that might be covered -> Evaluated via RAG
  *
  * @param {string} query - Raw user question
  * @returns {{ isOutOfScope: boolean, category?: string, refusalText?: string }}
@@ -80,13 +80,13 @@ export function classifyScope(query) {
 
   const normalized = query.trim().toLowerCase();
 
-  // If the query contains any handbook domain term as a whole word, treat it as in-scope
-  const hasHandbookTerm = HANDBOOK_DOMAIN_TERMS.some((term) => {
+  // If the query contains any SpendWise domain term as a whole word, treat it as in-scope
+  const hasDomainTerm = SPENDWISE_DOMAIN_TERMS.some((term) => {
     const escaped = term.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
     return new RegExp(`\\b${escaped}\\b`, 'i').test(normalized);
   });
 
-  if (hasHandbookTerm) {
+  if (hasDomainTerm) {
     return { isOutOfScope: false };
   }
 
@@ -101,7 +101,7 @@ export function classifyScope(query) {
     }
   }
 
-  // Default to in-scope so academic questions (e.g. "What is linear algebra?") proceed to RAG
-  // and properly resolve as INSUFFICIENT if not present in the handbook.
+  // Default to in-scope so general inquiries proceed to RAG
+  // and properly resolve as INSUFFICIENT if not present in the documentation.
   return { isOutOfScope: false };
 }

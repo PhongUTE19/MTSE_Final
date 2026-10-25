@@ -58,23 +58,9 @@ export default function AppSidebar({
       </div>
 
       <nav aria-label="Application navigation">
-        <p className="sidebar-section-label">Workspace</p>
-        {workspace.map((item) => {
-          const isActive = isWorkspaceItemActive(item, location.pathname, activeView);
-          return (
-            <button
-              type="button"
-              key={item.key}
-              className={isActive ? 'active' : ''}
-              onClick={() => handleWorkspaceNavigation(item)}
-              aria-current={isActive ? 'page' : undefined}
-            >
-              {item.label}
-            </button>
-          );
-        })}
 
-        {admin && (
+
+        {admin ? (
           <>
             <p className="sidebar-section-label sidebar-section-label--admin">Administration</p>
             {admin.map((item) => {
@@ -85,6 +71,24 @@ export default function AppSidebar({
                   key={item.key}
                   className={isActive ? 'active' : ''}
                   onClick={() => handleAdminNavigation(item)}
+                  aria-current={isActive ? 'page' : undefined}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </>
+        ) : (
+          <>
+            <p className="sidebar-section-label">Workspace</p>
+            {workspace.map((item) => {
+              const isActive = isWorkspaceItemActive(item, location.pathname, activeView);
+              return (
+                <button
+                  type="button"
+                  key={item.key}
+                  className={isActive ? 'active' : ''}
+                  onClick={() => handleWorkspaceNavigation(item)}
                   aria-current={isActive ? 'page' : undefined}
                 >
                   {item.label}

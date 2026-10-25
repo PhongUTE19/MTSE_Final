@@ -141,7 +141,7 @@ export default function ExpenseAssistant({
         composerPlaceholder={ASSISTANT_LABELS.INPUT_PLACEHOLDER}
         sendLabel={ASSISTANT_LABELS.SEND_BUTTON}
         deleteConfirmPrompt={ASSISTANT_LABELS.DELETE_CONVERSATION_CONFIRM}
-        toolLabel="Hàm"
+        toolLabel="Function"
         renderToolResult={(item) => <ExpenseToolResult message={item} />}
         renderBeforeComposer={() => (
           <>

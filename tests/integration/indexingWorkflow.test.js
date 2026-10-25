@@ -42,7 +42,7 @@ describe('Vector Store Re-indexing Workflow Integration Suite', () => {
       vectors: { size: 3072, distance: 'Cosine' },
     });
 
-    // Simulate upserting 12 parsed handbook chunks
+    // Simulate upserting 12 parsed user guide chunks
     const chunks = loadAndChunkMarkdown(knowledgeDir);
     const points = chunks.map((chunk, i) => ({
       id: i + 1,

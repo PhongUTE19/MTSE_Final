@@ -29,11 +29,11 @@ test('POST /api/expense-agent/summary completes auth → Gemini → full summary
   setGeminiExpenseAgentClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
     requests.push(request);
     if (requests.length === 1) return { functionCalls: [{ name: 'get_spending_summary', args: { from: '2026-10-01', to: '2026-10-31' } }], candidates: [{ content: { role: 'model', parts: [] } }] };
-    return { text: 'Tháng 10 bạn thu 5.000.000 VND và chi 120.000 VND.' };
+    return { text: 'In October you earned 5,000,000 VND and spent 120,000 VND.' };
   } } }));
   t.after(() => { setTokenVerifierForTests(null); setExpenseClientFactoryForTests(null); setGeminiExpenseAgentClientFactoryForTests(null); });
 
-  const response = await dispatch({ message: 'Tổng thu chi tháng 10 của tôi?' });
+  const response = await dispatch({ message: 'What was my total spending in October?' });
   assert.equal(response.status, 200);
   assert.equal(response.payload.toolName, 'get_spending_summary');
   assert.equal(response.payload.toolResult.balance, 4880000);

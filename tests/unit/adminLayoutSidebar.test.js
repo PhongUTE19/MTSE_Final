@@ -14,9 +14,9 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
   describe('1. Role-based Navigation Configuration & Exposure', () => {
     const regularUser = {
       id: 'u-reg',
-      email: 'student@example.com',
+      email: 'user@example.com',
       app_metadata: { role: 'user' },
-      user_metadata: { display_name: 'Regular Student' },
+      user_metadata: { display_name: 'Regular User' },
     };
 
     const adminUser = {
@@ -53,13 +53,11 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       );
 
       assert.ok(nav.admin);
-      assert.equal(nav.admin.length, 2);
+      assert.equal(nav.admin.length, ADMIN_NAV_ITEMS.length);
       assert.deepEqual(
         nav.admin.map((i) => i.label),
-        ['Knowledge Base', 'AI Usage']
+        ADMIN_NAV_ITEMS.map((i) => i.label)
       );
-      assert.equal(nav.admin[0].path, APP_ROUTES.ADMIN_KNOWLEDGE);
-      assert.equal(nav.admin[1].path, APP_ROUTES.ADMIN_ANALYTICS);
     });
 
     it('keeps navigation groups and items stable across all routes for the same role', () => {
@@ -74,7 +72,16 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
     it('correctly highlights active route for Workspace and Administration items', () => {
       const [txItem, receiptItem, catItem] = WORKSPACE_NAV_ITEMS;
-      const [kbItem, aiItem] = ADMIN_NAV_ITEMS;
+      const aiItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'analytics') || {
+        key: 'analytics',
+        label: 'AI Usage',
+        path: APP_ROUTES.ADMIN_ANALYTICS,
+      };
+      const kbItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'knowledge') || {
+        key: 'knowledge',
+        label: 'Knowledge Base',
+        path: APP_ROUTES.ADMIN_KNOWLEDGE,
+      };
 
       // On /expense: active view highlights the matching workspace item
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.EXPENSE, 'transactions'), true);

@@ -19,8 +19,8 @@ describe('Express Route -> Validation Middleware -> Controller Integration Pipel
     Authorization: 'Bearer integration-admin-token',
   };
 
-  // Các case bên dưới kiểm tra validation của admin routes, nên cấp đúng
-  // identity admin thay vì bị chặn ở middleware authentication trước đó.
+  // The test cases below verify admin route validation, so grant an admin
+  // identity rather than being blocked by the authentication middleware.
   before(() => setTokenVerifierForTests(async (token) => (
     token === 'integration-admin-token'
       ? { id: 'admin-a', app_metadata: { role: 'admin' } }

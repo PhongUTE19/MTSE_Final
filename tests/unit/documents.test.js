@@ -21,8 +21,8 @@ import { SERVER_MESSAGES } from '../../server/src/constants/index.js';
 describe('Document Service and Schemas Unit Suite', () => {
   describe('1. Document Service Sanitization and Content Validation', () => {
     it('documentService validates filename sanitization and markdown section headers', () => {
-      assert.equal(sanitizeFilename('academic_regulations'), 'academic_regulations.md');
-      assert.equal(sanitizeFilename('handbook.md'), 'handbook.md');
+      assert.equal(sanitizeFilename('expense_policies'), 'expense_policies.md');
+      assert.equal(sanitizeFilename('user_guide.md'), 'user_guide.md');
 
       assert.throws(
         () => sanitizeFilename(''),
@@ -52,10 +52,10 @@ describe('Document Service and Schemas Unit Suite', () => {
 
   describe('2. Document Zod Schemas Validation', () => {
     it('valid inputs pass validation across document schemas', () => {
-      const fn1 = validate(filenameSchema, 'regulations');
-      assert.equal(fn1, 'regulations.md');
-      const fn2 = validate(filenameSchema, 'handbook.md');
-      assert.equal(fn2, 'handbook.md');
+      const fn1 = validate(filenameSchema, 'policies');
+      assert.equal(fn1, 'policies.md');
+      const fn2 = validate(filenameSchema, 'user_guide.md');
+      assert.equal(fn2, 'user_guide.md');
       const fn3 = validate(filenameSchema, 'valid_doc-1.2');
       assert.equal(fn3, 'valid_doc-1.2.md');
 
@@ -63,15 +63,15 @@ describe('Document Service and Schemas Unit Suite', () => {
       assert.equal(validate(documentContentSchema, content), content);
 
       const docCreate = validate(createDocumentSchema, {
-        filename: 'academic_guide',
-        content: '## Overview\nValid handbook text.',
+        filename: 'spendwise_guide',
+        content: '## Overview\nValid documentation text.',
         overwrite: true,
       });
-      assert.equal(docCreate.filename, 'academic_guide.md');
+      assert.equal(docCreate.filename, 'spendwise_guide.md');
       assert.equal(docCreate.overwrite, true);
 
       const docUpdate = validate(updateDocumentSchema, {
-        content: '## New Section\nRevised regulations text.',
+        content: '## New Section\nRevised guide text.',
       });
       assert.ok(docUpdate.content.startsWith('## New Section'));
 

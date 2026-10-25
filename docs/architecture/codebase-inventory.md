@@ -1,4 +1,4 @@
-# Codebase Inventory: Student Handbook Assistant & SpendWise
+# Codebase Inventory: SpendWise Assistant & Platform
 
 > **Status**: Verified against active repository code  
 > **Date**: October 2026  
@@ -43,7 +43,7 @@ Student_Handbook/
 │   │   │   ├── toast/                    # Toast notification display
 │   │   │   │   ├── ToastContainer.jsx    # Floating notification stack container
 │   │   │   │   └── ToastItem.jsx         # Individual animated toast alert item
-│   │   │   ├── user/                     # Student Handbook public chat interface
+│   │   │   ├── user/                     # Documentation public chat interface
 │   │   │   │   ├── debug/                # Retrieval diagnostics & chunk viewer
 │   │   │   │   │   ├── AnswerDebugPanel.jsx  # Collapsible debug inspector
 │   │   │   │   │   ├── RetrievedChunks.jsx   # Vector chunk list with similarity scores
@@ -161,7 +161,7 @@ Student_Handbook/
   7. **Client Streaming**: [AnswerContent.jsx](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/client/src/components/user/AnswerContent.jsx) animates tokens using `useTextReveal` with grapheme clustering to prevent broken Vietnamese diacritics.
 
 ### 2.4. Documents & Knowledge Base Management
-- **Document Storage**: Markdown files on local disk under `data/knowledge/` (default: `KB-A_Lumen-Institute-Student-Handbook.md`).
+- **Document Storage**: Markdown files on local disk under `data/knowledge/` (default: `spendwise_user_guide.md`).
 - **Endpoints**: Mounted under `/api/admin/documents` in [documents.routes.js](file:///d:/HCMUTE/2627S1/New_Technologies_In_Software_Engineering/Midterm/Student_Handbook/server/src/features/documents/documents.routes.js):
   - `GET /`: Lists all markdown documents with file size and modified timestamps.
   - `GET /:filename`: Reads document text.
@@ -302,8 +302,8 @@ Student_Handbook/
                  ┌──────────────────────────────┼──────────────────────────────┐
                  ▼                              ▼                              ▼
      ┌───────────────────────┐      ┌───────────────────────┐      ┌───────────────────────┐
-     │      Auth Views       │      │   Student Handbook    │      │  SpendWise Workspace  │
-     │  (AuthPage, Callback, │      │  (HandbookView, Chat, │      │  (AuthenticatedRouteGuard, │
+     │      Auth Views       │      │   Knowledge & Admin   │      │  SpendWise Workspace  │
+     │  (AuthPage, Callback, │      │  (Assistant, RAG Chat,│      │  (AuthenticatedRouteGuard, │
      │    ResetPassword)     │      │   AdminDashboard)     │      │   ExpensePage)  │
      └───────────┬───────────┘      └───────────┬───────────┘      └───────────┬───────────┘
                  │                              │                              │

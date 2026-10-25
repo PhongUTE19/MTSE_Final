@@ -97,9 +97,9 @@ describe('get_spending_summary', () => {
         functionCalls: [{ name: 'get_spending_summary', args: period }],
         candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'get_spending_summary', args: period } }] } }],
       };
-      return { text: 'Bạn đã chi 80.300 VND.' };
+      return { text: 'You spent 80,300 VND.' };
     } } };
-    const output = await runGeminiExpenseAgent('Tháng này tôi chi bao nhiêu?', async (name, args) => {
+    const output = await runGeminiExpenseAgent('How much did I spend this month?', async (name, args) => {
       assert.equal(name, 'get_spending_summary');
       assert.deepEqual(args, period);
       return { totalExpense: 80300, totalIncome: 0, balance: -80300, topCategories: [] };
@@ -111,11 +111,11 @@ describe('get_spending_summary', () => {
   });
 
   it('asks for a period instead of inventing one when Gemini returns clarification text', async () => {
-    const fakeAi = { models: { generateContent: async () => ({ text: 'Bạn muốn thống kê trong khoảng thời gian nào?' }) } };
-    const output = await runGeminiExpenseAgent('Tôi tiêu bao nhiêu?', async () => assert.fail('Tool must not execute'), {
+    const fakeAi = { models: { generateContent: async () => ({ text: 'Which time period would you like summary for?' }) } };
+    const output = await runGeminiExpenseAgent('How much did I spend?', async () => assert.fail('Tool must not execute'), {
       ai: fakeAi, agentType: 'summary', today: '2026-10-25',
     });
     assert.equal(output.toolName, null);
-    assert.match(output.answer, /khoảng thời gian/);
+    assert.match(output.answer, /time period/);
   });
 });

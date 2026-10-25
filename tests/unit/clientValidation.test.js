@@ -88,7 +88,7 @@ describe('Client-Side Validation Module Tests', () => {
     });
 
     it('validateFile: checks file extensions and size constraints', () => {
-      const validFile = { name: 'handbook.md', size: 1024 * 50 }; // 50KB
+      const validFile = { name: 'user_guide.md', size: 1024 * 50 }; // 50KB
       assert.equal(validateFile(validFile).isValid, true);
 
       const wrongType = { name: 'virus.exe', size: 1024 };
@@ -134,7 +134,7 @@ describe('Client-Side Validation Module Tests', () => {
     });
 
     it('validateDocumentContent: enforces presence of Level-2 section headers', () => {
-      const validContent = '## Admission Requirements\n\nStudents must have completed high school.';
+      const validContent = '## Expense Tracking\n\nUsers can record and categorize transactions.';
       assert.equal(validateDocumentContent(validContent).isValid, true);
 
       const invalidNoHeader = '# Level 1 Title Only\n\nNo level two header present.';

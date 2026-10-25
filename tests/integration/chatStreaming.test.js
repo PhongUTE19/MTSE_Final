@@ -152,7 +152,7 @@ describe('Server-Sent Events (SSE) Streaming Lifecycle and Parser Integration Su
 
     sendEvent('metadata', { sources: [], retrieval: metadata });
     sendEvent('delta', {
-      text: 'The provided Student Handbook does not contain enough information to answer this question.',
+      text: 'The provided documentation does not contain enough information to answer this question.',
     });
     sendEvent('done', { sources: [], retrieval: metadata });
 

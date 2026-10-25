@@ -43,7 +43,7 @@ test('POST /api/expense-agent/search completes auth → Gemini tool call → RLS
       functionCalls: [{ name: 'search_transactions', args: { type: 'expense', merchant: 'Highlands', from: '2026-10-24', to: '2026-10-24' } }],
       candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'search_transactions', args: {} } }] } }],
     };
-    return { text: 'Hôm qua bạn đã chi 45.000 VND tại Highlands.' };
+    return { text: 'Yesterday you spent 45,000 VND at Highlands.' };
   } } }));
   t.after(() => {
     setTokenVerifierForTests(null);
@@ -53,13 +53,13 @@ test('POST /api/expense-agent/search completes auth → Gemini tool call → RLS
 
   const response = await dispatch(expenseAgentRouter, {
     headers: { authorization: 'Bearer valid-token', 'content-type': 'application/json' },
-    body: { message: 'Hôm qua tôi tiêu gì ở Highlands?' },
+    body: { message: 'What did I spend at Highlands yesterday?' },
   });
 
   assert.equal(response.status, 200);
   assert.equal(response.payload.toolName, 'search_transactions');
   assert.equal(response.payload.toolResult.total, 1);
-  assert.equal(response.payload.answer, 'Hôm qua bạn đã chi 45.000 VND tại Highlands.');
+  assert.equal(response.payload.answer, 'Yesterday you spent 45,000 VND at Highlands.');
   assert.ok(queryCalls.some((call) => call[0] === 'eq' && call[1] === 'user_id' && call[2] === 'user-a'));
   assert.ok(queryCalls.some((call) => call[0] === 'order' && call[1] === 'transaction_date' && call[2].ascending === false));
   assert.equal(geminiRequests[1].contents[2].parts[0].functionResponse.name, 'search_transactions');
@@ -74,12 +74,12 @@ test('POST /api/expense-agent/assistant renders a create proposal but does not p
       functionCalls: [{ name: 'create_transaction', args: { type: 'expense', amount: 45000, date: '2026-10-25', category: 'Food & dining', merchant: 'Highlands', note: '', items: [] } }],
       candidates: [{ content: { role: 'model', parts: [] } }],
     };
-    return { text: 'Hãy kiểm tra và xác nhận giao dịch.' };
+    return { text: 'Please review and confirm the transaction.' };
   } } }));
   t.after(() => { setTokenVerifierForTests(null); setGeminiExpenseAgentClientFactoryForTests(null); });
 
   const response = await dispatch(expenseAgentRouter, {
-    path: '/assistant', headers: { authorization: 'Bearer valid-token', 'content-type': 'application/json' }, body: { message: 'Mua Highlands 45 nghìn hôm nay', history: [{ role: 'user', text: 'Tôi muốn thêm một khoản chi.' }] },
+    path: '/assistant', headers: { authorization: 'Bearer valid-token', 'content-type': 'application/json' }, body: { message: 'Bought Highlands 45k today', history: [{ role: 'user', text: 'I want to add an expense.' }] },
   });
   assert.equal(response.status, 200);
   assert.equal(response.payload.toolName, 'create_transaction');

@@ -8,7 +8,7 @@ const INJECTION_PATTERNS = [
   // Instruction override / directive hijacking
   /(?:ignore|disregard|forget|override|bypass|clear|drop)\s+(?:all\s+)?(?:previous|prior|above|system|existing|default)\s+(?:instructions|prompts?|rules?|directives?|guidelines?)/i,
   /(?:new\s+instructions?|system\s+override|admin\s+override):\s*(?:you\s+(?:are|must)|ignore|forget)/i,
-  /(?:stop|cease)\s+being\s+(?:the\s+)?(?:student\s+handbook\s+assistant|handbook\s+assistant|an?\s+ai|helpful)/i,
+  /(?:stop|cease)\s+being\s+(?:the\s+)?(?:spendwise\s+assistant|an?\s+ai|helpful)/i,
 
   // Jailbreak, roleplay bypass, unrestricted persona
   /(?:you\s+are\s+now|act\s+as|pretend\s+to\s+be|simulate)\s+(?:DAN|an?\s+unrestricted|an?\s+unfiltered|jailbroken|a\s+hacker|developer\s+mode|god\s+mode)/i,
@@ -20,7 +20,7 @@ const INJECTION_PATTERNS = [
   /(?:print|reveal|show|display|repeat|output|dump|leak|tell)\s+(?:(?:me|us)\s+)?(?:your\s+)?(?:exact\s+)?(?:system\s+prompt|initial\s+instructions?|system\s+instructions?|developer\s+prompt|hidden\s+rules?|internal\s+configuration)/i,
   /(?:what\s+(?:is|are)\s+(?:your\s+)?(?:exact\s+)?(?:system\s+prompt|initial\s+instructions?|hidden\s+rules?|developer\s+instructions?))/i,
   /(?:repeat|output|show)\s+(?:everything\s+)?(?:verbatim|word\s+for\s+word|the\s+text\s+above)\s*(?:from\s+the\s+beginning|starting\s+with)?/i,
-  /(?:repeat\s+after\s+me\s*:?\s*)?(?:You\s+are\s+the\s+Student\s+Handbook\s+Assistant)/i,
+  /(?:repeat\s+after\s+me\s*:?\s*)?(?:You\s+are\s+the\s+SpendWise\s+Assistant)/i,
 
   // Delimiter and boundary manipulation
   /(?:<\/retrieved_context>|<\/student_question>|<\/user_question>|<system>|\[SYSTEM_PROMPT\]|\[INSTRUCTION\])/i,
@@ -37,7 +37,6 @@ const SYSTEM_PROMPT_SIGNATURES = [
   'Strict rules:',
   '1. Grounding:',
   'The retrieved context is the sole source of truth',
-  'Base all factual claims about the Student Handbook exclusively on',
   '=== UNTRUSTED REFERENCE CONTEXT ===',
   '=== UNTRUSTED USER QUERY ===',
 ];

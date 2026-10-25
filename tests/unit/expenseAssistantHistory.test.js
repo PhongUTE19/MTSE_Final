@@ -20,7 +20,7 @@ test('assistant history is scoped to a browser user and excludes proposal data',
   conversation.messages.push({
     id: 'm1',
     role: 'assistant',
-    text: 'Kết quả',
+    text: 'Result',
     toolName: 'search_transactions',
     result: { total: 0 },
     proposal: { id: 'must-not-save' },

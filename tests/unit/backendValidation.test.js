@@ -178,8 +178,8 @@ describe('Centralized Backend Input Validation with Zod Suite', () => {
 
     const req = {
       params: { filename: 'guide' },
-      body: { filename: 'guide', content: '## Handbook\nDetails', overwrite: true },
-      query: { limit: '20', offset: '5', q: 'exam' },
+      body: { filename: 'guide', content: '## Guide\nDetails', overwrite: true },
+      query: { limit: '20', offset: '5', q: 'expense' },
     };
     const res = { locals: {} };
     let nextCalled = false;
@@ -195,7 +195,7 @@ describe('Centralized Backend Input Validation with Zod Suite', () => {
     assert.equal(res.locals.validated.params.filename, 'guide.md');
     assert.equal(res.locals.validated.body.filename, 'guide.md');
     assert.equal(res.locals.validated.body.overwrite, true);
-    assert.deepEqual(res.locals.validated.query, { limit: 20, offset: 5, search: 'exam' });
+    assert.deepEqual(res.locals.validated.query, { limit: 20, offset: 5, search: 'expense' });
     assert.equal(req.validated, undefined, 'req.validated duplicate storage must be removed');
   });
 
