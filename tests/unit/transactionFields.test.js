@@ -5,9 +5,9 @@ import {
   VIETNAMESE_TRANSACTION_LABELS,
   updateTransactionField,
   validateTransactionData,
-} from '../../client/src/components/expense/transactionFields.utils.js';
-import { categoriesForType } from '../../client/src/components/expense/expenseFormatters.js';
-import { EXPENSE_CATEGORIES } from '../../client/src/components/expense/expenseConstants.js';
+} from '../../client/src/features/expense/transactionFieldsUtils.js';
+import { categoriesForType } from '../../client/src/features/expense/expenseFormatters.js';
+import { EXPENSE_CATEGORIES } from '../../client/src/features/expense/expenseConstants.js';
 
 describe('TransactionFields & Form Consolidation Suite', () => {
   describe('1. updateTransactionField state transitions', () => {

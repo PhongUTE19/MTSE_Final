@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitGraphemes } from '../../client/src/utils/formatters.js';
-import { CHAT_CONFIG, STREAM_REVEAL_CONFIG } from '../../client/src/constants/index.js';
+import { splitGraphemes } from '../../client/src/shared/utils/formatters.js';
+import { CHAT_CONFIG, STREAM_REVEAL_CONFIG } from '../../client/src/shared/constants/index.js';
 
 describe('Progressive Text Reveal Queue & Unicode Integrity Suite', () => {
   it('confirms debug mode is disabled by default via CHAT_CONFIG', () => {

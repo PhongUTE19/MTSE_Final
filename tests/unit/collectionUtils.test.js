@@ -7,8 +7,8 @@ import {
   sortItems,
   getNextSortDirection,
   getNestedValue,
-} from '../../client/src/utils/collectionUtils.js';
-import { formatNumber, formatTimestamp } from '../../client/src/utils/formatters.js';
+} from '../../client/src/shared/utils/collectionUtils.js';
+import { formatNumber, formatTimestamp } from '../../client/src/shared/utils/formatters.js';
 
 describe('Collection and Table Utilities Suite', () => {
   describe('calculatePagination', () => {

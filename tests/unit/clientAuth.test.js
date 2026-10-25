@@ -6,7 +6,7 @@ import {
   getPostAuthPath,
   formatAuthError,
   safeNextPath,
-} from '../../client/src/services/supabaseAuth.js';
+} from '../../client/src/shared/services/supabaseAuth.js';
 
 describe('Client Authentication and Role Routing Suite', () => {
   describe('1. Role Resolution from Trusted Metadata', () => {
@@ -130,7 +130,7 @@ describe('Client Authentication and Role Routing Suite', () => {
 
   describe('4. Consolidated HTTP Client, Session Gate & Validation Suite', () => {
     it('exports useSession hook from useSession.js', async () => {
-      const { useSession } = await import('../../client/src/hooks/useSession.js');
+      const { useSession } = await import('../../client/src/shared/hooks/useSession.js');
       assert.equal(typeof useSession, 'function');
     });
 
@@ -151,7 +151,7 @@ describe('Client Authentication and Role Routing Suite', () => {
     });
 
     it('expenseApi reuses consolidated apiClient and exposes all required methods', async () => {
-      const { expenseApi } = await import('../../client/src/services/expenseApi.js');
+      const { expenseApi } = await import('../../client/src/features/expense/expenseApi.js');
       assert.equal(typeof expenseApi.list, 'function');
       assert.equal(typeof expenseApi.create, 'function');
       assert.equal(typeof expenseApi.update, 'function');
@@ -170,14 +170,14 @@ describe('Client Authentication and Role Routing Suite', () => {
     });
 
     it('validates password length boundary of at least 8 characters without trimming', async () => {
-      const { validateStringLength } = await import('../../client/src/utils/validation.js');
+      const { validateStringLength } = await import('../../client/src/shared/utils/validation.js');
       assert.equal(validateStringLength('1234567', { min: 8, trim: false }).isValid, false);
       assert.equal(validateStringLength('12345678', { min: 8, trim: false }).isValid, true);
       assert.equal(validateStringLength('pass word', { min: 8, trim: false }).isValid, true);
     });
 
     it('validates email addresses accurately rejecting invalid formats', async () => {
-      const { validateEmail } = await import('../../client/src/utils/validation.js');
+      const { validateEmail } = await import('../../client/src/shared/utils/validation.js');
       assert.equal(validateEmail('').isValid, false);
       assert.equal(validateEmail('invalid').isValid, false);
       assert.equal(validateEmail('student@hcmute.edu.vn').isValid, true);

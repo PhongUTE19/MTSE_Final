@@ -17,7 +17,7 @@ import {
   validateSystemPrompt,
   validatePagination,
   validateSearchQuery,
-} from '../../client/src/utils/validation.js';
+} from '../../client/src/shared/utils/validation.js';
 
 describe('Client-Side Validation Module Tests', () => {
   describe('1. Primitive Validators', () => {

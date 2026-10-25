@@ -1,14 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getUserRole, getPostAuthPath } from '../../client/src/services/supabaseAuth.js';
-import { ADMIN_TABS, APP_ROUTES } from '../../client/src/constants/index.js';
+import { getUserRole, getPostAuthPath } from '../../client/src/shared/services/supabaseAuth.js';
+import { ADMIN_TABS, APP_ROUTES } from '../../client/src/shared/constants/index.js';
 import {
   getSidebarNavigation,
   isAdminItemActive,
   isWorkspaceItemActive,
   WORKSPACE_NAV_ITEMS,
   ADMIN_NAV_ITEMS,
-} from '../../client/src/components/layout/sidebarConfig.js';
+} from '../../client/src/layouts/sidebarConfig.js';
 
 describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
   describe('1. Role-based Navigation Configuration & Exposure', () => {

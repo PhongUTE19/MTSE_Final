@@ -13,7 +13,7 @@ import {
 import { transactionQuerySchema } from '../../server/src/features/expenses/expenses.schemas.js';
 import { analyticsHistorySchema } from '../../server/src/features/analytics/analytics.schemas.js';
 import { paginationQuerySchema } from '../../server/src/features/knowledgeBase/knowledgeBase.schemas.js';
-import { toQueryString } from '../../client/src/utils/collectionUtils.js';
+import { toQueryString } from '../../client/src/shared/utils/collectionUtils.js';
 
 describe('Shared Duplications Refactor Suite', () => {
   describe('1. Database Error Diagnostics & Error Wrapping', () => {

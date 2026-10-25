@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { loadExpenseAssistantHistory, makeConversation, saveExpenseAssistantHistory } from '../../client/src/components/expense/expenseAssistantHistory.js';
+import { loadExpenseAssistantHistory, makeConversation, saveExpenseAssistantHistory } from '../../client/src/features/expense/expenseAssistantHistory.js';
 
 function memoryStorage() { const values = new Map(); return { getItem: (key) => values.get(key) || null, setItem: (key, value) => values.set(key, value) }; }
 

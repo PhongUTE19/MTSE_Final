@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { calculatePagination } from '../../client/src/utils/collectionUtils.js';
+import { calculatePagination } from '../../client/src/shared/utils/collectionUtils.js';
 
 describe('TransactionTable Server Query & Table Controls Suite', () => {
   describe('1. Server-side Query Coordinator & Sort Transitions', () => {
