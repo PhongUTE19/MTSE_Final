@@ -4,6 +4,7 @@ import ExpenseSidebar from './ExpenseSidebar';
 import ReceiptReview from './ReceiptReview';
 import TransactionForm from './TransactionForm';
 import TransactionTable from './TransactionTable';
+import AiExpenseAssistant from './AiExpenseAssistant';
 import { INITIAL_TRANSACTION, MAX_RECEIPT_SIZE_BYTES, RECEIPT_ACCEPTED_TYPES } from './expenseConstants';
 import { formatMoney } from './expenseFormatters';
 import './expenseTracker.css';
@@ -28,6 +29,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
   const [processingReceipt, setProcessingReceipt] = useState(null);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [pendingActionId, setPendingActionId] = useState(null);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   async function loadTransactions() {
     setLoading(true);
@@ -72,6 +74,13 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
     }
     await loadTransactions();
   }
+  async function askExpenseAssistant(message, history) { return expenseApi.askExpenseAssistant(message, history); }
+  async function confirmAgentProposal(id, transaction) { const result = await expenseApi.confirmAgentProposal(id, transaction); await loadTransactions(); return result; }
+  async function cancelAgentProposal(id) { return expenseApi.cancelAgentProposal(id); }
+  // Floating Assistant tái sử dụng nguyên API Receipt OCR; không chạm vào flow Receipt hiện có.
+  async function uploadAssistantReceipt(file) { return expenseApi.upload(file); }
+  async function confirmAssistantReceipt(id, transaction) { const result = await expenseApi.confirmReceipt(id, transaction); await loadTransactions(); return result; }
+  async function discardAssistantReceipt(id) { return expenseApi.deleteReceipt(id); }
 
   async function deleteTransaction(transaction) {
     if (!window.confirm(`Delete ${transaction.merchant}? If it was created from a receipt, its receipt image will also be deleted.`)) return;
@@ -164,7 +173,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
   }
 
   return (
-    <main className="expense-shell">
+    <main className={`expense-shell${assistantOpen ? ' expense-shell--assistant-open' : ''}`}>
       <ExpenseSidebar activeView={view} onNavigate={setView} user={user} onSignOut={onSignOut} />
       <section className="expense-main">
         <header className="expense-header">
@@ -199,6 +208,7 @@ export default function ExpenseTrackerApp({ user, onSignOut }) {
         </>}
       </section>
       {editingTransaction && <TransactionForm transaction={editingTransaction.id ? editingTransaction : null} onSave={saveTransaction} onClose={() => setEditingTransaction(null)} />}
+      <AiExpenseAssistant userId={user.id} onAsk={askExpenseAssistant} onConfirmProposal={confirmAgentProposal} onCancelProposal={cancelAgentProposal} onReceiptUpload={uploadAssistantReceipt} onReceiptConfirm={confirmAssistantReceipt} onReceiptDiscard={discardAssistantReceipt} onTransactionsChanged={loadTransactions} onOpenChange={setAssistantOpen} />
     </main>
   );
 }

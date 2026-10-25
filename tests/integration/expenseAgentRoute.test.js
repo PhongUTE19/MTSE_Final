@@ -64,3 +64,26 @@ test('POST /api/expense-agent/search completes auth → Gemini tool call → RLS
   assert.ok(queryCalls.some((call) => call[0] === 'order' && call[1] === 'transaction_date' && call[2].ascending === false));
   assert.equal(geminiRequests[1].contents[2].parts[0].functionResponse.name, 'search_transactions');
 });
+
+test('POST /api/expense-agent/assistant renders a create proposal but does not persist it', { concurrency: false }, async (t) => {
+  setTokenVerifierForTests(async (token) => token === 'valid-token' ? { id: 'user-a', app_metadata: { role: 'user' } } : null);
+  const requests = [];
+  setGeminiExpenseAgentClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
+    requests.push(request);
+    if (requests.length === 1) return {
+      functionCalls: [{ name: 'create_transaction', args: { type: 'expense', amount: 45000, date: '2026-10-25', category: 'Food & dining', merchant: 'Highlands', note: '', items: [] } }],
+      candidates: [{ content: { role: 'model', parts: [] } }],
+    };
+    return { text: 'Hãy kiểm tra và xác nhận giao dịch.' };
+  } } }));
+  t.after(() => { setTokenVerifierForTests(null); setGeminiExpenseAgentClientFactoryForTests(null); });
+
+  const response = await dispatch(expenseAgentRouter, {
+    path: '/assistant', headers: { authorization: 'Bearer valid-token', 'content-type': 'application/json' }, body: { message: 'Mua Highlands 45 nghìn hôm nay', history: [{ role: 'user', text: 'Tôi muốn thêm một khoản chi.' }] },
+  });
+  assert.equal(response.status, 200);
+  assert.equal(response.payload.toolName, 'create_transaction');
+  assert.equal(response.payload.toolResult.proposal.transaction.amount, 45000);
+  assert.equal(requests[0].config.tools[0].functionDeclarations.length, 3);
+  assert.match(requests[0].contents, /Conversation context/);
+});

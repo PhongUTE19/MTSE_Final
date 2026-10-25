@@ -34,6 +34,18 @@ export const SPENDING_SUMMARY_TOOL = Object.freeze({
   },
 });
 
+export const CREATE_TRANSACTION_TOOL = Object.freeze({
+  name: 'create_transaction',
+  description: 'Create a review-only transaction proposal for the authenticated user. This does not save data; the user must confirm separately.',
+  parametersJsonSchema: {
+    type: 'object', properties: {
+      type: { type: 'string', enum: ['income', 'expense'] }, amount: { type: 'number', minimum: 0.01 },
+      date: { type: 'string', description: 'Transaction date, YYYY-MM-DD.' }, category: { type: 'string' },
+      merchant: { type: 'string' }, note: { type: 'string' },
+    }, required: ['type', 'amount', 'date', 'category', 'merchant'],
+  },
+});
+
 let clientFactory = null;
 export function setGeminiExpenseAgentClientFactoryForTests(factory) { clientFactory = factory; }
 
@@ -61,17 +73,25 @@ function summarySystemInstruction(today) {
   return `You are the spending-summary assistant. Today is ${today} in Asia/Ho_Chi_Minh. You must use get_spending_summary for every summary request. Dates are inclusive. Convert a named month to its first and last ISO date. Resolve "tháng này" to the current calendar month and "tuần này" to Monday through Sunday of the current week. If the user does not provide a reliable period, ask one short clarification. Never invent totals, categories, or amounts. After receiving the tool result, explain only those results concisely in Vietnamese.`;
 }
 
+function createSystemInstruction(today) {
+  return `You create transaction proposals only. Today is ${today} in Asia/Ho_Chi_Minh. Use create_transaction when and only when the user clearly supplied an income or expense type, a positive amount, a real date (use today only if they say hôm nay), category, and merchant or description. Convert common Vietnamese money notation such as "500k" or "500.000đ" to the numeric VND amount 500000. If type is unclear, including "thêm vào 500k", ask one short Vietnamese clarification; do not choose income or expense. A wallet top-up, money transfer, or internal transfer is not income or expense: ask whether it should be recorded as income, expense, or not recorded. Never guess missing important information. The tool only creates a proposal, never a saved transaction. After the tool result, tell the user to review, edit if needed, and confirm.`;
+}
+
+function assistantSystemInstruction(today) {
+  return `You are an AI expense assistant. Today is ${today} in Asia/Ho_Chi_Minh. Choose exactly one tool when the request is sufficiently clear: search_transactions for transaction history, get_spending_summary for totals by period, and create_transaction to prepare a transaction proposal. For relative dates, resolve “hôm nay”, “hôm qua”, “tháng này”, and “tuần này” correctly. For create_transaction, require a clear income or expense type, positive amount, real date, category, and merchant/description. Normalize "500k" and "500.000đ" to 500000 VND. If type is ambiguous, including "thêm vào 500k", ask one short Vietnamese clarification; do not call create_transaction. A wallet top-up or internal money transfer is not automatically income: ask whether to record it as income, expense, or not record it. Never invent money, transactions, or a period. create_transaction creates a proposal only; clearly tell the user to review and confirm it. After receiving a tool result, answer only from that result in concise Vietnamese.`;
+}
+
 /** Runs exactly one read-only function call, then returns Gemini's natural-language summary. */
 export async function runGeminiExpenseAgent(message, executeTool, options = {}) {
   const ai = options.ai || getClient();
   const model = options.model || config.geminiModel;
   const timeoutMs = options.timeoutMs ?? 15000;
   const today = options.today || getVietnamDate();
-  const instruction = options.agentType === 'summary' ? summarySystemInstruction(today) : systemInstruction(today);
-  const declaration = options.agentType === 'summary' ? SPENDING_SUMMARY_TOOL : SEARCH_TRANSACTIONS_TOOL;
+  const instruction = options.agentType === 'summary' ? summarySystemInstruction(today) : options.agentType === 'create' ? createSystemInstruction(today) : options.agentType === 'assistant' ? assistantSystemInstruction(today) : systemInstruction(today);
+  const declarations = options.agentType === 'summary' ? [SPENDING_SUMMARY_TOOL] : options.agentType === 'create' ? [CREATE_TRANSACTION_TOOL] : options.agentType === 'assistant' ? [SEARCH_TRANSACTIONS_TOOL, SPENDING_SUMMARY_TOOL, CREATE_TRANSACTION_TOOL] : [SEARCH_TRANSACTIONS_TOOL];
   const generationConfig = {
     systemInstruction: instruction,
-    tools: [{ functionDeclarations: [declaration] }],
+    tools: [{ functionDeclarations: declarations }],
     // AUTO để Gemini có thể xin làm rõ ngày mơ hồ thay vì tự đoán điều kiện lọc.
     // Gemini API chỉ cho phép allowedFunctionNames ở mode ANY. AUTO giữ khả
     // năng hỏi lại khi ngày mơ hồ; tool declaration đã chỉ chứa đúng một tool.
