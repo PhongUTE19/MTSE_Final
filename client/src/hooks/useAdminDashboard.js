@@ -12,10 +12,10 @@ import { ADMIN_PANELS, ADMIN_TABS } from '../constants';
  *
  * @returns {object} Admin dashboard operations, tabs, and panel states
  */
-export function useAdminDashboard({ isOffline = false } = {}) {
+export function useAdminDashboard({ isOffline = false, defaultTab = ADMIN_TABS.KNOWLEDGE } = {}) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(ADMIN_TABS.KNOWLEDGE);
+  const [activeTab, setActiveTab] = useState(defaultTab);
 
   const drawer = useDrawer(ADMIN_PANELS.DOCUMENTS);
   const chunksState = useChunks({ onError: toast.error });

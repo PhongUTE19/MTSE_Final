@@ -1,5 +1,13 @@
 import { useEffect, useState } from 'react';
-import { appUrl, isSupabaseConfigured, safeNextPath, supabase } from '../../services/supabaseAuth';
+import {
+  appUrl,
+  formatAuthError,
+  getPostAuthPath,
+  getUserRole,
+  isSupabaseConfigured,
+  safeNextPath,
+  supabase,
+} from '../../services/supabaseAuth';
 import './auth.css';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -28,7 +36,8 @@ export default function AuthPage() {
   const [errors, setErrors] = useState({});
   const [notice, setNotice] = useState(new URLSearchParams(window.location.search).get('reset') === 'success' ? 'Password updated. Sign in using your new password.' : '');
   const [loading, setLoading] = useState(false);
-  const nextPath = safeNextPath(new URLSearchParams(window.location.search).get('next'));
+  const nextParam = new URLSearchParams(window.location.search).get('next');
+  const nextPath = safeNextPath(nextParam);
   const isSignUp = mode === 'signup';
   const isForgot = mode === 'forgot';
   const updateField = (event) => { const { name, value } = event.target; setForm((current) => ({ ...current, [name]: value })); setErrors((current) => ({ ...current, [name]: '' })); setNotice(''); };
@@ -37,9 +46,15 @@ export default function AuthPage() {
   useEffect(() => {
     if (!supabase) return undefined;
     let mounted = true;
-    supabase.auth.getSession().then(({ data: { session } }) => { if (mounted && session && !isForgot) window.location.replace(appUrl(nextPath)); });
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (mounted && session && !isForgot) {
+        const role = getUserRole(session);
+        const destination = getPostAuthPath(role, new URLSearchParams(window.location.search).get('next'));
+        window.location.replace(appUrl(destination));
+      }
+    });
     return () => { mounted = false; };
-  }, [isForgot, nextPath]);
+  }, [isForgot]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -51,20 +66,47 @@ export default function AuthPage() {
     try {
       if (isForgot) {
         const { error: requestError } = await supabase.auth.resetPasswordForEmail(form.email, { redirectTo: appUrl('/reset-password') });
-        if (requestError) setNotice(requestError.message);
+        if (requestError) setNotice(formatAuthError(requestError, 'forgot'));
         else setNotice('If an account exists for that email, a password-reset link has been sent.');
       } else if (isSignUp) {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email: form.email, password: form.password, options: { data: { display_name: form.name.trim() }, emailRedirectTo: appUrl('/auth/callback') } });
-        if (signUpError) setNotice(signUpError.message);
-        else if (data.session) window.location.replace(appUrl(nextPath));
-        else setNotice('Check your email to confirm your account before signing in.');
+        const { data, error: signUpError } = await supabase.auth.signUp({
+          email: form.email,
+          password: form.password,
+          options: {
+            data: { display_name: form.name.trim() },
+            emailRedirectTo: appUrl('/auth/callback')
+          }
+        });
+
+        if (signUpError) {
+          setNotice(formatAuthError(signUpError, 'signup'));
+        } else if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+          // Account already exists in Supabase Auth (obfuscated identity response)
+          setNotice('An account with this email address already exists. Please sign in or reset your password.');
+        } else if (data?.session) {
+          // Reliable role resolution from trusted app_metadata
+          const role = getUserRole(data.session);
+          const destination = getPostAuthPath(role, nextParam);
+          window.location.replace(appUrl(destination));
+        } else {
+          // Email confirmation is required; do not treat user as authenticated
+          setNotice('Check your email to confirm your account before signing in.');
+        }
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email: form.email, password: form.password });
-        if (signInError) setNotice(signInError.message);
-        else window.location.replace(appUrl(nextPath));
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
+          email: form.email,
+          password: form.password
+        });
+        if (signInError) {
+          setNotice(formatAuthError(signInError, 'signin'));
+        } else {
+          const role = getUserRole(data?.session);
+          const destination = getPostAuthPath(role, nextParam);
+          window.location.replace(appUrl(destination));
+        }
       }
     } catch (authError) {
-      setNotice(authError instanceof Error ? authError.message : 'We could not complete that request. Please try again.');
+      setNotice(formatAuthError(authError, mode));
     } finally {
       setLoading(false);
     }
@@ -75,14 +117,18 @@ export default function AuthPage() {
     if (!isSupabaseConfigured || !supabase) { setNotice('Authentication is not configured for this environment.'); return; }
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: `${appUrl('/auth/callback')}?next=${encodeURIComponent(nextPath)}` } });
-      if (error) setNotice(error.message);
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: `${appUrl('/auth/callback')}?next=${encodeURIComponent(nextPath)}` }
+      });
+      if (error) setNotice(formatAuthError(error, 'signin'));
     } catch (authError) {
-      setNotice(authError instanceof Error ? authError.message : 'We could not start Google sign-in. Please try again.');
+      setNotice(formatAuthError(authError, 'signin'));
     } finally {
       setLoading(false);
     }
   }
+
 
 
   const title = isForgot ? 'Reset your password' : isSignUp ? 'Create your workspace' : 'Welcome back';

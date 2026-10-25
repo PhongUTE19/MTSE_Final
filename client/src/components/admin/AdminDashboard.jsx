@@ -10,7 +10,7 @@ import { useAdminDashboard } from '../../hooks';
 import { UI_LABELS, ADMIN_PANELS, ADMIN_TABS } from '../../constants';
 
 
-export default function AdminDashboard({ health, onRefreshHealth }) {
+export default function AdminDashboard({ health, onRefreshHealth, defaultTab = ADMIN_TABS.KNOWLEDGE }) {
   const isOffline = Boolean(health?.error);
   const {
     loading,
@@ -20,7 +20,7 @@ export default function AdminDashboard({ health, onRefreshHealth }) {
     chunksState,
     kb,
     docs,
-  } = useAdminDashboard({ isOffline });
+  } = useAdminDashboard({ isOffline, defaultTab });
 
   return (
     <div className="dashboard-container">

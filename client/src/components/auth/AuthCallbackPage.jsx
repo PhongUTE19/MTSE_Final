@@ -3,8 +3,10 @@ import { Link } from 'react-router-dom';
 import {
   appUrl,
   exchangeCodeForSessionFromUrl,
+  formatAuthError,
+  getPostAuthPath,
+  getUserRole,
   isSupabaseConfigured,
-  safeNextPath,
   supabase,
 } from '../../services/supabaseAuth';
 import './auth.css';
@@ -19,9 +21,17 @@ export default function AuthCallbackPage() {
         return;
       }
       const { session, error } = await exchangeCodeForSessionFromUrl();
-      if (error) { setMessage(error.message); return; }
-      if (!session) { setMessage('We could not complete sign-in. Please return and try again.'); return; }
-      window.location.replace(appUrl(safeNextPath(new URLSearchParams(window.location.search).get('next'))));
+      if (error) {
+        setMessage(formatAuthError(error, 'callback'));
+        return;
+      }
+      if (!session) {
+        setMessage('We could not complete sign-in. Please return and try again.');
+        return;
+      }
+      const role = getUserRole(session);
+      const destination = getPostAuthPath(role, new URLSearchParams(window.location.search).get('next'));
+      window.location.replace(appUrl(destination));
     }
     complete();
   }, []);

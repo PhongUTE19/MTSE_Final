@@ -1,9 +1,12 @@
+import { getAccessToken } from './supabaseAuth';
+
 /**
  * Shared API client for making HTTP requests with structured JSON error parsing.
  */
 
 /**
  * Executes a fetch request, parses JSON response, and handles HTTP errors.
+ * Automatically attaches Authorization header if an authenticated session exists.
  *
  * @param {string} url - Request URL
  * @param {RequestInit} [options={}] - Fetch options
@@ -11,7 +14,13 @@
  * @returns {Promise<any>} Parsed JSON response body
  */
 export async function apiRequest(url, options = {}, fallbackError) {
-  const res = await fetch(url, options);
+  const token = await getAccessToken();
+  const headers = new Headers(options.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
