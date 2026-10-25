@@ -1,47 +1,20 @@
-import { useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import ExpenseTrackerApp from './ExpenseTrackerApp';
-import { appUrl, isSupabaseConfigured, safeNextPath, signOut, supabase } from '../../services/supabaseAuth';
+import { appUrl, safeNextPath, signOut } from '../../services/supabaseAuth';
+import { useSession } from '../../hooks';
 
 function redirectToSignIn() {
   window.location.replace(`${appUrl('/auth')}?next=${encodeURIComponent(safeNextPath(window.location.pathname))}`);
 }
 
 export default function ExpenseSessionGate() {
-  const [session, setSession] = useState(undefined);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      redirectToSignIn();
-      return undefined;
-    }
-    let active = true;
-
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      if (!active) return;
-      if (!currentSession) {
-        redirectToSignIn();
-      } else {
-        setSession(currentSession);
-      }
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      if (currentSession) {
-        setSession(currentSession);
-      } else {
-        redirectToSignIn();
-      }
-    });
-
-    const onUnauthorized = () => redirectToSignIn();
-    window.addEventListener('spendwise:unauthorized', onUnauthorized);
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-      window.removeEventListener('spendwise:unauthorized', onUnauthorized);
-    };
+  const handleUnauthorized = useCallback(() => {
+    redirectToSignIn();
   }, []);
+
+  const { session } = useSession({
+    onUnauthorized: handleUnauthorized,
+  });
 
   if (!session) {
     return (

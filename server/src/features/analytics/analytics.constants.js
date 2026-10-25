@@ -14,6 +14,8 @@ export const FEATURES = Object.freeze({
   RAG_CHAT: 'rag_chat',
   EMBEDDING: 'embedding',
   KNOWLEDGE_INDEX: 'knowledge_index',
+  EXPENSE_AGENT: 'expense_agent',
+  RECEIPT_EXTRACTION: 'receipt_extraction',
 });
 
 export const PROVIDERS = Object.freeze({

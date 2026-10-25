@@ -10,6 +10,7 @@ import { VALIDATION_LIMITS, UI_LABELS } from '../../constants';
  * @param {string} [props.placeholder='Search...'] - Placeholder text
  * @param {string} [props.ariaLabel='Search'] - Accessible input label
  * @param {boolean} [props.disabled=false] - Disabled state
+ * @param {Function} [props.onKeyDown] - Optional keydown handler (e.g. Enter key to submit search)
  * @param {Function} [props.onClear] - Clear handler
  * @param {number} [props.maxLength] - Maximum character length
  * @param {string} [props.className='search-input'] - Input CSS class name
@@ -18,6 +19,7 @@ import { VALIDATION_LIMITS, UI_LABELS } from '../../constants';
 export default function SearchInput({
   value = '',
   onChange,
+  onKeyDown,
   placeholder = UI_LABELS.COMMON.SEARCH_PLACEHOLDER || 'Search...',
   ariaLabel = 'Search',
   disabled = false,
@@ -43,6 +45,9 @@ export default function SearchInput({
   const handleKeyDown = (e) => {
     if (e.key === 'Escape' && value) {
       handleClear();
+    }
+    if (onKeyDown) {
+      onKeyDown(e);
     }
   };
 

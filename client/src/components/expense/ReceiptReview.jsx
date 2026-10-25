@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { EXPENSE_CATEGORIES, INITIAL_TRANSACTION } from './expenseConstants';
-import { categoriesForType } from './expenseFormatters';
+import { INITIAL_TRANSACTION } from './expenseConstants';
+import TransactionFields, { validateTransactionData } from './TransactionFields';
 
 export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDiscard }) {
   const [form, setForm] = useState({
@@ -12,24 +12,16 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
   const [action, setAction] = useState('');
   const busy = Boolean(action);
 
-  function handleChange(event) {
-    const { name, value } = event.target;
-    setForm((current) => ({ ...current, [name]: value }));
-  }
-
   async function handleConfirm() {
-    if (!form.merchant.trim()) {
-      setError('Merchant is required.');
-      return;
-    }
-    if (!Number.isFinite(Number(form.amount)) || Number(form.amount) <= 0) {
-      setError('Enter a total amount greater than zero before saving.');
+    const validation = validateTransactionData(form, { locale: 'en' });
+    if (!validation.isValid) {
+      setError(validation.error);
       return;
     }
     try {
       setAction('saving');
       setError('');
-      await onConfirm({ ...form, amount: Number(form.amount) });
+      await onConfirm({ ...form, amount: validation.amount });
     } catch (requestError) {
       setError(requestError.message);
       setAction('');
@@ -69,32 +61,13 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
           <strong>{file.name}</strong>
           <small>{Math.round(file.size / 1024)} KB</small>
         </div>
-        <div className="form-grid">
-          <label>
-            Merchant
-            <input name="merchant" value={form.merchant} onChange={handleChange} disabled={busy} required />
-          </label>
-          <label>
-            Date
-            <input name="date" type="date" value={form.date} onChange={handleChange} disabled={busy} required />
-          </label>
-          <label>
-            Total amount
-            <input name="amount" type="number" min="1" value={form.amount} onChange={handleChange} disabled={busy} required />
-          </label>
-          <label>
-            Category
-            <select name="category" value={form.category} onChange={handleChange} disabled={busy}>
-              {categoriesForType(EXPENSE_CATEGORIES, form.type).map((category) => (
-                <option key={category}>{category}</option>
-              ))}
-            </select>
-          </label>
-          <label className="full">
-            Note
-            <textarea name="note" value={form.note} onChange={handleChange} disabled={busy} rows="2" />
-          </label>
-        </div>
+        <TransactionFields
+          values={form}
+          onChange={setForm}
+          disabled={busy}
+          showType={false}
+          labels={{ amount: 'Total amount', merchant: 'Merchant' }}
+        />
       </div>
 
       <div className="modal-actions">

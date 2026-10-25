@@ -8,6 +8,7 @@ export { useDrawer } from './useDrawer.js';
 
 // --- Application / System State ---
 export { useHealth } from './useHealth.js';
+export { useSession } from './useSession.js';
 
 // --- Feature Hooks ---
 // Chat & Assistant

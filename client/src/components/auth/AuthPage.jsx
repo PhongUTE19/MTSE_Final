@@ -8,10 +8,9 @@ import {
   safeNextPath,
   supabase,
 } from '../../services/supabaseAuth';
+import { validateEmail, validateStringLength } from '../../utils/validation';
 import PasswordField from './PasswordField';
 import './auth.css';
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function GoogleMark() {
   return (
@@ -27,8 +26,10 @@ function GoogleMark() {
 function validate(form, mode) {
   const errors = {};
   if (mode === 'signup' && !form.name.trim()) errors.name = 'Enter the name you want to use in Spendwise.';
-  if (!EMAIL_PATTERN.test(form.email)) errors.email = 'Enter a valid email address.';
-  if (mode !== 'forgot' && form.password.length < 8) errors.password = 'Use at least 8 characters.';
+  if (!validateEmail(form.email).isValid) errors.email = 'Enter a valid email address.';
+  if (mode !== 'forgot' && !validateStringLength(form.password, { min: 8, trim: false }).isValid) {
+    errors.password = 'Use at least 8 characters.';
+  }
   if (mode === 'signup' && form.password !== form.confirmPassword) errors.confirmPassword = 'Passwords do not match.';
   return errors;
 }

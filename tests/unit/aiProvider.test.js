@@ -7,6 +7,9 @@ import {
   generateAnswerStream,
   embedText,
   geminiProvider,
+  getAIClient,
+  setAIClientForTests,
+  executeWithRetry,
 } from '../../server/src/shared/integrations/ai/index.js';
 
 describe('AI Provider Abstraction Suite', () => {
@@ -105,5 +108,61 @@ describe('AI Provider Abstraction Suite', () => {
         err instanceof Error &&
         err.message.includes('AI provider "text-only" does not support generateAnswerStream')
     );
+  });
+
+  it('exports getAIClient, setAIClientForTests, and executeWithRetry via shared AI integration and provider', () => {
+    assert.equal(typeof getAIClient, 'function');
+    assert.equal(typeof setAIClientForTests, 'function');
+    assert.equal(typeof executeWithRetry, 'function');
+    assert.equal(typeof geminiProvider.getAIClient, 'function');
+    assert.equal(typeof geminiProvider.executeWithRetry, 'function');
+  });
+
+  it('executeWithRetry retries transient 429/503 errors and captures attempt metadata', async () => {
+    let attemptsCount = 0;
+    const transientOperation = async () => {
+      attemptsCount++;
+      if (attemptsCount < 3) {
+        const error = new Error('Resource exhausted (429)');
+        error.status = 429;
+        throw error;
+      }
+      return 'operation succeeded';
+    };
+
+    const { result, attempts, totalAttempts, durationMs } = await executeWithRetry(
+      transientOperation,
+      3,
+      1, // 1ms initial delay for fast tests
+      5000
+    );
+
+    assert.equal(result, 'operation succeeded');
+    assert.equal(totalAttempts, 3);
+    assert.equal(attempts.length, 3);
+    assert.equal(attempts[0].status, 'failure');
+    assert.equal(attempts[1].status, 'failure');
+    assert.equal(attempts[2].status, 'success');
+    assert.ok(durationMs >= 0);
+  });
+
+  it('executeWithRetry halts without retry for non-transient errors and attaches execution metadata', async () => {
+    let attemptsCount = 0;
+    const nonTransientOperation = async () => {
+      attemptsCount++;
+      throw new Error('Invalid schema argument');
+    };
+
+    await assert.rejects(
+      () => executeWithRetry(nonTransientOperation, 3, 1, 5000),
+      (err) => {
+        assert.equal(err.message, 'Invalid schema argument');
+        assert.ok(err.executionMetadata);
+        assert.equal(err.executionMetadata.totalAttempts, 1);
+        assert.equal(err.executionMetadata.attempts.length, 1);
+        return true;
+      }
+    );
+    assert.equal(attemptsCount, 1);
   });
 });

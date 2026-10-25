@@ -1,13 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import {
   appUrl,
   getUserRole,
-  isSupabaseConfigured,
   safeNextPath,
   signOut,
-  supabase,
 } from '../../services/supabaseAuth';
+import { useSession } from '../../hooks';
 import HandbookView from '../HandbookView';
 import { ADMIN_TABS, USER_ROLES } from '../../constants';
 import './admin.css';
@@ -22,37 +21,24 @@ function redirectToExpense() {
 }
 
 export default function AdminSessionGate({ defaultTab = ADMIN_TABS.ANALYTICS }) {
-  const [session, setSession] = useState(undefined);
   const location = useLocation();
 
-  useEffect(() => {
-    if (!isSupabaseConfigured || !supabase) {
-      redirectToSignIn(location.pathname);
-      return undefined;
-    }
-    let active = true;
-    const applySession = (currentSession) => {
-      if (!active) return;
-      if (!currentSession) {
-        redirectToSignIn(location.pathname);
-        return;
-      }
-      if (getUserRole(currentSession) !== 'admin') {
-        redirectToExpense();
-        return;
-      }
-      setSession(currentSession);
-    };
-
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => applySession(currentSession));
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, currentSession) => applySession(currentSession));
-    return () => {
-      active = false;
-      subscription.unsubscribe();
-    };
+  const handleUnauthorized = useCallback(() => {
+    redirectToSignIn(location.pathname);
   }, [location.pathname]);
+
+  const handleValidate = useCallback((currentSession) => {
+    if (getUserRole(currentSession) !== 'admin') {
+      redirectToExpense();
+      return false;
+    }
+    return true;
+  }, []);
+
+  const { session } = useSession({
+    onValidate: handleValidate,
+    onUnauthorized: handleUnauthorized,
+  });
 
   if (!session) {
     return (

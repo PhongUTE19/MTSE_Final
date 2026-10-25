@@ -1,5 +1,8 @@
 import { EXPENSE_CATEGORIES } from './expenseConstants';
 import { formatMoney } from './expenseFormatters';
+import SearchInput from '../common/SearchInput';
+import SortableHeader from '../common/SortableHeader';
+import Pagination from '../common/Pagination';
 
 function EditIcon() {
   return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13.8 5.2 18.8 10.2M4 20l4.1-.9L19.5 7.7a2.1 2.1 0 0 0-3-3L5.1 16.1 4 20Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" /></svg>;
@@ -10,12 +13,19 @@ function DeleteIcon() {
 }
 
 export default function TransactionTable({ data, filters, loading, onChangeFilters, onEdit, onDelete, onSearch }) {
-  const toggleAmountSort = () =>
+  const handleSort = (columnKey) => {
     onChangeFilters((current) => ({
       ...current,
-      sortBy: 'amount',
-      sortOrder: current.sortOrder === 'desc' ? 'asc' : 'desc',
+      sortBy: columnKey,
+      sortOrder:
+        current.sortBy === columnKey
+          ? current.sortOrder === 'desc'
+            ? 'asc'
+            : 'desc'
+          : 'desc',
+      page: '1',
     }));
+  };
 
   return (
     <section className="transaction-panel">
@@ -32,13 +42,17 @@ export default function TransactionTable({ data, filters, loading, onChangeFilte
       <div className="filters">
         <label className="filter-field filter-search">
           <span>Search</span>
-          <input
+          <SearchInput
             value={filters.search}
-            onChange={(event) =>
-              onChangeFilters((current) => ({ ...current, search: event.target.value, page: '1' }))
+            onChange={(val) =>
+              onChangeFilters((current) => ({ ...current, search: val, page: '1' }))
             }
-            onKeyDown={(event) => event.key === 'Enter' && onSearch()}
+            onKeyDown={(event) => event.key === 'Enter' && onSearch?.()}
+            onClear={() =>
+              onChangeFilters((current) => ({ ...current, search: '', page: '1' }))
+            }
             placeholder="Search merchant or note"
+            ariaLabel="Search merchant or note"
           />
         </label>
 
@@ -106,12 +120,22 @@ export default function TransactionTable({ data, filters, loading, onChangeFilte
             <tr>
               <th>Transaction</th>
               <th>Category</th>
-              <th>Date</th>
-              <th>
-                <button className="sort-button" onClick={toggleAmountSort}>
-                  Amount ↕
-                </button>
-              </th>
+              <SortableHeader
+                columnKey="date"
+                currentSortKey={filters.sortBy}
+                currentDirection={filters.sortOrder}
+                onSort={handleSort}
+              >
+                Date
+              </SortableHeader>
+              <SortableHeader
+                columnKey="amount"
+                currentSortKey={filters.sortBy}
+                currentDirection={filters.sortOrder}
+                onSort={handleSort}
+              >
+                Amount
+              </SortableHeader>
               <th>Actions</th>
             </tr>
           </thead>
@@ -173,38 +197,21 @@ export default function TransactionTable({ data, filters, loading, onChangeFilte
         </table>
       </div>
 
-      <footer className="pagination">
-        <span>
-          {data.total} transaction{data.total === 1 ? '' : 's'}
-        </span>
-        <div>
-          <button
-            className="secondary-button"
-            disabled={data.page <= 1}
-            onClick={() =>
-              onChangeFilters((current) => ({
-                ...current,
-                page: String(Number(current.page) - 1),
-              }))
-            }
-          >
-            Previous
-          </button>
-          <span>Page {data.page}</span>
-          <button
-            className="secondary-button"
-            disabled={data.page * data.pageSize >= data.total}
-            onClick={() =>
-              onChangeFilters((current) => ({
-                ...current,
-                page: String(Number(current.page) + 1),
-              }))
-            }
-          >
-            Next
-          </button>
-        </div>
-      </footer>
+      <Pagination
+        page={Number(data.page)}
+        limit={Number(data.pageSize)}
+        total={Number(data.total)}
+        loading={loading}
+        className="pagination"
+        ariaLabel="Transaction pagination"
+        showingLabel={() => `${data.total} transaction${data.total === 1 ? '' : 's'}`}
+        onPageChange={(nextPage) =>
+          onChangeFilters((current) => ({
+            ...current,
+            page: String(nextPage),
+          }))
+        }
+      />
     </section>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import ReceiptReview from './ReceiptReview';
-import { EXPENSE_CATEGORIES, MAX_RECEIPT_SIZE_BYTES, RECEIPT_ACCEPTED_TYPES } from './expenseConstants';
+import TransactionFields, { VIETNAMESE_TRANSACTION_LABELS } from './TransactionFields';
+import { MAX_RECEIPT_SIZE_BYTES, RECEIPT_ACCEPTED_TYPES } from './expenseConstants';
 import { formatMoney } from './expenseFormatters';
 import { loadExpenseAssistantHistory, makeConversation, saveExpenseAssistantHistory } from './expenseAssistantHistory';
 
@@ -105,11 +106,6 @@ function Proposal({ proposal, onConfirm, onCancel, busy }) {
   const [draft, setDraft] = useState({ ...proposal.transaction, amount: String(proposal.transaction.amount) });
   const [validationError, setValidationError] = useState('');
 
-  function change(field, value) {
-    setDraft((current) => ({ ...current, [field]: value }));
-    setValidationError('');
-  }
-
   function submit() {
     const amount = Number(draft.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -124,47 +120,16 @@ function Proposal({ proposal, onConfirm, onCancel, busy }) {
     <section className="agent-proposal">
       <h3>Kiểm tra trước khi lưu</h3>
       <p>Đây là proposal, chưa được lưu vào Supabase.</p>
-      <div className="agent-proposal-fields">
-        <label>
-          Loại
-          <select value={draft.type} onChange={(event) => change('type', event.target.value)} disabled={busy}>
-            <option value="expense">Chi tiêu</option>
-            <option value="income">Thu nhập</option>
-          </select>
-        </label>
-        <label>
-          Số tiền
-          <input
-            type="number"
-            inputMode="decimal"
-            min="0"
-            step="any"
-            value={draft.amount}
-            onChange={(event) => change('amount', event.target.value)}
-            disabled={busy}
-          />
-        </label>
-        <label>
-          Ngày
-          <input type="date" value={draft.date} onChange={(event) => change('date', event.target.value)} disabled={busy} />
-        </label>
-        <label>
-          Danh mục
-          <select value={draft.category} onChange={(event) => change('category', event.target.value)} disabled={busy}>
-            {EXPENSE_CATEGORIES.map((category) => (
-              <option key={category} value={category}>{category}</option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Cửa hàng / mô tả
-          <input value={draft.merchant} onChange={(event) => change('merchant', event.target.value)} disabled={busy} />
-        </label>
-        <label>
-          Ghi chú
-          <textarea value={draft.note || ''} onChange={(event) => change('note', event.target.value)} disabled={busy} />
-        </label>
-      </div>
+      <TransactionFields
+        values={draft}
+        onChange={(next) => {
+          setDraft(next);
+          setValidationError('');
+        }}
+        disabled={busy}
+        labels={VIETNAMESE_TRANSACTION_LABELS}
+        className="agent-proposal-fields"
+      />
       {validationError && <p className="form-error">{validationError}</p>}
       <div className="modal-actions">
         <button className="secondary-button" type="button" onClick={onCancel} disabled={busy}>

@@ -1,6 +1,7 @@
-import { GoogleGenAI } from '@google/genai';
 import { config } from '../../config.js';
-import { withTimeout } from '../../shared/guardrails/index.js';
+import { RETRY_CONFIG } from '../../constants/index.js';
+import { recordUsage, hashPrompt } from '../analytics/index.js';
+import { getAIClient, executeWithRetry } from '../../shared/integrations/ai/providers/geminiProvider.js';
 
 export const SEARCH_TRANSACTIONS_TOOL = Object.freeze({
   name: 'search_transactions',
@@ -61,8 +62,16 @@ export function getVietnamDate(now = new Date()) {
 
 function getClient() {
   if (clientFactory) return clientFactory();
-  if (!config.geminiApiKey) throw new Error('GEMINI_API_KEY is not configured.');
-  return new GoogleGenAI({ apiKey: config.geminiApiKey });
+  return getAIClient();
+}
+
+function safeRecordUsage(recordData) {
+  try {
+    recordUsage(recordData);
+  } catch (error) {
+    // Non-fatal: Tracking failures must never disrupt user requests or financial flows
+    console.error('[ExpenseAgent] Failed to record usage (non-fatal):', error.message);
+  }
 }
 
 function systemInstruction(today) {
@@ -87,8 +96,20 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
   const model = options.model || config.geminiModel;
   const timeoutMs = options.timeoutMs ?? 15000;
   const today = options.today || getVietnamDate();
-  const instruction = options.agentType === 'summary' ? summarySystemInstruction(today) : options.agentType === 'create' ? createSystemInstruction(today) : options.agentType === 'assistant' ? assistantSystemInstruction(today) : systemInstruction(today);
-  const declarations = options.agentType === 'summary' ? [SPENDING_SUMMARY_TOOL] : options.agentType === 'create' ? [CREATE_TRANSACTION_TOOL] : options.agentType === 'assistant' ? [SEARCH_TRANSACTIONS_TOOL, SPENDING_SUMMARY_TOOL, CREATE_TRANSACTION_TOOL] : [SEARCH_TRANSACTIONS_TOOL];
+  const instruction = options.agentType === 'summary'
+    ? summarySystemInstruction(today)
+    : options.agentType === 'create'
+      ? createSystemInstruction(today)
+      : options.agentType === 'assistant'
+        ? assistantSystemInstruction(today)
+        : systemInstruction(today);
+  const declarations = options.agentType === 'summary'
+    ? [SPENDING_SUMMARY_TOOL]
+    : options.agentType === 'create'
+      ? [CREATE_TRANSACTION_TOOL]
+      : options.agentType === 'assistant'
+        ? [SEARCH_TRANSACTIONS_TOOL, SPENDING_SUMMARY_TOOL, CREATE_TRANSACTION_TOOL]
+        : [SEARCH_TRANSACTIONS_TOOL];
   const generationConfig = {
     systemInstruction: instruction,
     tools: [{ functionDeclarations: declarations }],
@@ -98,9 +119,86 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
     toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
   };
 
-  const firstResponse = await withTimeout(ai.models.generateContent({
-    model, contents: message, config: generationConfig,
-  }), timeoutMs, 'Expense search timed out.');
+  const feature = options.feature || 'expense_agent';
+  const promptVersion = hashPrompt(instruction);
+  const maxRetries = options.maxRetries ?? RETRY_CONFIG.MAX_RETRIES;
+  const initialDelayMs = options.initialDelayMs ?? RETRY_CONFIG.INITIAL_DELAY_MS;
+
+  let firstResponse;
+  let firstAttempts;
+  let firstTotalAttempts;
+  let firstDurationMs;
+
+  try {
+    const executed = await executeWithRetry(
+      () => ai.models.generateContent({
+        model,
+        contents: message,
+        config: generationConfig,
+      }),
+      maxRetries,
+      initialDelayMs,
+      timeoutMs,
+      'Expense search timed out.'
+    );
+    firstResponse = executed.result;
+    firstAttempts = executed.attempts;
+    firstTotalAttempts = executed.totalAttempts;
+    firstDurationMs = executed.durationMs;
+
+    const firstCandidate = firstResponse?.candidates?.[0];
+    const finishReason = firstCandidate?.finishReason;
+    const isRefusal = finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'BLOCKLIST';
+    const usage = firstResponse?.usageMetadata || {};
+
+    safeRecordUsage({
+      feature,
+      operation: options.operation ? `${options.operation}:tool_selection` : 'expenseAgent.toolSelection',
+      provider: 'google-genai',
+      model,
+      outcome: isRefusal ? 'refusal' : 'success',
+      isRefusal,
+      refusalReason: isRefusal ? finishReason : null,
+      durationMs: firstDurationMs,
+      attempts: firstAttempts,
+      totalAttempts: firstTotalAttempts,
+      promptVersion,
+      toolsExecuted: [],
+      tokenUsage: {
+        inputTokens: typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : null,
+        outputTokens: typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : null,
+        totalTokens: typeof usage.totalTokenCount === 'number' ? usage.totalTokenCount : null,
+        tokenCountsAvailable: typeof usage.promptTokenCount === 'number',
+      },
+    });
+  } catch (error) {
+    const meta = error.executionMetadata || {
+      attempts: [{ attemptNumber: 1, durationMs: 0, status: 'failure', error: error.message }],
+      totalAttempts: 1,
+      durationMs: 0,
+    };
+    safeRecordUsage({
+      feature,
+      operation: options.operation ? `${options.operation}:tool_selection` : 'expenseAgent.toolSelection',
+      provider: 'google-genai',
+      model,
+      outcome: 'failure',
+      durationMs: meta.durationMs,
+      attempts: meta.attempts,
+      totalAttempts: meta.totalAttempts,
+      promptVersion,
+      toolsExecuted: [],
+      error,
+      tokenUsage: {
+        inputTokens: null,
+        outputTokens: null,
+        totalTokens: null,
+        tokenCountsAvailable: false,
+      },
+    });
+    throw error;
+  }
+
   const call = firstResponse.functionCalls?.[0];
   if (!call) {
     const clarification = firstResponse.text?.trim();
@@ -109,15 +207,86 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
   }
 
   const toolResult = await executeTool(call.name, call.args || {});
-  const finalResponse = await withTimeout(ai.models.generateContent({
-    model,
-    contents: [
-      { role: 'user', parts: [{ text: message }] },
-      firstResponse.candidates?.[0]?.content,
-      { role: 'user', parts: [{ functionResponse: { name: call.name, response: toolResult } }] },
-    ],
-    config: { systemInstruction: instruction },
-  }), timeoutMs, 'Expense search timed out.');
+
+  let finalResponse;
+  let finalAttempts;
+  let finalTotalAttempts;
+  let finalDurationMs;
+
+  try {
+    const executed = await executeWithRetry(
+      () => ai.models.generateContent({
+        model,
+        contents: [
+          { role: 'user', parts: [{ text: message }] },
+          firstResponse.candidates?.[0]?.content,
+          { role: 'user', parts: [{ functionResponse: { name: call.name, response: toolResult } }] },
+        ],
+        config: { systemInstruction: instruction },
+      }),
+      maxRetries,
+      initialDelayMs,
+      timeoutMs,
+      'Expense search timed out.'
+    );
+    finalResponse = executed.result;
+    finalAttempts = executed.attempts;
+    finalTotalAttempts = executed.totalAttempts;
+    finalDurationMs = executed.durationMs;
+
+    const finalCandidate = finalResponse?.candidates?.[0];
+    const finishReason = finalCandidate?.finishReason;
+    const isRefusal = finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'BLOCKLIST';
+    const usage = finalResponse?.usageMetadata || {};
+
+    safeRecordUsage({
+      feature,
+      operation: options.operation ? `${options.operation}:summary` : 'expenseAgent.summary',
+      provider: 'google-genai',
+      model,
+      outcome: isRefusal ? 'refusal' : 'success',
+      isRefusal,
+      refusalReason: isRefusal ? finishReason : null,
+      durationMs: finalDurationMs,
+      attempts: finalAttempts,
+      totalAttempts: finalTotalAttempts,
+      promptVersion,
+      toolsExecuted: [call.name],
+      tokenUsage: {
+        inputTokens: typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : null,
+        outputTokens: typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : null,
+        totalTokens: typeof usage.totalTokenCount === 'number' ? usage.totalTokenCount : null,
+        tokenCountsAvailable: typeof usage.promptTokenCount === 'number',
+      },
+    });
+  } catch (error) {
+    const meta = error.executionMetadata || {
+      attempts: [{ attemptNumber: 1, durationMs: 0, status: 'failure', error: error.message }],
+      totalAttempts: 1,
+      durationMs: 0,
+    };
+    safeRecordUsage({
+      feature,
+      operation: options.operation ? `${options.operation}:summary` : 'expenseAgent.summary',
+      provider: 'google-genai',
+      model,
+      outcome: 'failure',
+      durationMs: meta.durationMs,
+      attempts: meta.attempts,
+      totalAttempts: meta.totalAttempts,
+      promptVersion,
+      toolsExecuted: [call.name],
+      error,
+      tokenUsage: {
+        inputTokens: null,
+        outputTokens: null,
+        totalTokens: null,
+        tokenCountsAvailable: false,
+      },
+    });
+    throw error;
+  }
+
   const answer = finalResponse.text?.trim();
   if (!answer) throw new Error('Gemini returned an empty final answer.');
   return { answer, toolName: call.name, toolResult };

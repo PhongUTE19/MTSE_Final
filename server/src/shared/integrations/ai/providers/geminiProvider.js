@@ -12,7 +12,7 @@ let aiInstance = null;
 /**
  * Returns a singleton instance of the Google GenAI client.
  */
-function getAIClient() {
+export function getAIClient() {
   if (!config.geminiApiKey || config.geminiApiKey === SERVER_CONFIG_DEFAULTS.PLACEHOLDER_KEY) {
     throw new Error(SERVER_MESSAGES.ERRORS.GEMINI_API_KEY_NOT_CONFIGURED);
   }
@@ -23,6 +23,14 @@ function getAIClient() {
 }
 
 /**
+ * Sets or resets the singleton AI client instance for tests.
+ * @param {object|null} client
+ */
+export function setAIClientForTests(client) {
+  aiInstance = client;
+}
+
+/**
  * Executes an asynchronous provider operation with retry logic for transient errors,
  * capturing attempt timings and retry history for analytics.
  *
@@ -30,13 +38,16 @@ function getAIClient() {
  * @param {() => Promise<T>} operation
  * @param {number} [maxRetries=RETRY_CONFIG.MAX_RETRIES]
  * @param {number} [initialDelayMs=RETRY_CONFIG.INITIAL_DELAY_MS]
+ * @param {number} [timeoutMs=GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS]
+ * @param {string} [customTimeoutMessage=SERVER_MESSAGES.ERRORS.AI_TIMEOUT]
  * @returns {Promise<{ result: T, attempts: Array<object>, totalAttempts: number, durationMs: number }>}
  */
-async function executeWithRetry(
+export async function executeWithRetry(
   operation,
   maxRetries = RETRY_CONFIG.MAX_RETRIES,
   initialDelayMs = RETRY_CONFIG.INITIAL_DELAY_MS,
-  timeoutMs = GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS
+  timeoutMs = GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS,
+  customTimeoutMessage = SERVER_MESSAGES.ERRORS.AI_TIMEOUT
 ) {
   const attempts = [];
   const startOverall = Date.now();
@@ -47,7 +58,7 @@ async function executeWithRetry(
     const startAttempt = Date.now();
     try {
       const opPromise = operation();
-      const result = timeoutMs ? await withTimeout(opPromise, timeoutMs) : await opPromise;
+      const result = timeoutMs ? await withTimeout(opPromise, timeoutMs, customTimeoutMessage) : await opPromise;
       const attemptDuration = Date.now() - startAttempt;
       attempts.push({
         attemptNumber,
@@ -69,11 +80,16 @@ async function executeWithRetry(
         error: error.message,
       });
 
+      const msg = String(error?.message || error || '').toLowerCase();
+      const status = error?.status || error?.code || error?.statusCode;
       const isTransient =
-        error?.message?.includes('503') ||
-        error?.message?.includes('UNAVAILABLE') ||
-        error?.message?.includes('429') ||
-        error?.message?.includes('RESOURCE_EXHAUSTED');
+        status === 429 ||
+        status === 503 ||
+        msg.includes('503') ||
+        msg.includes('unavailable') ||
+        msg.includes('429') ||
+        msg.includes('resource_exhausted') ||
+        msg.includes('quota');
 
       if (attemptNumber <= maxRetries && isTransient) {
         const delay = initialDelayMs * Math.pow(2, attemptNumber - 1);
@@ -463,6 +479,8 @@ export async function extractReceiptImage(image, options = {}) {
  */
 export const geminiProvider = {
   name: 'gemini',
+  getAIClient,
+  executeWithRetry,
   embedText,
   generateAnswer,
   generateAnswerStream,

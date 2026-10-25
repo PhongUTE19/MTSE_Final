@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
-import { calculatePagination, paginateItems } from '../utils/collectionUtils';
+import { calculatePagination, paginateItems } from '../utils/collectionUtils.js';
 
 /**
  * Reusable hook to manage pagination state for both client-side collections

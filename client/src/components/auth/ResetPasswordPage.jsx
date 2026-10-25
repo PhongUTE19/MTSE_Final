@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { appUrl, exchangeCodeForSessionFromUrl, isSupabaseConfigured, supabase } from '../../services/supabaseAuth';
+import { validateStringLength } from '../../utils/validation';
 import PasswordField from './PasswordField';
 import './auth.css';
 
@@ -37,7 +38,7 @@ export default function ResetPasswordPage() {
     event.preventDefault();
     setError('');
     setMessage('');
-    if (password.length < 8) {
+    if (!validateStringLength(password, { min: 8, trim: false }).isValid) {
       setError('Use at least 8 characters.');
       return;
     }

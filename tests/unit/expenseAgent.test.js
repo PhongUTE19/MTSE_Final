@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import { getRecentUsageRecords, getUsageStore } from '../../server/src/features/analytics/index.js';
 import { searchTransactionsArgsSchema } from '../../server/src/features/expenseAgent/expenseAgent.schemas.js';
 import { searchTransactionsForUser } from '../../server/src/features/expenseAgent/expenseAgent.service.js';
 import { getVietnamDate, runGeminiExpenseAgent, setGeminiExpenseAgentClientFactoryForTests } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+import { setAIClientForTests } from '../../server/src/shared/integrations/ai/index.js';
 
 const user = { id: 'user-a', token: 'verified-token' };
 
@@ -98,6 +100,157 @@ describe('Expense Agent search_transactions', () => {
       (error) => error.name === 'AIResponseTimeoutError',
     );
   });
+
+  it('records complete AI telemetry for multi-step tool execution without double counting', async () => {
+    const geminiCalls = [];
+    const fakeAi = {
+      models: {
+        generateContent: async (request) => {
+          geminiCalls.push(request);
+          if (geminiCalls.length === 1) {
+            return {
+              functionCalls: [{ name: 'search_transactions', args: { type: 'expense', from: '2026-10-01', to: '2026-10-31' } }],
+              candidates: [{ content: { role: 'model', parts: [{ functionCall: { name: 'search_transactions', args: {} } }] } }],
+              usageMetadata: { promptTokenCount: 42, candidatesTokenCount: 18, totalTokenCount: 60 },
+            };
+          }
+          return {
+            text: 'Tổng chi tháng 10 là 150.000 VND.',
+            usageMetadata: { promptTokenCount: 85, candidatesTokenCount: 22, totalTokenCount: 107 },
+          };
+        },
+      },
+    };
+
+    const output = await runGeminiExpenseAgent('Tháng 10 tiêu gì?', async (name, args) => {
+      assert.equal(name, 'search_transactions');
+      return { transactions: [{ amount: 150000 }], total: 1 };
+    }, { ai: fakeAi, today: '2026-10-25' });
+
+    assert.equal(output.answer, 'Tổng chi tháng 10 là 150.000 VND.');
+    assert.equal(output.toolName, 'search_transactions');
+
+    const recentRecords = getRecentUsageRecords(10).filter((r) => r.feature === 'expense_agent');
+    assert.ok(recentRecords.length >= 2, 'Expected at least 2 usage records for 2 LLM steps');
+
+    const summaryRecord = recentRecords[recentRecords.length - 1];
+    const selectionRecord = recentRecords[recentRecords.length - 2];
+
+    assert.equal(selectionRecord.operation, 'expenseAgent.toolSelection');
+    assert.equal(selectionRecord.outcome, 'success');
+    assert.deepEqual(selectionRecord.toolsExecuted, []);
+    assert.equal(selectionRecord.tokenUsage.inputTokens, 42);
+    assert.equal(selectionRecord.tokenUsage.outputTokens, 18);
+    assert.equal(selectionRecord.tokenUsage.totalTokens, 60);
+
+    assert.equal(summaryRecord.operation, 'expenseAgent.summary');
+    assert.equal(summaryRecord.outcome, 'success');
+    assert.deepEqual(summaryRecord.toolsExecuted, ['search_transactions']);
+    assert.equal(summaryRecord.tokenUsage.inputTokens, 85);
+    assert.equal(summaryRecord.tokenUsage.outputTokens, 22);
+    assert.equal(summaryRecord.tokenUsage.totalTokens, 107);
+  });
+
+  it('records single telemetry record when clarification is returned without executing tools', async () => {
+    const clarificationAi = {
+      models: {
+        generateContent: async () => ({
+          text: 'Bạn muốn tìm trong ngày nào?',
+          usageMetadata: { promptTokenCount: 30, candidatesTokenCount: 12, totalTokenCount: 42 },
+        }),
+      },
+    };
+
+    const startCount = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent').length;
+
+    const output = await runGeminiExpenseAgent('tìm giúp tôi', async () => {
+      assert.fail('Tool should not be called');
+    }, { ai: clarificationAi });
+
+    assert.equal(output.toolName, null);
+    assert.equal(output.answer, 'Bạn muốn tìm trong ngày nào?');
+
+    const endRecords = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent');
+    assert.equal(endRecords.length, startCount + 1, 'Only one record should be created for clarification');
+
+    const latest = endRecords[endRecords.length - 1];
+    assert.equal(latest.operation, 'expenseAgent.toolSelection');
+    assert.equal(latest.outcome, 'success');
+    assert.deepEqual(latest.toolsExecuted, []);
+  });
+
+  it('retries transient 503 / 429 errors and records attempt history', async () => {
+    let callCount = 0;
+    const retryAi = {
+      models: {
+        generateContent: async () => {
+          callCount++;
+          if (callCount === 1) {
+            const err = new Error('503 Service Unavailable');
+            err.status = 503;
+            throw err;
+          }
+          return { text: 'Trả lời sau khi retry thành công.' };
+        },
+      },
+    };
+
+    const output = await runGeminiExpenseAgent('tìm giao dịch', async () => ({}), {
+      ai: retryAi,
+      maxRetries: 2,
+      initialDelayMs: 1,
+    });
+
+    assert.equal(output.answer, 'Trả lời sau khi retry thành công.');
+    assert.equal(callCount, 2);
+
+    const records = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent');
+    const latest = records[records.length - 1];
+    assert.ok(latest);
+    assert.equal(latest.attemptCount, 2);
+    assert.equal(latest.attempts[0].status, 'failure');
+    assert.equal(latest.attempts[1].status, 'success');
+  });
+
+  it('gracefully handles non-fatal telemetry tracking errors without breaking user flow', async () => {
+    const ai = {
+      models: {
+        generateContent: async () => ({ text: 'Câu trả lời an toàn.' }),
+      },
+    };
+
+    const store = getUsageStore();
+    const originalAdd = store.add;
+    store.add = () => {
+      throw new Error('Analytics database write failed');
+    };
+
+    try {
+      const output = await runGeminiExpenseAgent('tìm chi tiêu', async () => ({}), { ai });
+      assert.equal(output.answer, 'Câu trả lời an toàn.');
+    } finally {
+      store.add = originalAdd;
+    }
+  });
+
+  it('falls back to shared getAIClient when no clientFactory or options.ai provided', async () => {
+    const mockClient = {
+      models: {
+        generateContent: async () => ({ text: 'Phản hồi từ shared singleton client.' }),
+      },
+    };
+
+    setAIClientForTests(mockClient);
+    try {
+      const output = await runGeminiExpenseAgent('tìm kiếm', async () => ({}));
+      assert.equal(output.answer, 'Phản hồi từ shared singleton client.');
+    } finally {
+      setAIClientForTests(null);
+    }
+  });
 });
 
-after(() => setGeminiExpenseAgentClientFactoryForTests(null));
+after(() => {
+  setGeminiExpenseAgentClientFactoryForTests(null);
+  setAIClientForTests(null);
+});

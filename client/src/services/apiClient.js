@@ -1,4 +1,23 @@
-import { getAccessToken } from './supabaseAuth';
+import { getAccessToken, signOut } from './supabaseAuth.js';
+
+let isHandlingUnauthorized = false;
+
+async function handleUnauthorized() {
+  if (isHandlingUnauthorized) return;
+  isHandlingUnauthorized = true;
+  try {
+    await signOut();
+  } catch {
+    // Ignore sign-out errors when session is already gone
+  } finally {
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('spendwise:unauthorized'));
+    }
+    setTimeout(() => {
+      isHandlingUnauthorized = false;
+    }, 1000);
+  }
+}
 
 /**
  * Shared API client for making HTTP requests with structured JSON error parsing.
@@ -7,6 +26,7 @@ import { getAccessToken } from './supabaseAuth';
 /**
  * Executes a fetch request, parses JSON response, and handles HTTP errors.
  * Automatically attaches Authorization header if an authenticated session exists.
+ * Dispatches 'spendwise:unauthorized' and signs out on HTTP 401 responses.
  *
  * @param {string} url - Request URL
  * @param {RequestInit} [options={}] - Fetch options
@@ -20,10 +40,18 @@ export async function apiRequest(url, options = {}, fallbackError) {
     headers.set('Authorization', `Bearer ${token}`);
   }
 
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (options.body !== undefined && !isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
   const res = await fetch(url, { ...options, headers });
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
+    if (res.status === 401) {
+      await handleUnauthorized();
+    }
     let message = data.error;
     if (!message) {
       if (typeof fallbackError === 'function') {

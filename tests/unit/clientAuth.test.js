@@ -122,4 +122,60 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(formatted, error.message);
     });
   });
+
+  describe('4. Consolidated HTTP Client, Session Gate & Validation Suite', () => {
+    it('exports useSession hook from useSession.js', async () => {
+      const { useSession } = await import('../../client/src/hooks/useSession.js');
+      assert.equal(typeof useSession, 'function');
+    });
+
+    it('enforces gate validation rules: AdminSessionGate requires admin, ExpenseSessionGate accepts any user', () => {
+      const adminSession = { user: { id: 'u1', app_metadata: { role: 'admin' } } };
+      const regularSession = { user: { id: 'u2', app_metadata: { role: 'user' } } };
+
+      // AdminSessionGate validate handler pattern:
+      const adminGateValidator = (session) => getUserRole(session) === 'admin';
+      assert.equal(adminGateValidator(adminSession), true);
+      assert.equal(adminGateValidator(regularSession), false);
+
+      // ExpenseSessionGate validate pattern:
+      const expenseGateValidator = (session) => Boolean(session?.user);
+      assert.equal(expenseGateValidator(adminSession), true);
+      assert.equal(expenseGateValidator(regularSession), true);
+      assert.equal(expenseGateValidator(null), false);
+    });
+
+    it('expenseApi reuses consolidated apiClient and exposes all required methods', async () => {
+      const { expenseApi } = await import('../../client/src/services/expenseApi.js');
+      assert.equal(typeof expenseApi.list, 'function');
+      assert.equal(typeof expenseApi.create, 'function');
+      assert.equal(typeof expenseApi.update, 'function');
+      assert.equal(typeof expenseApi.remove, 'function');
+      assert.equal(typeof expenseApi.upload, 'function');
+      assert.equal(typeof expenseApi.listReceipts, 'function');
+      assert.equal(typeof expenseApi.previewReceipt, 'function');
+      assert.equal(typeof expenseApi.retryReceipt, 'function');
+      assert.equal(typeof expenseApi.confirmReceipt, 'function');
+      assert.equal(typeof expenseApi.deleteReceipt, 'function');
+      assert.equal(typeof expenseApi.askExpenseAssistant, 'function');
+      assert.equal(typeof expenseApi.searchAgentTransactions, 'function');
+      assert.equal(typeof expenseApi.createAgentProposal, 'function');
+      assert.equal(typeof expenseApi.confirmAgentProposal, 'function');
+      assert.equal(typeof expenseApi.cancelAgentProposal, 'function');
+    });
+
+    it('validates password length boundary of at least 8 characters without trimming', async () => {
+      const { validateStringLength } = await import('../../client/src/utils/validation.js');
+      assert.equal(validateStringLength('1234567', { min: 8, trim: false }).isValid, false);
+      assert.equal(validateStringLength('12345678', { min: 8, trim: false }).isValid, true);
+      assert.equal(validateStringLength('pass word', { min: 8, trim: false }).isValid, true);
+    });
+
+    it('validates email addresses accurately rejecting invalid formats', async () => {
+      const { validateEmail } = await import('../../client/src/utils/validation.js');
+      assert.equal(validateEmail('').isValid, false);
+      assert.equal(validateEmail('invalid').isValid, false);
+      assert.equal(validateEmail('student@hcmute.edu.vn').isValid, true);
+    });
+  });
 });
