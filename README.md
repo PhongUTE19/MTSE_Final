@@ -72,7 +72,7 @@ SpendWise helps users track personal expenses, scan and review receipts with mul
 * Supabase project URL and service role key (optional, for persistent AI analytics)
 
 ### Environment Variables
-Configure environment variables in a single `.env` file at the project root (see `.env.example`):
+Configure backend environment variables in `server/.env` (see `server/.env.example`) and frontend variables in `client/.env` (see `client/.env.example`):
 
 | Variable Name | Description | Default / Example Value |
 |---|---|---|
@@ -89,11 +89,12 @@ Configure environment variables in a single `.env` file at the project root (see
 | `PROMPT_FILE` | Persistent system prompt file path | `data/prompts/system_prompt.txt` |
 | `PROMPT_FILE_DEFAULT` | Default system prompt template path | `data/prompts/system_prompt_default.txt` |
 | `KNOWLEDGE_DIR` | Knowledge base directory path | `data/knowledge` |
-| `SUPABASE_URL` | Supabase project URL (Analytics) | `https://your-project.supabase.co` |
+| `SUPABASE_URL` | Supabase project URL (Analytics & Auth) | `https://your-project.supabase.co` |
+| `SUPABASE_ANON_KEY` | Supabase public anon key (Auth & Client build) | `your_public_anon_key_here` |
 | `SUPABASE_SECRET_KEY` | Supabase service role key (or `SUPABASE_KEY`) | `your_supabase_service_role_key` |
 
 > [!NOTE]
-> All credentials remain strictly on the backend. No API keys or internal database URLs are exposed to the client.
+> Server credentials (such as service role key and AI API keys) remain strictly on the backend. Only public Supabase configuration (`SUPABASE_URL` and `SUPABASE_ANON_KEY`) is forwarded as build arguments to build the frontend client.
 
 ---
 

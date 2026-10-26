@@ -15,10 +15,10 @@
     "test:integration": "node --test \"tests/integration/**/*.test.js\"",
     "eval:rag": "node evals/rag/runner.js",
     "test:all": "npm test && npm run eval:rag",
-    "docker:build": "docker compose build",
-    "docker:up": "docker compose up -d",
-    "docker:down": "docker compose down",
-    "docker:index": "docker compose exec server npm run index",
+    "docker:build": "docker compose --env-file server/.env build",
+    "docker:up": "docker compose --env-file server/.env up -d",
+    "docker:down": "docker compose --env-file server/.env down",
+    "docker:index": "docker compose --env-file server/.env exec server npm run index",
     "install:all": "npm install && npm --prefix server install && npm --prefix client install"
   },
   "devDependencies": {
