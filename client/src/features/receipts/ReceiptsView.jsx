@@ -29,7 +29,9 @@ export default function ReceiptsView({
     try {
       const result = await expenseApi.listReceipts();
       setPendingReviews(
-        result.receipts.filter((item) => item.status === 'review_required')
+        result.receipts.filter(
+          (item) => item.status === 'review_required' || item.status === 'failed'
+        )
       );
     } catch (requestError) {
       onError?.(requestError.message);
@@ -62,6 +64,7 @@ export default function ReceiptsView({
       });
     } catch (requestError) {
       onError?.(requestError.message);
+      await loadPendingReviews();
     } finally {
       setProcessingReceipt(null);
       if (!keepPreview) URL.revokeObjectURL(previewUrl);
@@ -106,16 +109,30 @@ export default function ReceiptsView({
     try {
       setPendingActionId(pendingReceipt.id);
       onError?.('');
-      const preview = await expenseApi.previewReceipt(pendingReceipt.id);
-      setReceipt({
-        id: pendingReceipt.id,
-        file: { name: pendingReceipt.filename, size: pendingReceipt.size },
-        previewUrl: preview.url,
-        localPreview: false,
-        draft: pendingReceipt.extraction,
-      });
+      if (pendingReceipt.status === 'failed') {
+        const result = await expenseApi.retryReceipt(pendingReceipt.id);
+        const preview = await expenseApi.previewReceipt(pendingReceipt.id);
+        setReceipt({
+          id: pendingReceipt.id,
+          file: { name: pendingReceipt.filename, size: pendingReceipt.size },
+          previewUrl: preview.url,
+          localPreview: false,
+          draft: result.receipt.extraction,
+        });
+        await loadPendingReviews();
+      } else {
+        const preview = await expenseApi.previewReceipt(pendingReceipt.id);
+        setReceipt({
+          id: pendingReceipt.id,
+          file: { name: pendingReceipt.filename, size: pendingReceipt.size },
+          previewUrl: preview.url,
+          localPreview: false,
+          draft: pendingReceipt.extraction,
+        });
+      }
     } catch (requestError) {
       onError?.(requestError.message);
+      await loadPendingReviews();
     } finally {
       setPendingActionId(null);
     }
@@ -155,13 +172,16 @@ export default function ReceiptsView({
                 <div>
                   <strong>{pendingReceipt.filename}</strong>
                   <small>
-                    {pendingReceipt.extraction?.merchant || 'Receipt draft'}
-                    {pendingReceipt.extraction?.totalAmount
-                      ? ` · ${formatMoney(pendingReceipt.extraction.totalAmount)}`
-                      : ''} ·{' '}
-                    {pendingReceipt.createdAt
-                      ? new Date(pendingReceipt.createdAt).toLocaleDateString()
-                      : 'Pending'}
+                    {pendingReceipt.status === 'failed'
+                      ? 'Extraction timed out or failed · Ready to retry'
+                      : (pendingReceipt.extraction?.merchant || 'Receipt draft') +
+                        (pendingReceipt.extraction?.totalAmount
+                          ? ` · ${formatMoney(pendingReceipt.extraction.totalAmount)}`
+                          : '') +
+                        ' · ' +
+                        (pendingReceipt.createdAt
+                          ? new Date(pendingReceipt.createdAt).toLocaleDateString()
+                          : 'Pending')}
                   </small>
                 </div>
                 <div className="pending-receipt-actions">
@@ -179,7 +199,9 @@ export default function ReceiptsView({
                     onClick={() => resumePendingReview(pendingReceipt)}
                     disabled={Boolean(pendingActionId)}
                   >
-                    {pendingActionId === pendingReceipt.id ? 'Opening…' : 'Resume review'}
+                    {pendingActionId === pendingReceipt.id
+                      ? (pendingReceipt.status === 'failed' ? 'Retrying…' : 'Opening…')
+                      : (pendingReceipt.status === 'failed' ? 'Retry extraction' : 'Resume review')}
                   </button>
                 </div>
               </li>

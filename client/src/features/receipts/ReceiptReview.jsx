@@ -60,7 +60,7 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
         <div className="receipt-preview">
           <span>Receipt image</span>
           {previewUrl && <img src={previewUrl} alt={`Preview of ${file.name}`} />}
-          <div className="truncate-1line"><strong>{file.name}</strong></div>
+          <strong>{file.name}</strong>
           <small>{Math.round(file.size / 1024)} KB</small>
         </div>
         <TransactionFields

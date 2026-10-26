@@ -1,3 +1,4 @@
+import sharp from 'sharp';
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../../../../config.js';
 import { SERVER_MESSAGES, RETRY_CONFIG, SERVER_CONFIG_DEFAULTS, GUARDRAIL_CONFIG } from '../../../../constants/index.js';
@@ -82,7 +83,15 @@ export async function executeWithRetry(
 
       const msg = String(error?.message || error || '').toLowerCase();
       const status = error?.status || error?.code || error?.statusCode;
+      const isTimeout =
+        error?.name === 'AIResponseTimeoutError' ||
+        error?.name === 'AbortError' ||
+        msg.includes('timed out') ||
+        msg.includes('timeout') ||
+        status === 408 ||
+        status === 504;
       const isTransient =
+        isTimeout ||
         status === 429 ||
         status === 503 ||
         msg.includes('503') ||
@@ -451,24 +460,44 @@ export async function generateAnswerStream(prompt, options = {}) {
 }
 
 /**
+ * Downsamples and normalizes orientation for large receipt images before sending to vision models.
+ * Preserves high enough resolution for OCR (1600px max) while drastically reducing payload & patch tiling latency.
+ */
+async function prepareImageForExtraction(image) {
+  if (!image?.buffer) return image;
+  try {
+    const buffer = await sharp(image.buffer)
+      .rotate()
+      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { buffer, mimeType: 'image/jpeg' };
+  } catch {
+    return image;
+  }
+}
+
+/**
  * Extracts a strictly validated, review-only receipt draft from image bytes.
  * The configured model is not assumed to support vision/JSON mode: provider
  * errors are surfaced as safe failures and must be live-probed before release.
  */
 export async function extractReceiptImage(image, options = {}) {
+  const preparedImage = await prepareImageForExtraction(image);
   const ai = getAIClient();
   const model = options.model || config.geminiReceiptModel || config.geminiModel;
   const prompt = options.prompt || getReceiptPrompt();
+  const timeoutMs = options.timeoutMs ?? GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS;
   const started = Date.now();
   try {
     const { result, attempts, totalAttempts, durationMs } = await executeWithRetry(() => ai.models.generateContent({
       model,
       contents: [{ role: 'user', parts: [
         { text: prompt },
-        { inlineData: { mimeType: image.mimeType, data: image.buffer.toString('base64') } },
+        { inlineData: { mimeType: preparedImage.mimeType, data: preparedImage.buffer.toString('base64') } },
       ] }],
       config: { responseMimeType: 'application/json', responseJsonSchema: { type: 'object', properties: { documentType: { type: 'string', enum: ['receipt', 'invoice', 'unknown'] }, transactionType: { type: 'string', enum: ['expense', 'income', 'unknown'] }, merchant: { type: ['string', 'null'] }, transactionDate: { type: ['string', 'null'] }, totalAmount: { type: ['number', 'null'] }, currency: { type: 'string' }, category: { type: 'string', enum: RECEIPT_CATEGORIES }, items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, amount: { type: ['number', 'null'] } } } } } }, temperature: 0 },
-    }), undefined, undefined, options.timeoutMs);
+    }), undefined, undefined, timeoutMs);
     const validated = validateStructuredOutput(result.text || '', receiptExtractionSchema, { throwOnError: true });
     enforceReceiptGuardrails(validated.data);
     const usage = result.usageMetadata || {};

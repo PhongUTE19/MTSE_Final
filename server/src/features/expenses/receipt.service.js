@@ -1,5 +1,5 @@
 import { AppError, NotFoundError, handleDatabaseError } from '../../shared/errors/index.js';
-import { HTTP_STATUS } from '../../constants/index.js';
+import { HTTP_STATUS, GUARDRAIL_CONFIG } from '../../constants/index.js';
 import { createUserScopedSupabaseClient, getSupabaseClient } from '../../shared/integrations/supabase.js';
 import { extractReceiptImage } from '../../shared/integrations/ai/index.js';
 
@@ -122,10 +122,10 @@ async function cleanUpTemporaryReceipt(user, receiptId, reason) {
   }
 }
 
-async function processStoredReceipt(user, receipt, image) {
+async function processStoredReceipt(user, receipt, image, options = {}) {
   const processing = await rpc(user, 'start_receipt_processing', { p_receipt_id: receipt.id });
   try {
-    const ai = await extractor(image, { timeoutMs: 20000 });
+    const ai = await extractor(image, { timeoutMs: options?.timeoutMs || GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS });
     const draft = toDraft(ai.extraction);
     const completed = await serverRpc('server_complete_receipt_extraction', {
       p_receipt_id: receipt.id,
@@ -135,14 +135,18 @@ async function processStoredReceipt(user, receipt, image) {
     });
     return publicReceipt(completed);
   } catch (error) {
+    const isTimeout =
+      error?.name === 'AIResponseTimeoutError' ||
+      String(error?.message || '').toLowerCase().includes('timed out');
     console.error('[ReceiptService] Receipt extraction failed', {
       code: error?.code ?? null,
       message: error?.message ?? null,
       details: error?.details ?? null,
       hint: error?.hint ?? null,
       receiptId: receipt.id,
+      isTimeout,
     });
-    const failureCode = error?.receiptFailureCode || 'EXTRACTION_FAILED';
+    const failureCode = error?.receiptFailureCode || (isTimeout ? 'EXTRACTION_TIMEOUT' : 'EXTRACTION_FAILED');
     try {
       await serverRpc('server_mark_receipt_failed', {
         p_receipt_id: receipt.id,
@@ -152,9 +156,13 @@ async function processStoredReceipt(user, receipt, image) {
     } catch {
       // Best-effort error marking
     }
-    await cleanUpTemporaryReceipt(user, receipt.id, failureCode);
+    // Only clean up temporary uploads for permanent guardrail rejections
+    const isPermanentRejection = ['NOT_A_RECEIPT', 'PROMPT_INJECTION_REJECTED'].includes(failureCode);
+    if (isPermanentRejection) {
+      await cleanUpTemporaryReceipt(user, receipt.id, failureCode);
+    }
     throw new AppError(
-      error?.safeMessage || 'Receipt extraction could not be completed. You can retry it.',
+      error?.safeMessage || (isTimeout ? 'Receipt extraction timed out. You can retry it.' : 'Receipt extraction could not be completed. You can retry it.'),
       error?.safeMessage ? HTTP_STATUS.BAD_REQUEST : HTTP_STATUS.INTERNAL_SERVER_ERROR
     );
   }

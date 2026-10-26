@@ -393,11 +393,12 @@
   font-size: 12px;
 }
 
-.truncate-1line {
-  white-space: nowrap;
+.truncate-multiline {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  width: 200px;
 }
 
 @media (max-width: 1120px) {

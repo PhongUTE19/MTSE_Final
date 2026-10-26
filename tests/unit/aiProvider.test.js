@@ -165,4 +165,30 @@ describe('AI Provider Abstraction Suite', () => {
     );
     assert.equal(attemptsCount, 1);
   });
+
+  it('executeWithRetry retries transient timeout errors up to maxRetries', async () => {
+    let attemptsCount = 0;
+    const timeoutOperation = async () => {
+      attemptsCount++;
+      if (attemptsCount < 2) {
+        const error = new Error('The request timed out while generating a response. Please try again.');
+        error.name = 'AIResponseTimeoutError';
+        throw error;
+      }
+      return 'recovered after timeout';
+    };
+
+    const { result, totalAttempts, attempts } = await executeWithRetry(
+      timeoutOperation,
+      2,
+      1,
+      5000
+    );
+
+    assert.equal(result, 'recovered after timeout');
+    assert.equal(totalAttempts, 2);
+    assert.equal(attempts.length, 2);
+    assert.equal(attempts[0].status, 'failure');
+    assert.equal(attempts[1].status, 'success');
+  });
 });

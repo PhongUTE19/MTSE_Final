@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import { afterEach, it } from 'node:test';
 import { readFile } from 'node:fs/promises';
-import { setReceiptDependenciesForTests, uploadReceipt } from '../../server/src/features/expenses/receipt.service.js';
+import { setReceiptDependenciesForTests, uploadReceipt, retryReceipt, confirmReceipt } from '../../server/src/features/expenses/receipt.service.js';
+import { AIResponseTimeoutError } from '../../server/src/shared/guardrails/index.js';
+import { ReceiptGuardrailError } from '../../server/src/features/expenses/receiptGuardrails.js';
 
 afterEach(() => setReceiptDependenciesForTests());
 
@@ -68,9 +70,75 @@ it('removes a temporary receipt row and Storage object when the upload fails', a
   assert.deepEqual(storageCalls, [[receipt.storage_path]]);
 });
 
-it('cleans up a failed extraction instead of retaining failed receipt history', async () => {
+it('marks receipt failed and preserves uploaded image for retry when extraction fails', async () => {
   const rpcCalls = [];
   const receipt = { id: 'receipt-2', storage_path: 'user-1/receipt-2/original', processing_lease_id: 'lease-1' };
+  const serverRpcCalls = [];
+  const storageCalls = [];
+  setReceiptDependenciesForTests({
+    clientFactory: {
+      user: () => ({ rpc: async (name) => {
+        rpcCalls.push(name);
+        if (name === 'create_receipt_upload') return { data: receipt, error: null };
+        if (name === 'start_receipt_processing') return { data: receipt, error: null };
+        throw new Error(`Unexpected RPC ${name}`);
+      } }),
+      server: () => ({
+        rpc: async (name) => { serverRpcCalls.push(name); return { data: receipt, error: null }; },
+        storage: { from: () => ({ upload: async () => ({ error: null }), remove: async (paths) => { storageCalls.push(paths); return { error: null }; } }) },
+      }),
+    },
+    extractor: async () => { throw new Error('Gemini unavailable'); },
+  });
+
+  await assert.rejects(
+    uploadReceipt({ id: 'user-1', token: 'token' }, { buffer: Buffer.from('image') }, { filename: 'receipt.jpg', mimeType: 'image/jpeg', size: 5, sha256: 'b'.repeat(64) }),
+    /could not be completed.*retry/i,
+  );
+  assert.deepEqual(serverRpcCalls, ['server_mark_receipt_failed']);
+  assert.deepEqual(rpcCalls, ['create_receipt_upload', 'start_receipt_processing']);
+  // Storage is NOT deleted on extraction failure so the user can retry against the existing receipt
+  assert.deepEqual(storageCalls, []);
+});
+
+it('marks receipt failed with EXTRACTION_TIMEOUT and preserves receipt when extractor times out', async () => {
+  const rpcCalls = [];
+  const receipt = { id: 'receipt-timeout', storage_path: 'user-1/receipt-timeout/original', processing_lease_id: 'lease-timeout' };
+  const serverRpcCalls = [];
+  const storageCalls = [];
+  let reportedErrorCode = null;
+  setReceiptDependenciesForTests({
+    clientFactory: {
+      user: () => ({ rpc: async (name) => {
+        rpcCalls.push(name);
+        if (name === 'create_receipt_upload') return { data: receipt, error: null };
+        if (name === 'start_receipt_processing') return { data: receipt, error: null };
+        throw new Error(`Unexpected RPC ${name}`);
+      } }),
+      server: () => ({
+        rpc: async (name, args) => {
+          serverRpcCalls.push(name);
+          if (name === 'server_mark_receipt_failed') reportedErrorCode = args?.p_error_code;
+          return { data: receipt, error: null };
+        },
+        storage: { from: () => ({ upload: async () => ({ error: null }), remove: async (paths) => { storageCalls.push(paths); return { error: null }; } }) },
+      }),
+    },
+    extractor: async () => { throw new AIResponseTimeoutError('The request timed out while generating a response. Please try again.'); },
+  });
+
+  await assert.rejects(
+    uploadReceipt({ id: 'user-1', token: 'token' }, { buffer: Buffer.from('image') }, { filename: 'receipt.jpg', mimeType: 'image/jpeg', size: 5, sha256: 'c'.repeat(64) }),
+    /Receipt extraction timed out\. You can retry it\./,
+  );
+  assert.deepEqual(serverRpcCalls, ['server_mark_receipt_failed']);
+  assert.equal(reportedErrorCode, 'EXTRACTION_TIMEOUT');
+  assert.deepEqual(storageCalls, []);
+});
+
+it('cleans up temporary receipt on permanent guardrail rejection', async () => {
+  const rpcCalls = [];
+  const receipt = { id: 'receipt-guardrail', storage_path: 'user-1/receipt-guardrail/original', processing_lease_id: 'lease-g' };
   const serverRpcCalls = [];
   const storageCalls = [];
   setReceiptDependenciesForTests({
@@ -88,16 +156,122 @@ it('cleans up a failed extraction instead of retaining failed receipt history', 
         storage: { from: () => ({ upload: async () => ({ error: null }), remove: async (paths) => { storageCalls.push(paths); return { error: null }; } }) },
       }),
     },
-    extractor: async () => { throw new Error('Gemini unavailable'); },
+    extractor: async () => { throw new ReceiptGuardrailError('NOT_A_RECEIPT', 'This image does not appear to be a receipt. No transaction was created.'); },
   });
 
   await assert.rejects(
-    uploadReceipt({ id: 'user-1', token: 'token' }, { buffer: Buffer.from('image') }, { filename: 'receipt.jpg', mimeType: 'image/jpeg', size: 5, sha256: 'b'.repeat(64) }),
-    /could not be completed/,
+    uploadReceipt({ id: 'user-1', token: 'token' }, { buffer: Buffer.from('image') }, { filename: 'photo.jpg', mimeType: 'image/jpeg', size: 5, sha256: 'd'.repeat(64) }),
+    /does not appear to be a receipt/,
   );
   assert.deepEqual(serverRpcCalls, ['server_mark_receipt_failed']);
   assert.deepEqual(rpcCalls, ['create_receipt_upload', 'start_receipt_processing', 'begin_receipt_delete', 'finalize_receipt_delete']);
   assert.deepEqual(storageCalls, [[receipt.storage_path]]);
+});
+
+it('allows retrying extraction against an existing failed receipt using stored image', async () => {
+  const rpcCalls = [];
+  const serverRpcCalls = [];
+  const failedReceipt = {
+    id: 'receipt-failed-1',
+    user_id: 'user-1',
+    status: 'failed',
+    storage_path: 'user-1/receipt-failed-1/original',
+    mime_type: 'image/jpeg',
+    filename: 'bill.jpg',
+    processing_lease_id: 'lease-r',
+  };
+  const completedReceipt = { ...failedReceipt, status: 'review_required', extraction: { merchant: 'Highlands', totalAmount: 75000 } };
+
+  setReceiptDependenciesForTests({
+    clientFactory: {
+      user: () => ({
+        from: () => ({
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: failedReceipt, error: null }),
+              single: async () => ({ data: failedReceipt, error: null }),
+            }),
+          }),
+        }),
+        rpc: async (name) => {
+          rpcCalls.push(name);
+          if (name === 'retry_receipt_processing') return { data: failedReceipt, error: null };
+          if (name === 'start_receipt_processing') return { data: failedReceipt, error: null };
+          throw new Error(`Unexpected RPC ${name}`);
+        },
+      }),
+      server: () => ({
+        rpc: async (name) => {
+          serverRpcCalls.push(name);
+          return { data: completedReceipt, error: null };
+        },
+        storage: {
+          from: () => ({
+            download: async () => ({
+              data: { arrayBuffer: async () => Buffer.from('image-bytes') },
+              error: null,
+            }),
+          }),
+        },
+      }),
+    },
+    extractor: async () => ({
+      extraction: {
+        documentType: 'receipt',
+        transactionType: 'expense',
+        merchant: 'Highlands',
+        transactionDate: '2026-10-24',
+        totalAmount: 75000,
+        currency: 'VND',
+        category: 'Food & dining',
+        items: [],
+      },
+    }),
+  });
+
+  const retried = await retryReceipt({ id: 'user-1', token: 'token' }, 'receipt-failed-1');
+  assert.equal(retried.id, 'receipt-failed-1');
+  assert.deepEqual(rpcCalls, ['retry_receipt_processing', 'start_receipt_processing']);
+  assert.deepEqual(serverRpcCalls, ['server_complete_receipt_extraction']);
+});
+
+it('keeps financial writes gated strictly behind explicit confirmReceipt', async () => {
+  const userRpcCalls = [];
+  const finalTransaction = {
+    type: 'expense',
+    amount: 75000,
+    date: '2026-10-24',
+    category: 'Food & dining',
+    merchant: 'Highlands Coffee',
+    note: '',
+    items: [],
+  };
+
+  setReceiptDependenciesForTests({
+    clientFactory: {
+      user: () => ({
+        rpc: async (name, args) => {
+          userRpcCalls.push({ name, args });
+          return {
+            data: {
+              receipt: { id: 'r-1', status: 'confirmed' },
+              transaction: { id: 'txn-1', amount: 75000 },
+            },
+            error: null,
+          };
+        },
+      }),
+      server: () => ({}),
+    },
+  });
+
+  const confirmed = await confirmReceipt({ id: 'user-1', token: 'token' }, 'r-1', finalTransaction);
+  assert.equal(confirmed.receipt.status, 'confirmed');
+  assert.equal(confirmed.transaction.id, 'txn-1');
+  assert.equal(userRpcCalls.length, 1);
+  assert.equal(userRpcCalls[0].name, 'confirm_receipt_transaction');
+  assert.equal(userRpcCalls[0].args.p_receipt_id, 'r-1');
+  assert.deepEqual(userRpcCalls[0].args.p_final_transaction, finalTransaction);
 });
 
 it('extractReceiptImage records telemetry and surfaces operational error without crashing on failure', async () => {
