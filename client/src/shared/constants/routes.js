@@ -19,7 +19,5 @@ export const ALLOWED_AUTH_DESTINATIONS = Object.freeze(
     APP_ROUTES.EXPENSE,
     APP_ROUTES.ADMIN_ANALYTICS,
     APP_ROUTES.ADMIN_KNOWLEDGE,
-    '/admin',
-    '/analytics',
   ])
 );

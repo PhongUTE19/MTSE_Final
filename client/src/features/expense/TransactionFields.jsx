@@ -70,6 +70,7 @@ export default function TransactionFields({
             min="1"
             step="any"
             inputMode="decimal"
+            placeholder="0 ₫"
             value={values?.amount ?? ''}
             onChange={handleChange}
             disabled={disabled}
@@ -125,6 +126,7 @@ export default function TransactionFields({
           min="1"
           step="any"
           inputMode="decimal"
+          placeholder="0 ₫"
           value={values?.amount ?? ''}
           onChange={handleChange}
           disabled={disabled}

@@ -2,7 +2,6 @@ import React from 'react';
 import { UI_LABELS } from '../../shared/constants';
 import { formatNumber } from '../../shared/utils/formatters';
 
-
 export default function AnalyticsKpiCards({ overview }) {
   if (!overview) return null;
 
@@ -20,6 +19,12 @@ export default function AnalyticsKpiCards({ overview }) {
     recordsWithMissingTokens = 0,
     avgLatencyMs = 0,
     p95LatencyMs = 0,
+    latencySampleCount = 0,
+    totalCostUsd = 0,
+    avgCostPerRequestUsd = null,
+    pricedRequestCount = 0,
+    unpricedRequestCount = 0,
+    costCoverageRate = 0,
   } = overview;
 
   return (
@@ -74,8 +79,24 @@ export default function AnalyticsKpiCards({ overview }) {
           {avgLatencyMs} <span className="stat-unit">ms</span>
         </span>
         <span className="stat-sub">
-          p95: {p95LatencyMs} ms
+          p95: {p95LatencyMs} ms · Sample: {latencySampleCount || totalRequests} calls
         </span>
+      </div>
+
+      {/* 6. Estimated Cost Summary */}
+      <div className="card flex-container">
+        <span className="stat-label">{UI_LABELS.ANALYTICS.KPIS.AVG_COST}</span>
+        <span className="stat-value">
+          {avgCostPerRequestUsd != null ? `$${avgCostPerRequestUsd.toFixed(6)}` : '—'}
+        </span>
+        <span className="stat-sub">
+          Total: ${totalCostUsd.toFixed(4)} · {pricedRequestCount} of {totalRequests} priced ({costCoverageRate}%)
+        </span>
+        {unpricedRequestCount > 0 && (
+          <div className="badge badge-warning" title="Requests with unpriced models or missing token counts">
+            {unpricedRequestCount} unpriced request{unpricedRequestCount > 1 ? 's' : ''}
+          </div>
+        )}
       </div>
     </div>
   );

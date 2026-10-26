@@ -27,8 +27,8 @@ export function appUrl(pathname) {
 export function safeNextPath(value) {
   if (!value || value === APP_ROUTES.HOME || value === APP_ROUTES.AUTH) return APP_ROUTES.EXPENSE;
   const clean = value.replace(/\.html$/, '');
-  if (clean === '/admin' || clean === '/admin/knowledge-base') return APP_ROUTES.ADMIN_KNOWLEDGE;
-  if (clean === '/analytics' || clean === '/admin/analytics') return APP_ROUTES.ADMIN_ANALYTICS;
+  if (clean === '/admin/knowledge-base') return APP_ROUTES.ADMIN_KNOWLEDGE;
+  if (clean === '/admin/analytics') return APP_ROUTES.ADMIN_ANALYTICS;
   return ALLOWED_AUTH_DESTINATIONS.has(clean) ? clean : APP_ROUTES.EXPENSE;
 }
 
@@ -55,19 +55,14 @@ export function getUserRole(sessionOrUser) {
 export function getPostAuthPath(role, requestedNext) {
   const isAdmin = role === 'admin';
   if (isAdmin) {
-    if (
-      requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE ||
-      requestedNext === '/admin' ||
-      requestedNext === '/admin/knowledge-base'
-    ) {
+    if (requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE) {
       return APP_ROUTES.ADMIN_KNOWLEDGE;
     }
-    if (
-      requestedNext === APP_ROUTES.ADMIN_ANALYTICS ||
-      requestedNext === '/analytics' ||
-      requestedNext === '/admin/analytics'
-    ) {
+    if (requestedNext === APP_ROUTES.ADMIN_ANALYTICS) {
       return APP_ROUTES.ADMIN_ANALYTICS;
+    }
+    if (requestedNext === APP_ROUTES.EXPENSE) {
+      return APP_ROUTES.EXPENSE;
     }
     return APP_ROUTES.ADMIN_ANALYTICS;
   }
@@ -88,8 +83,58 @@ export function getPostAuthPath(role, requestedNext) {
 
 
 /**
+ * Extracts reliable retry duration from error headers or provider metadata.
+ * Returns formatted duration string (e.g. "60 seconds", "2 minutes") or null if unavailable.
+ *
+ * @param {Error|object} error
+ * @returns {string|null}
+ */
+export function extractRetryDuration(error) {
+  if (!error || typeof error !== 'object') return null;
+
+  // 1. Direct numeric/string retryAfter or retry_after fields
+  const directValue = error.retryAfter ?? error.retry_after;
+  if (directValue !== undefined && directValue !== null) {
+    const numeric = Number(directValue);
+    if (!Number.isNaN(numeric) && numeric > 0) {
+      return `${numeric} seconds`;
+    }
+    if (typeof directValue === 'string' && directValue.trim()) {
+      return directValue.trim();
+    }
+  }
+
+  // 2. Retry-After HTTP response header
+  const headers = error.headers || error.response?.headers;
+  if (headers) {
+    const rawHeader = typeof headers.get === 'function'
+      ? (headers.get('retry-after') || headers.get('Retry-After'))
+      : (headers['retry-after'] || headers['Retry-After']);
+
+    if (rawHeader) {
+      const numeric = Number(rawHeader);
+      if (!Number.isNaN(numeric) && numeric > 0) {
+        return `${numeric} seconds`;
+      }
+      if (typeof rawHeader === 'string' && rawHeader.trim()) {
+        return rawHeader.trim();
+      }
+    }
+  }
+
+  // 3. Provider error message metadata (e.g. "once every 60 seconds", "try again in 30 seconds")
+  const message = error.message || '';
+  const match = message.match(/(?:once every|retry after|try again in|wait)\s+(\d+\s*(?:seconds?|secs?|minutes?|mins?|hours?|s|m|h))/i);
+  if (match) {
+    return match[1].trim();
+  }
+
+  return null;
+}
+
+/**
  * Standardizes authentication error messages, specifically handling rate limits
- * with actionable instructions and countdown guidance.
+ * with clear English guidance and actual retry duration when reliably available.
  *
  * @param {Error|object} error - Auth error object
  * @param {'signup'|'signin'|'forgot'|'callback'} [context='signup']
@@ -111,19 +156,34 @@ export function formatAuthError(error, context = 'signup') {
     lower.includes('too many requests') ||
     lower.includes('over_email_send_rate_limit')
   ) {
-    if (lower.includes('once every') || lower.includes('seconds')) {
+    const retryDuration = extractRetryDuration(error);
+
+    // If provider message already includes complete security instructions with duration, preserve it
+    if (lower.includes('once every')) {
       return message;
     }
+
+    if (retryDuration) {
+      if (context === 'signup') {
+        return `Too many sign-up requests. Please try again in ${retryDuration}, or sign in if you already have an account.`;
+      }
+      if (context === 'forgot') {
+        return `Password reset requested too frequently. Please try again in ${retryDuration}.`;
+      }
+      return `Too many requests. Please try again in ${retryDuration}.`;
+    }
+
+    // Reliable duration is unavailable: do NOT invent a countdown or promise "a few minutes"
     if (context === 'signup') {
       return (
         'Too many sign-up requests or emails sent recently. ' +
-        'Please wait a few minutes before trying again, or sign in if you already have an account.'
+        'Please try again later, or sign in if you already have an account.'
       );
     }
     if (context === 'forgot') {
-      return 'Password reset requested too frequently. Please wait a few minutes before requesting another reset link.';
+      return 'Password reset requested too frequently. Please try again later.';
     }
-    return 'Too many requests. Please wait a moment and try again.';
+    return 'Too many requests. Please try again later.';
   }
 
   if (lower.includes('user already registered')) {

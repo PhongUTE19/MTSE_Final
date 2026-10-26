@@ -127,7 +127,7 @@ export default function TransactionTable({ data, filters, loading, onChangeFilte
                 currentDirection={filters.sortOrder}
                 onSort={handleSort}
               >
-                Amount
+                Amount (₫)
               </SortableHeader>
               <th>Actions</th>
             </tr>

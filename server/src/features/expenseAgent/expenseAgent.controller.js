@@ -31,6 +31,7 @@ export async function assistant(req, res, next) {
     const result = await orchestrateChat(message, {
       user: req.user,
       history,
+      strategy: 'agent',
     });
     res.json(result);
   } catch (error) {

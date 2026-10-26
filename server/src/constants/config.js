@@ -92,4 +92,9 @@ export const RATE_LIMIT_CONFIG = Object.freeze({
     MAX: 10,
     MESSAGE: 'Knowledge re-indexing requested too frequently. Please try again later.',
   }),
+  SIGNUP: Object.freeze({
+    WINDOW_MS: 15 * 60 * 1000,
+    MAX: 10,
+    MESSAGE: 'Too many sign-up attempts. Please try again later.',
+  }),
 });

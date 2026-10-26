@@ -187,14 +187,17 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
         agentType: 'search',
       });
 
-      assert.ok(result.promptVersion, 'Agent result must expose promptVersion');
-      assert.ok(result.promptVersion.startsWith('expense_agent_search:v1:'));
+      assert.equal(result.promptId, 'expense_agent_search');
+      assert.equal(result.promptVersion, 'v1');
+      assert.ok(result.promptHash && result.promptHash.length === 64, 'Agent result must expose promptHash');
 
       const records = getRecentUsageRecords(50).filter((r) => r.feature === 'expense_agent');
       assert.equal(records.length, startCount + 1);
 
       const latest = records[records.length - 1];
-      assert.equal(latest.promptVersion, result.promptVersion);
+      assert.equal(latest.promptId, 'expense_agent_search');
+      assert.equal(latest.promptVersion, 'v1');
+      assert.equal(latest.promptHash, result.promptHash);
       assert.equal(latest.prompt, undefined, 'Telemetry must not log raw prompt content');
     });
   });

@@ -1,20 +1,20 @@
 import React, { useCallback } from 'react';
-import { APP_ROUTES } from '../../shared/constants';
-import { appUrl, getUserRole } from '../../shared/services/supabaseAuth';
+import { appUrl, getPostAuthPath, getUserRole } from '../../shared/services/supabaseAuth';
 import AuthenticatedRouteGuard from './AuthenticatedRouteGuard';
 
-function redirectToExpense() {
-  window.location.replace(appUrl(APP_ROUTES.EXPENSE));
+function redirectToRoleLanding(role) {
+  window.location.replace(appUrl(getPostAuthPath(role)));
 }
 
 /**
- * Access control for administrator routes. Non-admins are sent to the expense
- * workspace; renders `children({ user, onSignOut })` for verified admins only.
+ * Access control for administrator routes. Non-admins are sent to their appropriate
+ * role landing route (e.g. /expense); renders `children({ user, onSignOut })` for verified admins only.
  */
 export default function AdminRouteGuard({ children }) {
   const handleValidate = useCallback((currentSession) => {
-    if (getUserRole(currentSession) !== 'admin') {
-      redirectToExpense();
+    const role = getUserRole(currentSession);
+    if (role !== 'admin') {
+      redirectToRoleLanding(role);
       return false;
     }
     return true;

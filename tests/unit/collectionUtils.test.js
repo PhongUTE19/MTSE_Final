@@ -233,9 +233,12 @@ describe('Collection and Table Utilities Suite', () => {
   });
 
   describe('formatTimestamp', () => {
-    it('formats ISO timestamps into YYYY-MM-DD HH:mm:ss format', () => {
+    it('formats ISO timestamps into YYYY-MM-DD HH:mm:ss in Asia/Ho_Chi_Minh by default', () => {
       const formatted = formatTimestamp('2026-10-22T12:30:45.000Z');
-      assert.strictEqual(formatted, '2026-10-22 12:30:45');
+      assert.strictEqual(formatted, '2026-10-22 19:30:45');
+
+      const formattedUtc = formatTimestamp('2026-10-22T12:30:45.000Z', 'UTC');
+      assert.strictEqual(formattedUtc, '2026-10-22 12:30:45');
     });
 
     it('returns dash for null or undefined or empty', () => {

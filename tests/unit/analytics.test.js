@@ -29,6 +29,11 @@ import {
   calculateDistributions,
   formatRecordForDb,
   formatDbToRecord,
+  calculateOverviewMetrics,
+  PRICING_VERSION,
+  MODEL_PRICING_REGISTRY,
+  calculateRequestCost,
+  normalizeModelName,
 } from '../../server/src/features/analytics/index.js';
 
 describe('AI Usage Analytics Suite', () => {
@@ -81,8 +86,13 @@ describe('AI Usage Analytics Suite', () => {
       assert.equal(record.tokenUsage.tokenCountsAvailable, true);
       assert.equal(record.tokenUsage.tokenCountsComplete, true);
 
-      // Verify NO cost field exists (per product decisions)
-      assert.equal(record.cost, undefined);
+      // Verify calculated cost telemetry
+      assert.ok(record.cost);
+      assert.equal(record.cost.costStatus, 'calculated');
+      assert.equal(record.cost.currency, 'USD');
+      assert.ok(typeof record.cost.estimatedCostUsd === 'number');
+      assert.equal(record.estimatedCost, record.cost.estimatedCostUsd);
+      assert.equal(record.costStatus, 'calculated');
     });
 
     it('records provider retry attempts and history correctly', () => {
@@ -164,6 +174,63 @@ describe('AI Usage Analytics Suite', () => {
       });
 
       assert.deepEqual(record.toolsExecuted, []);
+    });
+
+    it('separates id, promptId, promptVersion, and promptHash cleanly', () => {
+      const promptText = 'Extract all expense items from this receipt.';
+      const expectedHash = hashPrompt(promptText);
+
+      const record = tracker.trackUsage({
+        feature: 'receipt_extraction',
+        operation: 'extractReceiptImage',
+        promptId: 'receipt_extraction',
+        promptVersion: 'receipt-v3',
+        prompt: promptText,
+        durationMs: 300,
+      });
+
+      assert.ok(record.id && typeof record.id === 'string');
+      assert.equal(record.promptId, 'receipt_extraction');
+      assert.equal(record.promptVersion, 'receipt-v3');
+      assert.equal(record.promptHash, expectedHash);
+      assert.equal(record.promptHash.length, 64);
+    });
+
+    it('normalizes legacy pure 64-character SHA-256 hash in promptVersion without inventing versions', () => {
+      const rawSha256 = '4dc81826f9882504c128de71e305c47d9cbeeb16daf86a1098e5002bd73196dc';
+
+      const record = tracker.trackUsage({
+        feature: 'chat',
+        operation: 'generateAnswer',
+        promptVersion: rawSha256,
+        durationMs: 150,
+      });
+
+      assert.equal(record.promptHash, rawSha256);
+      assert.equal(record.promptVersion, null, 'Explicit version must not be invented for historical pure hashes');
+    });
+
+    it('normalizes legacy composite <version>:<hash> and <id>:<version>:<hash> without data loss', () => {
+      const hash1 = 'ddeb76aaa7d49ee52363870faa4951b9bdf1addfecd6208f2466ede81bc09243';
+      const record1 = tracker.trackUsage({
+        feature: 'receipt_extraction',
+        operation: 'extractReceiptImage',
+        promptVersion: `receipt-v3:${hash1}`,
+        durationMs: 200,
+      });
+      assert.equal(record1.promptVersion, 'receipt-v3');
+      assert.equal(record1.promptHash, hash1);
+
+      const hash2 = '8c9b578b288b9dd0d2ce299b3cd64a2404d188cef9c14db5fc5dd9446699311f';
+      const record2 = tracker.trackUsage({
+        feature: 'expense_agent',
+        operation: 'assistant',
+        promptVersion: `expense_agent_assistant:v1:${hash2}`,
+        durationMs: 350,
+      });
+      assert.equal(record2.promptId, 'expense_agent_assistant');
+      assert.equal(record2.promptVersion, 'v1');
+      assert.equal(record2.promptHash, hash2);
     });
   });
 
@@ -585,8 +652,12 @@ describe('AI Usage Analytics Suite', () => {
           tokenCountsAvailable: true,
           tokenCountsComplete: true,
         },
-        promptVersion: 'hash-abc',
-        toolsExecuted: [],
+        promptId: 'prompt_expense_analysis',
+        promptVersion: 'v1',
+        promptHash: '4dc81826f9882504c128de71e305c47d9cbeeb16daf86a1098e5002bd73196dc',
+        toolsExecuted: ['query_expenses'],
+        estimatedCost: 0.0000225,
+        costStatus: 'estimated',
         error: null,
       };
 
@@ -595,6 +666,12 @@ describe('AI Usage Analytics Suite', () => {
       assert.equal(dbRow.duration_ms, 350);
       assert.equal(dbRow.is_refusal, false);
       assert.equal(dbRow.input_tokens, 100);
+      assert.equal(dbRow.prompt_id, 'prompt_expense_analysis');
+      assert.equal(dbRow.prompt_version, 'v1');
+      assert.equal(dbRow.prompt_hash, '4dc81826f9882504c128de71e305c47d9cbeeb16daf86a1098e5002bd73196dc');
+      assert.equal(dbRow.estimated_cost, 0.0000225);
+      assert.equal(dbRow.cost_status, 'estimated');
+      assert.deepEqual(dbRow.tools_executed, ['query_expenses']);
 
       const reconstituted = formatDbToRecord(dbRow);
       assert.equal(reconstituted.id, originalRecord.id);
@@ -602,6 +679,183 @@ describe('AI Usage Analytics Suite', () => {
       assert.equal(reconstituted.timeToFirstTokenMs, originalRecord.timeToFirstTokenMs);
       assert.equal(reconstituted.tokenUsage.totalTokens, 150);
       assert.equal(reconstituted.tokenUsage.tokenCountsComplete, true);
+      assert.equal(reconstituted.promptId, 'prompt_expense_analysis');
+      assert.equal(reconstituted.promptVersion, 'v1');
+      assert.equal(reconstituted.promptHash, '4dc81826f9882504c128de71e305c47d9cbeeb16daf86a1098e5002bd73196dc');
+      assert.equal(reconstituted.estimatedCost, 0.0000225);
+      assert.equal(reconstituted.costStatus, 'estimated');
+      assert.deepEqual(reconstituted.toolsExecuted, ['query_expenses']);
+      assert.equal(reconstituted.cost.estimatedCostUsd, 0.0000225);
+    });
+
+    it('decodes historical database rows with legacy prompt_version formats gracefully', () => {
+      // Historical row 1: pure 64-hex SHA-256 hash in prompt_version, null prompt_id
+      const row1 = {
+        id: 'hist-1',
+        timestamp: '2026-10-25T07:07:40.825Z',
+        prompt_version: '4dc81826f9882504c128de71e305c47d9cbeeb16daf86a1098e5002bd73196dc',
+        prompt_id: null,
+      };
+      const rec1 = formatDbToRecord(row1);
+      assert.equal(rec1.promptHash, '4dc81826f9882504c128de71e305c47d9cbeeb16daf86a1098e5002bd73196dc');
+      assert.equal(rec1.promptVersion, null, 'Must not invent an explicit version for historical pure hashes');
+
+      // Historical row 2: composite <version>:<hash>
+      const row2 = {
+        id: 'hist-2',
+        timestamp: '2026-10-25T07:10:00.000Z',
+        prompt_version: 'receipt-v3:ddeb76aaa7d49ee52363870faa4951b9bdf1addfecd6208f2466ede81bc09243',
+        prompt_id: null,
+      };
+      const rec2 = formatDbToRecord(row2);
+      assert.equal(rec2.promptVersion, 'receipt-v3');
+      assert.equal(rec2.promptHash, 'ddeb76aaa7d49ee52363870faa4951b9bdf1addfecd6208f2466ede81bc09243');
+    });
+  });
+
+  describe('8. Centralized Pricing Configuration & Cost Calculations', () => {
+    it('calculates request cost accurately for gemini-2.5-flash based on verified pricing', () => {
+      // 100k input tokens = 0.1 * $0.075 = $0.0075
+      // 10k output tokens = 0.01 * $0.30 = $0.0030
+      // Total = $0.0105
+      const cost = calculateRequestCost('gemini-2.5-flash', {
+        inputTokens: 100000,
+        outputTokens: 10000,
+        tokenCountsAvailable: true,
+      });
+
+      assert.equal(cost.costStatus, 'calculated');
+      assert.equal(cost.pricingVersion, PRICING_VERSION);
+      assert.equal(cost.currency, 'USD');
+      assert.equal(cost.inputCostUsd, 0.0075);
+      assert.equal(cost.outputCostUsd, 0.003);
+      assert.equal(cost.estimatedCostUsd, 0.0105);
+    });
+
+    it('calculates request cost accurately for gemini-3.5-flash-lite', () => {
+      const cost = calculateRequestCost('gemini-3.5-flash-lite', {
+        inputTokens: 100000,
+        outputTokens: 10000,
+        tokenCountsAvailable: true,
+      });
+
+      assert.equal(cost.costStatus, 'calculated');
+      assert.equal(cost.pricingVersion, PRICING_VERSION);
+      assert.ok(cost.estimatedCostUsd > 0);
+    });
+
+    it('handles embedding models without output tokens', () => {
+      // 50,000 input tokens on text-embedding-004 ($0.02 / 1M) = 0.05 * 0.02 = 0.001 USD
+      const cost = calculateRequestCost('text-embedding-004', {
+        inputTokens: 50000,
+        outputTokens: 0,
+        tokenCountsAvailable: true,
+      });
+
+      assert.equal(cost.costStatus, 'calculated');
+      assert.equal(cost.inputCostUsd, 0.001);
+      assert.equal(cost.outputCostUsd, 0);
+      assert.equal(cost.estimatedCostUsd, 0.001);
+    });
+
+    it('returns explicit missing_tokens status and null cost when token counts are missing without fabricating counts', () => {
+      const missingTokens = calculateRequestCost('gemini-2.5-flash', {
+        inputTokens: null,
+        outputTokens: 20,
+        tokenCountsAvailable: false,
+      });
+
+      assert.equal(missingTokens.costStatus, 'missing_tokens');
+      assert.equal(missingTokens.estimatedCostUsd, null);
+      assert.equal(missingTokens.inputCostUsd, null);
+      assert.equal(missingTokens.outputCostUsd, null);
+    });
+
+    it('returns explicit unknown_pricing status and null cost for unrecognized models without inventing prices', () => {
+      const unknownModel = calculateRequestCost('unsupported-custom-llm', {
+        inputTokens: 1000,
+        outputTokens: 500,
+        tokenCountsAvailable: true,
+      });
+
+      assert.equal(unknownModel.costStatus, 'unknown_pricing');
+      assert.equal(unknownModel.estimatedCostUsd, null);
+    });
+
+    it('computes overview metrics, cost averages, sample counts, and coverage rate consistently', () => {
+      const records = [
+        // 1. Priced successful request ($0.01)
+        {
+          timestamp: '2026-10-20T10:00:00Z',
+          outcome: 'success',
+          durationMs: 200,
+          tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150, tokenCountsAvailable: true },
+          estimatedCost: 0.01,
+          costStatus: 'estimated',
+        },
+        // 2. Priced successful request ($0.03)
+        {
+          timestamp: '2026-10-20T10:05:00Z',
+          outcome: 'success',
+          durationMs: 400,
+          tokenUsage: { inputTokens: 200, outputTokens: 100, totalTokens: 300, tokenCountsAvailable: true },
+          estimatedCost: 0.03,
+          costStatus: 'estimated',
+        },
+        // 3. Failed request without tokens (duration 1000ms, unpriced)
+        {
+          timestamp: '2026-10-20T10:10:00Z',
+          outcome: 'failure',
+          durationMs: 1000,
+          tokenUsage: { inputTokens: null, outputTokens: null, totalTokens: null, tokenCountsAvailable: false },
+          estimatedCost: null,
+          costStatus: 'missing_tokens',
+        },
+        // 4. Request with unknown model pricing (duration 300ms, unpriced)
+        {
+          timestamp: '2026-10-20T10:15:00Z',
+          outcome: 'success',
+          durationMs: 300,
+          tokenUsage: { inputTokens: 50, outputTokens: 10, totalTokens: 60, tokenCountsAvailable: true },
+          estimatedCost: null,
+          costStatus: 'unknown_pricing',
+        },
+      ];
+
+      const metrics = calculateOverviewMetrics(records);
+
+      assert.equal(metrics.totalRequests, 4);
+      assert.equal(metrics.successCount, 3);
+      assert.equal(metrics.failureCount, 1);
+      assert.equal(metrics.recordsWithMissingTokens, 1);
+
+      // Cost metrics:
+      // Total cost = 0.01 + 0.03 = 0.04 USD
+      // Priced count = 2 (unpriced/missing requests do NOT dilute the average cost denominator)
+      // Unpriced count = 2
+      // Average cost = 0.04 / 2 = 0.02 USD
+      assert.equal(metrics.totalCostUsd, 0.04);
+      assert.equal(metrics.pricedRequestCount, 2);
+      assert.equal(metrics.unpricedRequestCount, 2);
+      assert.equal(metrics.avgCostPerRequestUsd, 0.02);
+      assert.equal(metrics.costCoverageRate, 50.0);
+
+      // Latency metrics:
+      // All 4 requests have valid durationMs (including failure at 1000ms):
+      // sum = 200 + 400 + 1000 + 300 = 1900 ms / 4 = 475 ms
+      assert.equal(metrics.latencySampleCount, 4);
+      assert.equal(metrics.avgLatencyMs, 475);
+    });
+
+    it('returns zero averages safely when no records exist without division by zero', () => {
+      const emptyMetrics = calculateOverviewMetrics([]);
+      assert.equal(emptyMetrics.totalRequests, 0);
+      assert.equal(emptyMetrics.totalCostUsd, 0);
+      assert.equal(emptyMetrics.pricedRequestCount, 0);
+      assert.equal(emptyMetrics.avgCostPerRequestUsd, null);
+      assert.equal(emptyMetrics.costCoverageRate, 0);
+      assert.equal(emptyMetrics.avgLatencyMs, 0);
+      assert.equal(emptyMetrics.latencySampleCount, 0);
     });
   });
 });

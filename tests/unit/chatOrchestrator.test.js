@@ -109,4 +109,42 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
       assert.equal(events[2].data.strategy, 'agent');
     });
   });
+
+  describe('4. Embedding Call Isolation & Active Workflow Protection', () => {
+    it('standard expense assistant requests route strictly to agent without invoking embeddings or RAG', async () => {
+      let ragExecutorCalled = false;
+      let embeddingCalls = 0;
+
+      const mockRagExecutor = async () => {
+        ragExecutorCalled = true;
+        embeddingCalls++;
+        return { passedThreshold: false, refusalText: 'rag called' };
+      };
+
+      let agentRunnerCalled = false;
+      const mockAgentRunner = async () => {
+        agentRunnerCalled = true;
+        return {
+          answer: 'You spent 50,000 VND on lunch.',
+          toolName: 'get_spending_summary',
+          toolResult: { total: 50000 },
+        };
+      };
+
+      // When called with strategy: 'agent' (as configured in expenseAgent.controller)
+      const res = await orchestrateChat('How much did I spend on lunch?', {
+        strategy: 'agent',
+        agentRunner: mockAgentRunner,
+        ragExecutor: mockRagExecutor,
+        user: { id: 'usr-1' },
+      });
+
+      assert.equal(agentRunnerCalled, true, 'Expense assistant must execute agent runner');
+      assert.equal(ragExecutorCalled, false, 'Expense assistant must NEVER invoke RAG executor');
+      assert.equal(embeddingCalls, 0, 'Expense assistant must generate zero embedding calls');
+      assert.equal(res.strategy, 'agent');
+      assert.deepEqual(res.sources, []);
+      assert.equal(res.retrieval, null);
+    });
+  });
 });

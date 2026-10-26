@@ -151,7 +151,7 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
     it('maps defaultTab appropriately for canonical and legacy admin routes', () => {
       const resolveAdminView = (pathname, defaultTab) => {
-        const activeView = (pathname === APP_ROUTES.ADMIN_KNOWLEDGE || pathname === '/admin') ? 'knowledge' : 'analytics';
+        const activeView = (pathname === APP_ROUTES.ADMIN_KNOWLEDGE) ? 'knowledge' : 'analytics';
         const pageTitle = activeView === 'analytics' ? 'AI Usage Analytics' : 'Knowledge Base';
         return { activeView, pageTitle, tab: defaultTab };
       };
@@ -172,8 +172,6 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
     it('ensures post-auth path never leaks admin routes to regular users', () => {
       assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.EXPENSE);
       assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.EXPENSE);
-      assert.equal(getPostAuthPath('user', '/admin'), APP_ROUTES.EXPENSE);
-      assert.equal(getPostAuthPath('user', '/analytics'), APP_ROUTES.EXPENSE);
       assert.equal(getPostAuthPath('user'), APP_ROUTES.EXPENSE);
     });
 
@@ -181,8 +179,6 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       assert.equal(getPostAuthPath('admin'), APP_ROUTES.ADMIN_ANALYTICS);
       assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.ADMIN_KNOWLEDGE);
       assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.ADMIN_ANALYTICS);
-      assert.equal(getPostAuthPath('admin', '/admin'), APP_ROUTES.ADMIN_KNOWLEDGE);
-      assert.equal(getPostAuthPath('admin', '/analytics'), APP_ROUTES.ADMIN_ANALYTICS);
     });
   });
 });

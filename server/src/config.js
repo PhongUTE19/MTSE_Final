@@ -44,6 +44,8 @@ export const config = {
     receiptOcrWindowMs: parseInt(process.env.RATE_LIMIT_RECEIPT_OCR_WINDOW_MS || String(RATE_LIMIT_CONFIG.RECEIPT_OCR.WINDOW_MS), 10),
     indexingMax: parseInt(process.env.RATE_LIMIT_INDEXING_MAX || String(RATE_LIMIT_CONFIG.INDEXING.MAX), 10),
     indexingWindowMs: parseInt(process.env.RATE_LIMIT_INDEXING_WINDOW_MS || String(RATE_LIMIT_CONFIG.INDEXING.WINDOW_MS), 10),
+    signupMax: parseInt(process.env.RATE_LIMIT_SIGNUP_MAX || String(RATE_LIMIT_CONFIG.SIGNUP.MAX), 10),
+    signupWindowMs: parseInt(process.env.RATE_LIMIT_SIGNUP_WINDOW_MS || String(RATE_LIMIT_CONFIG.SIGNUP.WINDOW_MS), 10),
   },
 };
 

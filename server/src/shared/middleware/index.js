@@ -9,6 +9,7 @@ export {
   expenseAgentRateLimiter,
   receiptOcrRateLimiter,
   indexingRateLimiter,
+  signupRateLimiter,
   createLimiter,
   resolveRateLimitKey,
 } from './rateLimiter.js';

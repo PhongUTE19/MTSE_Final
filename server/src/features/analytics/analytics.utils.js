@@ -57,6 +57,10 @@ export function calculateOverviewMetrics(records = []) {
   let totalTokens = 0;
   let recordsWithMissingTokens = 0;
 
+  let totalCostUsd = 0;
+  let pricedRequestCount = 0;
+  let unpricedRequestCount = 0;
+
   const latencies = [];
 
   for (const rec of records) {
@@ -72,14 +76,23 @@ export function calculateOverviewMetrics(records = []) {
       recordsWithMissingTokens++;
     }
 
-    if (typeof rec.durationMs === 'number') {
+    if (typeof rec.durationMs === 'number' && !isNaN(rec.durationMs)) {
       latencies.push(rec.durationMs);
+    }
+
+    const costVal = rec.estimatedCost ?? rec.cost?.estimatedCostUsd;
+    if (typeof costVal === 'number' && !isNaN(costVal)) {
+      totalCostUsd += costVal;
+      pricedRequestCount++;
+    } else {
+      unpricedRequestCount++;
     }
   }
 
   latencies.sort((a, b) => a - b);
   const sumLatency = latencies.reduce((acc, v) => acc + v, 0);
-  const avgLatencyMs = latencies.length > 0 ? Math.round(sumLatency / latencies.length) : 0;
+  const latencySampleCount = latencies.length;
+  const avgLatencyMs = latencySampleCount > 0 ? Math.round(sumLatency / latencySampleCount) : 0;
 
   const p50LatencyMs = calculatePercentile(latencies, PERCENTILES.P50);
   const p95LatencyMs = calculatePercentile(latencies, PERCENTILES.P95);
@@ -87,6 +100,14 @@ export function calculateOverviewMetrics(records = []) {
   const successRate = totalRequests > 0 ? Number(((successCount / totalRequests) * 100).toFixed(1)) : 0;
   const failureRate = totalRequests > 0 ? Number(((failureCount / totalRequests) * 100).toFixed(1)) : 0;
   const refusalRate = totalRequests > 0 ? Number(((refusalCount / totalRequests) * 100).toFixed(1)) : 0;
+
+  const avgCostPerRequestUsd = pricedRequestCount > 0
+    ? Number((totalCostUsd / pricedRequestCount).toFixed(6))
+    : null;
+  const roundedTotalCostUsd = Number(totalCostUsd.toFixed(6));
+  const costCoverageRate = totalRequests > 0
+    ? Number(((pricedRequestCount / totalRequests) * 100).toFixed(1))
+    : 0;
 
   return {
     totalRequests,
@@ -103,6 +124,12 @@ export function calculateOverviewMetrics(records = []) {
     avgLatencyMs,
     p50LatencyMs,
     p95LatencyMs,
+    latencySampleCount,
+    totalCostUsd: roundedTotalCostUsd,
+    avgCostPerRequestUsd,
+    pricedRequestCount,
+    unpricedRequestCount,
+    costCoverageRate,
   };
 }
 
@@ -131,6 +158,8 @@ export function groupRecordsIntoTimeBuckets(records = [], isHourly = false) {
         failureCount: 0,
         refusalCount: 0,
         totalTokens: 0,
+        totalCostUsd: 0,
+        pricedRequests: 0,
         durationSum: 0,
         avgLatencyMs: 0,
       });
@@ -145,10 +174,16 @@ export function groupRecordsIntoTimeBuckets(records = [], isHourly = false) {
     if (rec.tokenUsage?.totalTokens) {
       b.totalTokens += rec.tokenUsage.totalTokens;
     }
+    const costVal = rec.estimatedCost ?? rec.cost?.estimatedCostUsd;
+    if (typeof costVal === 'number' && !isNaN(costVal)) {
+      b.totalCostUsd = Number((b.totalCostUsd + costVal).toFixed(6));
+      b.pricedRequests++;
+    }
     if (rec.durationMs) {
       b.durationSum += rec.durationMs;
     }
     b.avgLatencyMs = Math.round(b.durationSum / b.totalRequests);
+    b.avgCostUsd = b.pricedRequests > 0 ? Number((b.totalCostUsd / b.pricedRequests).toFixed(6)) : null;
   }
 
   return Array.from(buckets.values());

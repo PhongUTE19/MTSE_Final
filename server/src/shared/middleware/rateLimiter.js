@@ -102,3 +102,14 @@ export const indexingRateLimiter = createLimiter({
   max: config?.rateLimits?.indexingMax ?? RATE_LIMIT_CONFIG.INDEXING.MAX,
   message: RATE_LIMIT_CONFIG.INDEXING.MESSAGE,
 });
+
+/**
+ * Dedicated rate limiter for sign-up attempts.
+ * Configurable via RATE_LIMIT_SIGNUP_MAX (default: 10 req / 15 min).
+ * Protects registration against abuse, automated floods, and credential stuffing.
+ */
+export const signupRateLimiter = createLimiter({
+  windowMs: config?.rateLimits?.signupWindowMs ?? RATE_LIMIT_CONFIG.SIGNUP.WINDOW_MS,
+  max: config?.rateLimits?.signupMax ?? RATE_LIMIT_CONFIG.SIGNUP.MAX,
+  message: RATE_LIMIT_CONFIG.SIGNUP.MESSAGE,
+});

@@ -86,6 +86,7 @@ export default function AuthPage() {
 
   async function handleSubmit(event) {
     event.preventDefault();
+    if (loading) return;
     const nextErrors = validate(form, mode);
     setErrors(nextErrors);
     setNotice('');
@@ -208,11 +209,6 @@ export default function AuthPage() {
           </div>
 
           <form className="auth-form" onSubmit={handleSubmit} noValidate>
-            {Object.keys(errors).length > 0 && (
-              <div className="auth-alert auth-alert--error" role="alert">
-                {AUTH_LABELS.NOTICES.VALIDATION_SUMMARY}
-              </div>
-            )}
             {notice && (
               <div className="auth-alert auth-alert--info" role="status">
                 {notice}

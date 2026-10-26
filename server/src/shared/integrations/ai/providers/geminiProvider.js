@@ -197,7 +197,9 @@ export async function generateAnswer(prompt, options = {}) {
   const ai = getAIClient();
   const feature = options.feature || 'chat';
   const model = options.model || config.geminiReceiptModel;
-  const promptVersion = hashPrompt(prompt);
+  const promptId = options.promptId || null;
+  const promptVersion = options.promptVersion || null;
+  const promptHash = hashPrompt(prompt);
 
   try {
     const { result: response, attempts, totalAttempts, durationMs } = await executeWithRetry(() =>
@@ -229,7 +231,9 @@ export async function generateAnswer(prompt, options = {}) {
       durationMs,
       attempts,
       totalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [],
       tokenUsage: {
         inputTokens,
@@ -258,7 +262,9 @@ export async function generateAnswer(prompt, options = {}) {
       durationMs: executionMeta.durationMs,
       attempts: executionMeta.attempts,
       totalAttempts: executionMeta.totalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [],
       error,
       tokenUsage: {
@@ -286,7 +292,9 @@ export async function generateAnswerStream(prompt, options = {}) {
   const ai = getAIClient();
   const feature = options.feature || 'chat';
   const model = options.model || config.geminiReceiptModel;
-  const promptVersion = hashPrompt(prompt);
+  const promptId = options.promptId || null;
+  const promptVersion = options.promptVersion || null;
+  const promptHash = hashPrompt(prompt);
 
   const requestConfig = {};
   if (options.signal) {
@@ -326,7 +334,9 @@ export async function generateAnswerStream(prompt, options = {}) {
       durationMs: executionMeta.durationMs,
       attempts: executionMeta.attempts,
       totalAttempts: executionMeta.totalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [],
       error,
       tokenUsage: {
@@ -388,7 +398,9 @@ export async function generateAnswerStream(prompt, options = {}) {
             timeToFirstTokenMs,
             attempts,
             totalAttempts,
+            promptId,
             promptVersion,
+            promptHash,
             toolsExecuted: [],
             error: streamError || (isAborted ? new Error('Generation aborted by client') : null),
             tokenUsage: {
@@ -421,7 +433,9 @@ export async function generateAnswerStream(prompt, options = {}) {
             timeToFirstTokenMs,
             attempts,
             totalAttempts,
+            promptId,
             promptVersion,
+            promptHash,
             toolsExecuted: [],
             tokenUsage: {
               inputTokens,
@@ -459,15 +473,15 @@ export async function extractReceiptImage(image, options = {}) {
     enforceReceiptGuardrails(validated.data);
     const usage = result.usageMetadata || {};
     recordUsage({ feature: 'receipt_extraction', operation: 'extractReceiptImage', provider: 'google-genai', model,
-      outcome: 'success', durationMs, attempts, totalAttempts, promptVersion: `${RECEIPT_PROMPT_VERSION}:${hashPrompt(prompt)}`,
-      toolsExecuted: [], tokenUsage: { inputTokens: usage.promptTokenCount ?? null, outputTokens: usage.candidatesTokenCount ?? null, totalTokens: usage.totalTokenCount ?? null, tokenCountsAvailable: typeof usage.promptTokenCount === 'number' },
+      outcome: 'success', durationMs, attempts, totalAttempts, promptId: RECEIPT_PROMPT_ID, promptVersion: RECEIPT_PROMPT_VERSION,
+      promptHash: hashPrompt(prompt), toolsExecuted: [], tokenUsage: { inputTokens: usage.promptTokenCount ?? null, outputTokens: usage.candidatesTokenCount ?? null, totalTokens: usage.totalTokenCount ?? null, tokenCountsAvailable: typeof usage.promptTokenCount === 'number' },
     });
     return { extraction: validated.data, provider: 'google-genai', model, latencyMs: Date.now() - started, tokenUsage: usage };
   } catch (error) {
     const meta = error.executionMetadata || { attempts: [], totalAttempts: 1, durationMs: Date.now() - started };
     recordUsage({ feature: 'receipt_extraction', operation: 'extractReceiptImage', provider: 'google-genai', model,
       outcome: 'failure', durationMs: meta.durationMs, attempts: meta.attempts, totalAttempts: meta.totalAttempts,
-      promptVersion: `${RECEIPT_PROMPT_VERSION}:${hashPrompt(prompt)}`, toolsExecuted: [], error,
+      promptId: RECEIPT_PROMPT_ID, promptVersion: RECEIPT_PROMPT_VERSION, promptHash: hashPrompt(prompt), toolsExecuted: [], error,
       tokenUsage: { inputTokens: null, outputTokens: null, totalTokens: null, tokenCountsAvailable: false },
     });
     throw error;

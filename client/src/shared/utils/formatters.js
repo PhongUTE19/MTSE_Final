@@ -71,31 +71,63 @@ export function formatNumber(num) {
 }
 
 /**
- * Formats an ISO date-time string to readable YYYY-MM-DD HH:mm:ss.
+ * Formats an ISO date-time string to readable YYYY-MM-DD HH:mm:ss in Vietnam timezone (Asia/Ho_Chi_Minh).
  *
  * @param {string|null|undefined} isoString - ISO timestamp
+ * @param {string} [timeZone='Asia/Ho_Chi_Minh'] - IANA time zone
  * @returns {string} Formatted timestamp or dash
  */
-export function formatTimestamp(isoString) {
+export function formatTimestamp(isoString, timeZone = 'Asia/Ho_Chi_Minh') {
   if (!isoString) return '—';
   try {
     const d = new Date(isoString);
-    return d.toISOString().replace('T', ' ').slice(0, 19);
+    if (isNaN(d.getTime())) return isoString;
+    const parts = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).formatToParts(d);
+    const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    return `${map.year}-${map.month}-${map.day} ${map.hour}:${map.minute}:${map.second}`;
   } catch {
     return isoString;
   }
 }
 
 /**
- * Formats a monetary number in VND currency.
+ * Formats a monetary number in VND currency with standard zero-decimal formatting.
  *
  * @param {number|string|null|undefined} value - Amount to format
- * @returns {string} Formatted currency string
+ * @returns {string} Formatted currency string (e.g. ₫50,000)
  */
 export function formatMoney(value) {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  const safe = Number.isFinite(numeric) ? Math.round(numeric) : 0;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: 'VND',
     maximumFractionDigits: 0,
-  }).format(value || 0);
+  }).format(safe);
+}
+
+/**
+ * Parses monetary input safely to numeric integer VND amount.
+ * Returns 0 if invalid or non-numeric.
+ *
+ * @param {any} value
+ * @returns {number}
+ */
+export function parseMoney(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.round(value) : 0;
+  }
+  const cleaned = String(value).replace(/[^\d.-]/g, '');
+  const numeric = Number(cleaned);
+  return Number.isFinite(numeric) ? Math.round(numeric) : 0;
 }

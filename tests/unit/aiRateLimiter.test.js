@@ -9,6 +9,7 @@ import {
   receiptOcrRateLimiter,
   apiRateLimiter,
   indexingRateLimiter,
+  signupRateLimiter,
 } from '../../server/src/shared/middleware/rateLimiter.js';
 import { RATE_LIMIT_CONFIG } from '../../server/src/constants/config.js';
 import { config } from '../../server/src/config.js';
@@ -258,6 +259,10 @@ describe('AI Rate Limiting & Quota Protection Suite', () => {
 
       assert.equal(RATE_LIMIT_CONFIG.INDEXING.MAX, 10);
       assert.equal(RATE_LIMIT_CONFIG.INDEXING.WINDOW_MS, 15 * 60 * 1000);
+
+      assert.equal(RATE_LIMIT_CONFIG.SIGNUP.MAX, 10);
+      assert.equal(RATE_LIMIT_CONFIG.SIGNUP.WINDOW_MS, 15 * 60 * 1000);
+      assert.equal(typeof signupRateLimiter, 'function');
     });
 
     it('verifies config.rateLimits exposes all limiter configurations with defaults', () => {
@@ -267,6 +272,7 @@ describe('AI Rate Limiting & Quota Protection Suite', () => {
       assert.equal(config.rateLimits.expenseAgentMax, 30);
       assert.equal(config.rateLimits.receiptOcrMax, 15);
       assert.equal(config.rateLimits.indexingMax, 10);
+      assert.equal(config.rateLimits.signupMax, 10);
     });
   });
 

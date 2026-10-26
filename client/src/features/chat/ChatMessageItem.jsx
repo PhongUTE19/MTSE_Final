@@ -11,7 +11,6 @@ export default function ChatMessageItem({
   onRevealComplete,
   renderToolResult,
   avatarIcon,
-  toolLabel = 'Function',
 }) {
   const isUser = item.role === 'user';
 
@@ -36,7 +35,6 @@ export default function ChatMessageItem({
           animate={Boolean(item.isNew)}
           onComplete={() => onRevealComplete?.(item.id)}
         />
-        {item.toolName && <small className="ai-tool-name">{toolLabel}: {item.toolName}</small>}
         {renderToolResult?.(item)}
       </div>
     </article>

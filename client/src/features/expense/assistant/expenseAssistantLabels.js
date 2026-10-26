@@ -5,7 +5,7 @@ export const ASSISTANT_QUICK_ACTIONS = Object.freeze([
   ['⌕', 'Find transactions', 'Search for my recent transactions.'],
   ['◴', 'Spending summary', 'How much did I earn and spend this month?'],
   ['◌', 'Category breakdown', 'Which category did I spend the most on this month?'],
-  ['＋', 'Add transaction', 'I spent $45 on groceries today.'],
+  ['＋', 'Add transaction', 'I spent some money today.'],
 ]);
 
 /**

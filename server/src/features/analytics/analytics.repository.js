@@ -33,8 +33,12 @@ export function formatRecordForDb(record) {
     output_tokens: record.tokenUsage?.outputTokens ?? null,
     total_tokens: record.tokenUsage?.totalTokens ?? null,
     token_counts_available: Boolean(record.tokenUsage?.tokenCountsAvailable),
+    prompt_id: record.promptId || null,
     prompt_version: record.promptVersion || null,
+    prompt_hash: record.promptHash || null,
     tools_executed: record.toolsExecuted || [],
+    estimated_cost: record.estimatedCost ?? null,
+    cost_status: record.costStatus || 'unknown',
     error: record.error || null,
   };
 }
@@ -48,6 +52,30 @@ export function formatRecordForDb(record) {
 export function formatDbToRecord(row) {
   const isRefusal = Boolean(row.is_refusal);
   const totalAttempts = row.total_attempts || 1;
+  const estimatedCost = row.estimated_cost != null ? Number(row.estimated_cost) : null;
+  const costStatus = row.cost_status || (estimatedCost !== null ? 'calculated' : 'unknown');
+
+  // Parse prompt metadata safely, supporting historical rows where hash was in prompt_version
+  let promptId = row.prompt_id || null;
+  let promptVersion = row.prompt_version || null;
+  let promptHash = row.prompt_hash || null;
+
+  if (promptVersion && typeof promptVersion === 'string') {
+    const trimmed = promptVersion.trim();
+    if (/^[a-f0-9]{64}$/i.test(trimmed)) {
+      if (!promptHash) promptHash = trimmed;
+      promptVersion = null; // Do not invent explicit version for pure hash
+    } else if (/^[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+:[a-f0-9]{64}$/i.test(trimmed)) {
+      const parts = trimmed.split(':');
+      if (!promptId) promptId = parts[0];
+      promptVersion = parts[1];
+      if (!promptHash) promptHash = parts[2];
+    } else if (/^[a-zA-Z0-9_-]+:[a-f0-9]{64}$/i.test(trimmed)) {
+      const parts = trimmed.split(':');
+      promptVersion = parts[0];
+      if (!promptHash) promptHash = parts[1];
+    }
+  }
 
   return {
     id: row.id,
@@ -77,8 +105,17 @@ export function formatDbToRecord(row) {
         row.total_tokens !== null
       ),
     },
-    promptVersion: row.prompt_version,
+    promptId,
+    promptVersion,
+    promptHash,
     toolsExecuted: row.tools_executed || [],
+    cost: {
+      estimatedCostUsd: estimatedCost,
+      costStatus,
+      currency: 'USD',
+    },
+    estimatedCost,
+    costStatus,
     error: row.error,
   };
 }

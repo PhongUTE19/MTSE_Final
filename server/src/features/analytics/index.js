@@ -7,3 +7,4 @@ export * from './analytics.utils.js';
 export * from './analytics.repository.js';
 export * from './analytics.writer.js';
 export * from './usageTracker.js';
+export * from './pricingConfig.js';

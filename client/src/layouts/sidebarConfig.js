@@ -47,16 +47,14 @@ export function isAdminItemActive(item, currentPath = '', activeView = '') {
   if (currentPath && currentPath === item.path) return true;
   if (
     item.path === APP_ROUTES.ADMIN_KNOWLEDGE &&
-    (currentPath === '/admin' ||
-      currentPath === '/admin/knowledge-base' ||
+    (currentPath === '/admin/knowledge-base' ||
       activeView === 'knowledge')
   ) {
     return true;
   }
   if (
     item.path === APP_ROUTES.ADMIN_ANALYTICS &&
-    (currentPath === '/analytics' ||
-      currentPath === '/admin/analytics' ||
+    (currentPath === '/admin/analytics' ||
       activeView === 'analytics')
   ) {
     return true;
@@ -77,8 +75,6 @@ export function isWorkspaceItemActive(item, currentPath = '', activeView = '') {
   const isAdminPath =
     currentPath === APP_ROUTES.ADMIN_ANALYTICS ||
     currentPath === APP_ROUTES.ADMIN_KNOWLEDGE ||
-    currentPath === '/admin' ||
-    currentPath === '/analytics' ||
     activeView === 'knowledge' ||
     activeView === 'analytics';
 

@@ -37,6 +37,9 @@ export class SupabaseUsageWriter {
   }
 
   get isConfigured() {
+    if (process.env.FORCE_IN_MEMORY_ANALYTICS === 'true') {
+      return Boolean(this.hasExplicitClient && this.client);
+    }
     if (this.hasExplicitClient) {
       return Boolean(this.client);
     }
@@ -172,6 +175,9 @@ export const defaultSupabaseWriter = new SupabaseUsageWriter();
 
 // Automatically wire defaultUsageStore to defaultSupabaseWriter
 defaultUsageStore.subscribe(async (record) => {
+  if (process.env.FORCE_IN_MEMORY_ANALYTICS === 'true') {
+    return;
+  }
   if (isSupabaseConfigured()) {
     defaultSupabaseWriter.enqueue(record);
   }

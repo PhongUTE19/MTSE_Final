@@ -5,6 +5,7 @@ import {
   MAX_RECEIPT_SIZE_BYTES,
   RECEIPT_ACCEPTED_TYPES,
 } from '../expense/expenseConstants';
+import { formatMoney } from '../../shared/utils/formatters';
 
 /**
  * Dedicated view component for the Receipts tab in SpendWise.
@@ -154,7 +155,10 @@ export default function ReceiptsView({
                 <div>
                   <strong>{pendingReceipt.filename}</strong>
                   <small>
-                    {pendingReceipt.extraction?.merchant || 'Receipt draft'} ·{' '}
+                    {pendingReceipt.extraction?.merchant || 'Receipt draft'}
+                    {pendingReceipt.extraction?.totalAmount
+                      ? ` · ${formatMoney(pendingReceipt.extraction.totalAmount)}`
+                      : ''} ·{' '}
                     {pendingReceipt.createdAt
                       ? new Date(pendingReceipt.createdAt).toLocaleDateString()
                       : 'Pending'}

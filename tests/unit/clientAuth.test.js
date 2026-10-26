@@ -5,6 +5,7 @@ import {
   getUserRole,
   getPostAuthPath,
   formatAuthError,
+  extractRetryDuration,
   safeNextPath,
 } from '../../client/src/shared/services/supabaseAuth.js';
 
@@ -51,8 +52,7 @@ describe('Client Authentication and Role Routing Suite', () => {
     it('preserves canonical and legacy admin routes when explicitly requested by an admin', () => {
       assert.equal(getPostAuthPath('admin', '/admin/knowledge-base'), '/admin/knowledge-base');
       assert.equal(getPostAuthPath('admin', '/admin/analytics'), '/admin/analytics');
-      assert.equal(getPostAuthPath('admin', '/admin'), '/admin/knowledge-base');
-      assert.equal(getPostAuthPath('admin', '/analytics'), '/admin/analytics');
+      assert.equal(getPostAuthPath('admin', '/expense'), '/expense');
     });
 
     it('redirects non-admin users to /expense by default', () => {
@@ -95,18 +95,40 @@ describe('Client Authentication and Role Routing Suite', () => {
   });
 
   describe('3. Auth Error Formatting & Rate Limit Actionable Messages', () => {
-    it('formats 429 HTTP status into clear user-friendly guidance', () => {
+    it('formats 429 HTTP status into clear user-friendly guidance without unsupported recovery promises', () => {
       const error = { status: 429, message: 'Too Many Requests' };
       const formatted = formatAuthError(error, 'signup');
       assert.match(formatted, /too many sign-up requests or emails sent recently/i);
-      assert.match(formatted, /please wait a few minutes/i);
+      assert.match(formatted, /please try again later/i);
+      assert.equal(formatted.includes('wait a few minutes'), false, 'Must not promise unsupported duration');
     });
 
-    it('formats over_email_send_rate_limit code into clear actionable notice', () => {
+    it('formats over_email_send_rate_limit code into clear actionable notice without unsupported promises', () => {
       const error = { code: 'over_email_send_rate_limit', message: 'email rate limit exceeded' };
       const formatted = formatAuthError(error, 'signup');
       assert.match(formatted, /too many sign-up requests/i);
-      assert.match(formatted, /wait a few minutes before trying again/i);
+      assert.match(formatted, /try again later/i);
+      assert.equal(formatted.includes('wait a few minutes'), false, 'Must not promise unsupported duration');
+    });
+
+    it('displays actual retry duration when available via Retry-After header', () => {
+      const error = {
+        status: 429,
+        message: 'Too Many Requests',
+        headers: { 'retry-after': '60' },
+      };
+      const formatted = formatAuthError(error, 'signup');
+      assert.equal(formatted, 'Too many sign-up requests. Please try again in 60 seconds, or sign in if you already have an account.');
+    });
+
+    it('displays actual retry duration when available via retryAfter numeric property', () => {
+      const error = {
+        status: 429,
+        message: 'Too Many Requests',
+        retryAfter: 45,
+      };
+      const formatted = formatAuthError(error, 'signup');
+      assert.equal(formatted, 'Too many sign-up requests. Please try again in 45 seconds, or sign in if you already have an account.');
     });
 
     it('formats duplicate user registrations with prompt to sign in', () => {
@@ -121,10 +143,19 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(formatted, 'Invalid email address or password. Please verify your credentials and try again.');
     });
 
-    it('preserves provider cooldown timer when specified', () => {
+    it('preserves provider cooldown timer when specified in error message', () => {
       const error = { message: 'For security purposes, you can only request this once every 60 seconds' };
       const formatted = formatAuthError(error, 'signup');
       assert.equal(formatted, error.message);
+    });
+
+    it('extractRetryDuration reliably parses headers, properties, and message metadata', () => {
+      assert.equal(extractRetryDuration({ headers: { 'retry-after': '120' } }), '120 seconds');
+      assert.equal(extractRetryDuration({ retryAfter: 30 }), '30 seconds');
+      assert.equal(extractRetryDuration({ retry_after: '45 seconds' }), '45 seconds');
+      assert.equal(extractRetryDuration({ message: 'Rate limit exceeded. Try again in 15 seconds.' }), '15 seconds');
+      assert.equal(extractRetryDuration({ message: 'Too Many Requests' }), null);
+      assert.equal(extractRetryDuration(null), null);
     });
   });
 
@@ -148,6 +179,24 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(expenseGateValidator(adminSession), true);
       assert.equal(expenseGateValidator(regularSession), true);
       assert.equal(expenseGateValidator(null), false);
+    });
+
+    it('redirects unauthorized authenticated non-admins to role landing route (/expense)', () => {
+      const regularSession = { user: { id: 'u2', app_metadata: { role: 'user' } } };
+      const redirects = [];
+      const mockRedirectToRoleLanding = (role) => redirects.push(getPostAuthPath(role));
+
+      const adminGateHandler = (currentSession) => {
+        const role = getUserRole(currentSession);
+        if (role !== 'admin') {
+          mockRedirectToRoleLanding(role);
+          return false;
+        }
+        return true;
+      };
+
+      assert.equal(adminGateHandler(regularSession), false);
+      assert.deepEqual(redirects, ['/expense']);
     });
 
     it('expenseApi reuses consolidated apiClient and exposes all required methods', async () => {

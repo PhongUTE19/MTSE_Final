@@ -1,4 +1,5 @@
 import crypto from 'crypto';
+import { calculateRequestCost } from './pricingConfig.js';
 
 /**
  * Generates a deterministic SHA-256 hash of the resolved prompt text.
@@ -281,11 +282,39 @@ export function createUsageTracker(options = {}) {
         tokenCountsComplete,
       };
 
-      // Deterministic prompt version hash (never storing prompt text)
-      const promptVersion = recordData.promptVersion || (recordData.prompt ? hashPrompt(recordData.prompt) : null);
+      // Clean separation of prompt metadata: ID, explicit version, and content hash
+      let promptId = recordData.promptId || null;
+      let promptVersion = recordData.promptVersion || null;
+      let promptHash = recordData.promptHash || (recordData.prompt ? hashPrompt(recordData.prompt) : null);
+
+      // Normalize backward-compatible legacy formats passed into promptVersion
+      if (promptVersion && typeof promptVersion === 'string') {
+        const trimmed = promptVersion.trim();
+        if (/^[a-f0-9]{64}$/i.test(trimmed)) {
+          // Pure 64-hex SHA-256 hash was passed in promptVersion; move to promptHash, do not invent version
+          if (!promptHash) promptHash = trimmed;
+          promptVersion = null;
+        } else if (/^[a-zA-Z0-9_-]+:[a-zA-Z0-9_-]+:[a-f0-9]{64}$/i.test(trimmed)) {
+          // Composite <id>:<version>:<hash>
+          const parts = trimmed.split(':');
+          if (!promptId) promptId = parts[0];
+          promptVersion = parts[1];
+          if (!promptHash) promptHash = parts[2];
+        } else if (/^[a-zA-Z0-9_-]+:[a-f0-9]{64}$/i.test(trimmed)) {
+          // Composite <version>:<hash>
+          const parts = trimmed.split(':');
+          promptVersion = parts[0];
+          if (!promptHash) promptHash = parts[1];
+        }
+      }
 
       // Real tool usage: honestly represent empty list when no tool executions exist
       const toolsExecuted = Array.isArray(recordData.toolsExecuted) ? recordData.toolsExecuted : [];
+
+      // Estimated request cost calculated from verified pricing and actual tokens
+      const cost = recordData.cost || calculateRequestCost(model, tokenUsage);
+      const estimatedCost = cost.estimatedCostUsd;
+      const costStatus = cost.costStatus;
 
       // Error categorization and sanitization
       let errorInfo = null;
@@ -314,8 +343,13 @@ export function createUsageTracker(options = {}) {
         attemptCount: totalAttempts,
         totalAttempts,
         tokenUsage,
+        promptId,
         promptVersion,
+        promptHash,
         toolsExecuted,
+        cost,
+        estimatedCost,
+        costStatus,
         error: errorInfo,
       };
 

@@ -77,18 +77,23 @@ function safeRecordUsage(recordData) {
 
 function resolveExpenseAgentPrompt(agentType, today, customInstruction) {
   if (customInstruction) {
+    const hash = hashPrompt(customInstruction);
     return {
       text: customInstruction,
-      version: hashPrompt(customInstruction),
       promptId: 'custom',
+      promptVersion: null,
+      promptHash: hash,
+      version: hash,
     };
   }
 
   const resolved = getExpenseAgentPrompt(agentType, { today });
   return {
     text: resolved.text,
-    version: resolved.version,
     promptId: resolved.id,
+    promptVersion: resolved.baseVersion,
+    promptHash: hashPrompt(resolved.text),
+    version: resolved.version,
   };
 }
 
@@ -133,7 +138,9 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
   };
 
   const feature = options.feature || 'expense_agent';
-  const promptVersion = options.promptVersion || promptResolution.version;
+  const promptId = options.promptId || promptResolution.promptId;
+  const promptVersion = options.promptVersion || promptResolution.promptVersion;
+  const promptHash = options.promptHash || promptResolution.promptHash;
   const maxRetries = options.maxRetries ?? RETRY_CONFIG.MAX_RETRIES;
   const initialDelayMs = options.initialDelayMs ?? RETRY_CONFIG.INITIAL_DELAY_MS;
 
@@ -175,7 +182,9 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
       durationMs: firstDurationMs,
       attempts: firstAttempts,
       totalAttempts: firstTotalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [],
       tokenUsage: {
         inputTokens: typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : null,
@@ -199,7 +208,9 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
       durationMs: meta.durationMs,
       attempts: meta.attempts,
       totalAttempts: meta.totalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [],
       error,
       tokenUsage: {
@@ -216,7 +227,7 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
   if (!call) {
     const clarification = firstResponse.text?.trim();
     if (!clarification) throw new Error('Gemini returned neither a function call nor a clarification.');
-    return { answer: clarification, toolName: null, toolResult: null, promptVersion };
+    return { answer: clarification, toolName: null, toolResult: null, promptId, promptVersion, promptHash };
   }
 
   const toolResult = await executeTool(call.name, call.args || {});
@@ -263,7 +274,9 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
       durationMs: finalDurationMs,
       attempts: finalAttempts,
       totalAttempts: finalTotalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [call.name],
       tokenUsage: {
         inputTokens: typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : null,
@@ -287,7 +300,9 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
       durationMs: meta.durationMs,
       attempts: meta.attempts,
       totalAttempts: meta.totalAttempts,
+      promptId,
       promptVersion,
+      promptHash,
       toolsExecuted: [call.name],
       error,
       tokenUsage: {
