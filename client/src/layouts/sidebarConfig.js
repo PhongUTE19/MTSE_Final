@@ -47,15 +47,13 @@ export function isAdminItemActive(item, currentPath = '', activeView = '') {
   if (currentPath && currentPath === item.path) return true;
   if (
     item.path === APP_ROUTES.ADMIN_KNOWLEDGE &&
-    (currentPath === '/admin/knowledge-base' ||
-      activeView === 'knowledge')
+    (currentPath === APP_ROUTES.ADMIN_KNOWLEDGE)
   ) {
     return true;
   }
   if (
     item.path === APP_ROUTES.ADMIN_ANALYTICS &&
-    (currentPath === '/admin/analytics' ||
-      activeView === 'analytics')
+    (currentPath === APP_ROUTES.ADMIN_ANALYTICS)
   ) {
     return true;
   }

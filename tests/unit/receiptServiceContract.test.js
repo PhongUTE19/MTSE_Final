@@ -99,3 +99,21 @@ it('cleans up a failed extraction instead of retaining failed receipt history', 
   assert.deepEqual(rpcCalls, ['create_receipt_upload', 'start_receipt_processing', 'begin_receipt_delete', 'finalize_receipt_delete']);
   assert.deepEqual(storageCalls, [[receipt.storage_path]]);
 });
+
+it('extractReceiptImage records telemetry and surfaces operational error without crashing on failure', async () => {
+  const { extractReceiptImage, setAIClientForTests } = await import('../../server/src/shared/integrations/ai/providers/geminiProvider.js');
+  setAIClientForTests({
+    models: {
+      generateContent: async () => { throw new Error('Simulated upstream failure'); },
+    },
+  });
+
+  try {
+    await assert.rejects(
+      () => extractReceiptImage({ buffer: Buffer.from('test'), mimeType: 'image/png' }, { timeoutMs: 500 }),
+      /Simulated upstream failure/,
+    );
+  } finally {
+    setAIClientForTests(null);
+  }
+});

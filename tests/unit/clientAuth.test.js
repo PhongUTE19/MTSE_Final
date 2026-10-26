@@ -43,10 +43,10 @@ describe('Client Authentication and Role Routing Suite', () => {
   });
 
   describe('2. Post-Authentication Destination Mapping', () => {
-    it('redirects admin users to /admin/analytics by default', () => {
-      assert.equal(getPostAuthPath('admin'), '/admin/analytics');
-      assert.equal(getPostAuthPath('admin', null), '/admin/analytics');
-      assert.equal(getPostAuthPath('admin', ''), '/admin/analytics');
+    it('redirects admin users to / by default', () => {
+      assert.equal(getPostAuthPath('admin'), '/home');
+      assert.equal(getPostAuthPath('admin', null), '/home');
+      assert.equal(getPostAuthPath('admin', ''), '/home');
     });
 
     it('preserves canonical and legacy admin routes when explicitly requested by an admin', () => {
@@ -55,18 +55,18 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(getPostAuthPath('admin', '/expense'), '/expense');
     });
 
-    it('redirects non-admin users to /expense by default', () => {
-      assert.equal(getPostAuthPath('user'), '/expense');
-      assert.equal(getPostAuthPath('user', null), '/expense');
-      assert.equal(getPostAuthPath('user', ''), '/expense');
+    it('redirects non-admin users to / by default', () => {
+      assert.equal(getPostAuthPath('user'), '/home');
+      assert.equal(getPostAuthPath('user', null), '/home');
+      assert.equal(getPostAuthPath('user', ''), '/home');
     });
 
-    it('strictly prevents non-admin users from accessing /admin or /analytics routes', () => {
-      assert.equal(getPostAuthPath('user', '/admin'), '/expense');
-      assert.equal(getPostAuthPath('user', '/analytics'), '/expense');
-      assert.equal(getPostAuthPath('user', '/admin/analytics'), '/expense');
-      assert.equal(getPostAuthPath('user', '/admin/knowledge-base'), '/expense');
-      assert.equal(getPostAuthPath('user', '/admin.html'), '/expense');
+    it('strictly prevents non-admin users from accessing /admin or /analytics routes and defaults to /', () => {
+      assert.equal(getPostAuthPath('user', '/admin'), '/home');
+      assert.equal(getPostAuthPath('user', '/analytics'), '/home');
+      assert.equal(getPostAuthPath('user', '/admin/analytics'), '/home');
+      assert.equal(getPostAuthPath('user', '/admin/knowledge-base'), '/home');
+      assert.equal(getPostAuthPath('user', '/admin.html'), '/home');
     });
 
     it('normalizes legacy and canonical path destinations', () => {
@@ -74,23 +74,23 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(safeNextPath('/admin.html'), '/admin/knowledge-base');
       assert.equal(safeNextPath('/admin/knowledge-base'), '/admin/knowledge-base');
       assert.equal(safeNextPath('/admin/analytics'), '/admin/analytics');
-      assert.equal(safeNextPath('/invalid-path'), '/expense');
+      assert.equal(safeNextPath('/invalid-path'), '/home');
     });
 
-    it('redirects to workspace instead of looping when requestedNext is / or /auth', () => {
-      assert.equal(getPostAuthPath('user', '/'), '/expense');
-      assert.equal(getPostAuthPath('user', '/auth'), '/expense');
-      assert.equal(getPostAuthPath('admin', '/'), '/admin/analytics');
-      assert.equal(getPostAuthPath('admin', '/auth'), '/admin/analytics');
-      assert.equal(safeNextPath('/'), '/expense');
-      assert.equal(safeNextPath('/auth'), '/expense');
+    it('redirects to home instead of looping when requestedNext is / or /auth', () => {
+      assert.equal(getPostAuthPath('user', '/'), '/home');
+      assert.equal(getPostAuthPath('user', '/auth'), '/home');
+      assert.equal(getPostAuthPath('admin', '/'), '/home');
+      assert.equal(getPostAuthPath('admin', '/auth'), '/home');
+      assert.equal(safeNextPath('/'), '/home');
+      assert.equal(safeNextPath('/auth'), '/home');
     });
 
-    it('strictly disallows obsolete handbook/demo routes and defaults to expense', () => {
-      assert.equal(getPostAuthPath('user', '/handbook'), '/expense');
-      assert.equal(getPostAuthPath('user', '/demo'), '/expense');
-      assert.equal(safeNextPath('/handbook'), '/expense');
-      assert.equal(safeNextPath('/demo'), '/expense');
+    it('strictly disallows obsolete handbook/demo routes and defaults to /', () => {
+      assert.equal(getPostAuthPath('user', '/handbook'), '/home');
+      assert.equal(getPostAuthPath('user', '/demo'), '/home');
+      assert.equal(safeNextPath('/handbook'), '/home');
+      assert.equal(safeNextPath('/demo'), '/home');
     });
   });
 
@@ -181,7 +181,7 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(expenseGateValidator(null), false);
     });
 
-    it('redirects unauthorized authenticated non-admins to role landing route (/expense)', () => {
+    it('redirects unauthorized authenticated non-admins to role landing route (/home)', () => {
       const regularSession = { user: { id: 'u2', app_metadata: { role: 'user' } } };
       const redirects = [];
       const mockRedirectToRoleLanding = (role) => redirects.push(getPostAuthPath(role));
@@ -196,7 +196,7 @@ describe('Client Authentication and Role Routing Suite', () => {
       };
 
       assert.equal(adminGateHandler(regularSession), false);
-      assert.deepEqual(redirects, ['/expense']);
+      assert.deepEqual(redirects, ['/home']);
     });
 
     it('expenseApi reuses consolidated apiClient and exposes all required methods', async () => {

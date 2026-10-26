@@ -59,6 +59,14 @@ export default function AppSidebar({
 
       <nav aria-label="Application navigation">
 
+        <button
+          type="button"
+          className={location.pathname === '/home' ? 'active' : ''}
+          onClick={() => navigate('/home')}
+          aria-current={location.pathname === '/home' ? 'page' : undefined}
+        >
+          Home
+        </button>
 
         {admin ? (
           <>

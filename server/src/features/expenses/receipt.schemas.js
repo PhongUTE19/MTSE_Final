@@ -52,7 +52,10 @@ export const receiptExtractionSchema = z.object({
     .nullable()
     .optional()
     .transform((value) => (Number.isFinite(value) ? value : null)),
-  currency: z.string().trim().length(3).toUpperCase().default('VND'),
+  currency: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim().length === 3 ? value.trim().toUpperCase() : 'VND'),
+    z.string().length(3).default('VND')
+  ),
   // Gemini may use a valid real-world label outside the application's fixed
   // category set. Normalize it before validation so a reviewable receipt is
   // never discarded solely for that non-critical field.

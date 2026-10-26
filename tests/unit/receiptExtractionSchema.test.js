@@ -25,3 +25,22 @@ it('normalizes likely Vietnamese thousands values and flags them for review', ()
   assert.equal(result.items[0].amount, 20000);
   assert.match(result.warnings[0], /normalized as thousands/i);
 });
+
+it('safely defaults empty or invalid currency strings to VND', () => {
+  assert.equal(receiptExtractionSchema.parse({ ...base, currency: '' }).currency, 'VND');
+  assert.equal(receiptExtractionSchema.parse({ ...base, currency: null }).currency, 'VND');
+  assert.equal(receiptExtractionSchema.parse({ ...base, currency: undefined }).currency, 'VND');
+  assert.equal(receiptExtractionSchema.parse({ ...base, currency: 'USD' }).currency, 'USD');
+});
+
+it('preserves null for uncertain or unreadable fields without inventing values', () => {
+  const result = receiptExtractionSchema.parse({
+    ...base,
+    merchant: null,
+    transactionDate: null,
+    totalAmount: null,
+  });
+  assert.equal(result.merchant, null);
+  assert.equal(result.transactionDate, null);
+  assert.equal(result.totalAmount, null);
+});

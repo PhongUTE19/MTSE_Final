@@ -71,7 +71,7 @@ function toDraft(extraction) {
   return {
     ...extraction,
     type: extraction.transactionType === 'income' ? 'income' : 'expense',
-    date: extraction.transactionDate || new Date().toISOString().slice(0, 10),
+    date: extraction.transactionDate || '',
     amount: extraction.totalAmount ?? '',
     note: extraction.note || '',
     warnings: extraction.warnings || [],

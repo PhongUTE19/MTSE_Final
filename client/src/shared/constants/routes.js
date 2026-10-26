@@ -2,7 +2,8 @@
  * Centralized application route definitions and navigation destinations.
  */
 export const APP_ROUTES = Object.freeze({
-  HOME: '/',
+  LANDING: '/',
+  HOME: '/home',
   AUTH: '/auth',
   AUTH_CALLBACK: '/auth/callback',
   RESET_PASSWORD: '/reset-password',
@@ -16,6 +17,7 @@ export const APP_ROUTES = Object.freeze({
  */
 export const ALLOWED_AUTH_DESTINATIONS = Object.freeze(
   new Set([
+    APP_ROUTES.HOME,
     APP_ROUTES.EXPENSE,
     APP_ROUTES.ADMIN_ANALYTICS,
     APP_ROUTES.ADMIN_KNOWLEDGE,

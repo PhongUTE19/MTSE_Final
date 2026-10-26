@@ -6,7 +6,9 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
   const [form, setForm] = useState({
     ...INITIAL_TRANSACTION,
     ...draft,
-    merchant: draft.merchant || file.name.replace(/\.[^.]+$/, ''),
+    merchant: draft?.merchant || '',
+    date: draft?.date || draft?.transactionDate || '',
+    amount: draft?.amount ?? draft?.totalAmount ?? '',
   });
   const [error, setError] = useState('');
   const [action, setAction] = useState('');
@@ -58,7 +60,7 @@ export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDi
         <div className="receipt-preview">
           <span>Receipt image</span>
           {previewUrl && <img src={previewUrl} alt={`Preview of ${file.name}`} />}
-          <strong>{file.name}</strong>
+          <div className="truncate-1line"><strong>{file.name}</strong></div>
           <small>{Math.round(file.size / 1024)} KB</small>
         </div>
         <TransactionFields

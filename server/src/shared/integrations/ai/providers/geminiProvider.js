@@ -5,7 +5,7 @@ import { recordUsage, hashPrompt } from '../../../../features/analytics/index.js
 import { validateChatResponse, withTimeout, validateStructuredOutput } from '../../../guardrails/index.js';
 import { RECEIPT_CATEGORIES, receiptExtractionSchema } from '../../../../features/expenses/receipt.schemas.js';
 import { enforceReceiptGuardrails } from '../../../../features/expenses/receiptGuardrails.js';
-import { getReceiptPrompt, RECEIPT_PROMPT_VERSION } from '../../../../features/expenses/receiptPrompt.js';
+import { getReceiptPrompt, RECEIPT_PROMPT_ID, RECEIPT_PROMPT_VERSION } from '../../../../features/expenses/receiptPrompt.js';
 
 let aiInstance = null;
 
@@ -457,7 +457,7 @@ export async function generateAnswerStream(prompt, options = {}) {
  */
 export async function extractReceiptImage(image, options = {}) {
   const ai = getAIClient();
-  const model = options.model || config.geminiModel;
+  const model = options.model || config.geminiReceiptModel || config.geminiModel;
   const prompt = options.prompt || getReceiptPrompt();
   const started = Date.now();
   try {

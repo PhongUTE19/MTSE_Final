@@ -25,11 +25,12 @@ export function appUrl(pathname) {
 }
 
 export function safeNextPath(value) {
-  if (!value || value === APP_ROUTES.HOME || value === APP_ROUTES.AUTH) return APP_ROUTES.EXPENSE;
+  if (!value || value === APP_ROUTES.HOME || value === APP_ROUTES.AUTH) return APP_ROUTES.HOME;
   const clean = value.replace(/\.html$/, '');
-  if (clean === '/admin/knowledge-base') return APP_ROUTES.ADMIN_KNOWLEDGE;
-  if (clean === '/admin/analytics') return APP_ROUTES.ADMIN_ANALYTICS;
-  return ALLOWED_AUTH_DESTINATIONS.has(clean) ? clean : APP_ROUTES.EXPENSE;
+  if (clean === APP_ROUTES.ADMIN_KNOWLEDGE) return APP_ROUTES.ADMIN_KNOWLEDGE;
+  if (clean === APP_ROUTES.ADMIN_ANALYTICS) return APP_ROUTES.ADMIN_ANALYTICS;
+  if (clean === APP_ROUTES.EXPENSE) return APP_ROUTES.EXPENSE;
+  return ALLOWED_AUTH_DESTINATIONS.has(clean) ? clean : APP_ROUTES.HOME;
 }
 
 /**
@@ -46,7 +47,8 @@ export function getUserRole(sessionOrUser) {
 
 /**
  * Computes post-authentication navigation path based on trusted user role.
- * Admins are directed to /admin/analytics by default; regular users are directed to /expense.
+ * Both Users and Admins are directed to the shared home dashboard (/) by default.
+ * If a valid authorized sub-route was requested, it is preserved; unauthorized role routes redirect to /.
  *
  * @param {'admin'|'user'|string} [role] - Verified role from app_metadata
  * @param {string|null} [requestedNext] - Optional requested next path
@@ -64,21 +66,20 @@ export function getPostAuthPath(role, requestedNext) {
     if (requestedNext === APP_ROUTES.EXPENSE) {
       return APP_ROUTES.EXPENSE;
     }
-    return APP_ROUTES.ADMIN_ANALYTICS;
+    return APP_ROUTES.HOME;
   }
 
-  // Non-admin user: never allow access to admin routes or landing/auth pages
+  // Non-admin user: never allow access to admin routes or landing/auth pages; redirect to /
   if (
     requestedNext &&
     !requestedNext.startsWith('/admin') &&
-    requestedNext !== '/analytics' &&
     requestedNext !== APP_ROUTES.HOME &&
     requestedNext !== APP_ROUTES.AUTH
   ) {
     const clean = requestedNext.replace(/\.html$/, '');
     if (clean === APP_ROUTES.EXPENSE) return clean;
   }
-  return APP_ROUTES.EXPENSE;
+  return APP_ROUTES.HOME;
 }
 
 

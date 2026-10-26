@@ -393,6 +393,13 @@
   font-size: 12px;
 }
 
+.truncate-1line {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 200px;
+}
+
 @media (max-width: 1120px) {
   .filters {
     grid-template-columns: minmax(180px, 1fr) repeat(2, minmax(130px, 1fr));

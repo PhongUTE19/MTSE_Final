@@ -119,14 +119,14 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
       const validateAccess = (session) => {
         if (getUserRole(session) !== 'admin') {
-          return { allowed: false, redirect: APP_ROUTES.EXPENSE };
+          return { allowed: false, redirect: APP_ROUTES.HOME };
         }
         return { allowed: true };
       };
 
       const result = validateAccess(regularSession);
       assert.equal(result.allowed, false);
-      assert.equal(result.redirect, APP_ROUTES.EXPENSE);
+      assert.equal(result.redirect, APP_ROUTES.HOME);
     });
 
     it('permits verified admin session with valid app_metadata', () => {
@@ -140,7 +140,7 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
       const validateAccess = (session) => {
         if (getUserRole(session) !== 'admin') {
-          return { allowed: false, redirect: APP_ROUTES.EXPENSE };
+          return { allowed: false, redirect: APP_ROUTES.HOME };
         }
         return { allowed: true };
       };
@@ -170,13 +170,13 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
   describe('3. Post-Auth Routing Protection', () => {
     it('ensures post-auth path never leaks admin routes to regular users', () => {
-      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.EXPENSE);
-      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.EXPENSE);
-      assert.equal(getPostAuthPath('user'), APP_ROUTES.EXPENSE);
+      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.HOME);
+      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.HOME);
+      assert.equal(getPostAuthPath('user'), APP_ROUTES.HOME);
     });
 
-    it('routes admins directly to analytics by default or requested admin sub-route', () => {
-      assert.equal(getPostAuthPath('admin'), APP_ROUTES.ADMIN_ANALYTICS);
+    it('routes admins directly to home by default or requested admin sub-route', () => {
+      assert.equal(getPostAuthPath('admin'), APP_ROUTES.HOME);
       assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.ADMIN_KNOWLEDGE);
       assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.ADMIN_ANALYTICS);
     });
