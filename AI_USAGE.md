@@ -414,3 +414,41 @@ Below are three verified real-world incidents where AI tools produced incorrect,
   * Stale reference checks: Ripgrep confirmed zero remaining code/test references to removed files.
   * Git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
   * User changes preserved; no git commit or push executed.
+
+### 15. Fix Production Docker Image-Upload HTTP 413 (client_max_body_size)
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Investigate and resolve the production Docker image-upload error `413 Request Entity Too Large` where receipt image uploads succeed in local development (`npm start`) but fail in Docker (`docker compose up --build -d`).
+* **Root Cause Analysis:**
+  * **End-to-End Request Path Comparison:**
+    * *Local Development (`npm start`)*: The React frontend runs on Vite dev server (port 5173). Vite's `server.proxy` proxies `/api` directly to Express on port 3000 using Node's `http-proxy` without any body size limitation. Express processes the request using `receiptUpload.middleware.js` (Multer), which allows images up to `MAX_RECEIPT_BYTES = 5 * 1024 * 1024` (5 MB). Receipt uploads between 1 MB and 5 MB succeed without issue.
+    * *Production Docker (`docker compose up --build -d`)*: The client container runs Nginx (`nginx:alpine`) on port 80 (mapped to host 5173). Nginx proxies `/api/` to `http://server:3000/api/`. In Nginx, the default value for `client_max_body_size` is `1m` (1 megabyte).
+    * *Failure Point*: When a user uploads a receipt image greater than 1 MB (e.g. `evals/receipts/manual-test-images/02-cafe-card-payment.png`, which is 2,785,308 bytes (~2.66 MB)), Nginx immediately rejects the request with HTTP `413 Request Entity Too Large` and returns an HTML error page. The request never reached Express, Multer, or Supabase Storage.
+    * *Inspection Evidence*: Direct test request with 2MB payload to `http://localhost:5173/api/receipts/upload` returned `413 Request Entity Too Large` with server header `nginx/1.31.8`. Running container logs confirmed: `client intended to send too large body: 2785508 bytes, client: 172.18.0.1, server: localhost, request: "POST /api/receipts/upload HTTP/1.1"`.
+* **Changes Implemented:**
+  * `client/nginx.conf`:
+    * Added `client_max_body_size 10M;` to the `server` block. This accommodates receipt images up to the application's intended 5 MB limit (`MAX_RECEIPT_SIZE_BYTES = 5 * 1024 * 1024`) plus multipart/form-data boundary and header overhead.
+    * Preserved all existing proxy settings (`proxy_pass http://server:3000/api/`, timeouts, WebSockets, `proxy_buffering off`) and static-file routing (`try_files $uri $uri/ /index.html`).
+  * `tests/unit/receiptUpload.test.js`:
+    * Added configuration contract test `ensures client/nginx.conf client_max_body_size accommodates receipt upload limits` verifying that `client_max_body_size` is explicitly configured in `client/nginx.conf` and its parsed value is `>= MAX_RECEIPT_BYTES` (5 MB).
+* **Docker Verification & End-to-End Testing:**
+  * Rebuilt and restarted production containers: `docker compose up --build -d`. Both `spendwise-server` and `spendwise-client` built cleanly and started.
+  * Verified effective Nginx configuration in container: `docker compose exec client nginx -T` confirmed `client_max_body_size 10M;` active in `/etc/nginx/conf.d/default.conf`.
+  * Verified end-to-end receipt upload through production Docker container (`http://localhost:5173/api/receipts/upload`):
+    * Tested real receipt image `evals/receipts/manual-test-images/02-cafe-card-payment.png` (2,785,308 bytes, 2.66 MB):
+      * Passed through Nginx without 413.
+      * Authenticated, processed by Multer, verified by Sharp, uploaded to Supabase Storage, and extracted by Gemini.
+      * Server returned `HTTP 201 Created` with extracted receipt payload (HANOI COFFEE LAB, 88,000 VND).
+      * Nginx access log: `POST /api/receipts/upload HTTP/1.1 201 676`.
+    * Tested oversized image (6 MB):
+      * Passed Nginx edge and cleanly handled by Express/Multer validation middleware, returning friendly `HTTP 400 Bad Request` with `{"error":"Receipt image must be 5 MB or smaller."}`.
+    * Tested unauthenticated 2 MB request:
+      * Returned `HTTP 401 Unauthorized` (`{"error":"Authentication token is required."}`) from Express backend rather than Nginx 413.
+* **Review & Verification:**
+  * Unit test suite: `node --test tests/unit/receiptUpload.test.js` — All 4 tests passed.
+  * Relevant receipt and upload test suite: `node --test tests/unit/receiptUpload.test.js tests/unit/receiptServiceContract.test.js tests/unit/receiptDateAndAmountRegression.test.js tests/unit/receiptExtractionSchema.test.js tests/unit/receiptGuardrails.test.js tests/unit/receiptLeaseLifecycle.test.js tests/unit/expenses.test.js tests/unit/backendValidation.test.js tests/unit/clientValidation.test.js` — All 61 tests passed across 9 suites with 0 failures.
+  * Frontend production build: `npm --prefix client run build` — Built cleanly in 12.06s with zero errors.
+  * Code style check: `git diff --check` — Clean exit code 0.
+  * Inline styles check: Searched for `style={{`; no new instances introduced.
+  * Git state: Preserved existing user changes; no commit or push performed.

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
-import { inspectReceiptImage } from '../../server/src/features/expenses/receiptUpload.middleware.js';
+import { inspectReceiptImage, MAX_RECEIPT_BYTES } from '../../server/src/features/expenses/receiptUpload.middleware.js';
 import sharp from '../../server/node_modules/sharp/lib/index.js';
 
 function png(width = 2, height = 3) {
@@ -67,6 +68,20 @@ describe('receipt upload inspection', () => {
         mimetype: 'image/png',
         originalname: 'x.png',
       })
+    );
+  });
+
+  it('ensures client/nginx.conf client_max_body_size accommodates receipt upload limits', async () => {
+    const nginxConf = await readFile(new URL('../../client/nginx.conf', import.meta.url), 'utf8');
+    const match = nginxConf.match(/client_max_body_size\s+([0-9]+)([kKmMgG])?;/);
+    assert.ok(match, 'client/nginx.conf must specify client_max_body_size');
+    const value = parseInt(match[1], 10);
+    const unit = (match[2] || '').toUpperCase();
+    const multiplier = unit === 'G' ? 1024 * 1024 * 1024 : unit === 'M' ? 1024 * 1024 : unit === 'K' ? 1024 : 1;
+    const sizeBytes = value * multiplier;
+    assert.ok(
+      sizeBytes >= MAX_RECEIPT_BYTES,
+      `Nginx client_max_body_size (${sizeBytes} bytes) must be >= MAX_RECEIPT_BYTES (${MAX_RECEIPT_BYTES} bytes)`
     );
   });
 });
