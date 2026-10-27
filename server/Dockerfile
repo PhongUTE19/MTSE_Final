@@ -6,8 +6,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Copy application source code
+# Copy application source code and prompts
 COPY src/ ./src/
+COPY prompts/ ./prompts/
 
 # Create data directory placeholder
 RUN mkdir -p /app/data/knowledge

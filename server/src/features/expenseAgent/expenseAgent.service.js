@@ -4,6 +4,7 @@ import { detectPromptInjection } from '../../shared/guardrails/index.js';
 import { createTransaction, getSpendingSummary, listTransactions } from '../expenses/expenses.service.js';
 import { createTransactionArgsSchema, searchTransactionsArgsSchema, spendingSummaryArgsSchema } from './expenseAgent.schemas.js';
 import { runGeminiExpenseAgent } from './geminiExpenseAgent.js';
+import { formatConversationContext } from './expenseAgentPrompt.js';
 
 const MAX_AGENT_STEPS = 2; // Gemini calls tool once, then summarizes response.
 const PROPOSAL_TTL_MS = 10 * 60 * 1000;
@@ -150,7 +151,7 @@ export async function runExpenseAssistantForUser(user, message, options = {}) {
   try {
     const context = (options.history || []).map((item) => `${item.role === 'user' ? 'User' : 'Assistant'}: ${item.text}`).join('\n');
     // Only send validated conversation turns; identity and authorization always derive from JWT.
-    const prompt = context ? `Conversation context:\n${context}\n\nCurrent user request: ${message}` : message;
+    const prompt = formatConversationContext(context, message);
     return await (options.agentRunner || runGeminiExpenseAgent)(prompt, executeTool, { ...options, agentType: 'assistant' });
   } catch (error) {
     if (error instanceof AppError) throw error;

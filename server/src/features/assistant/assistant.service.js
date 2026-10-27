@@ -87,7 +87,11 @@ export async function orchestrateRAGChat(query, options = {}) {
   }
 
   try {
-    const rawAnswer = await llmGenerator(ragResult.prompt, options);
+    const rawAnswer = await llmGenerator(ragResult.prompt, {
+      ...options,
+      promptId: ragResult.promptId || null,
+      promptVersion: ragResult.promptVersion || null,
+    });
 
     // Guardrail: Validate AI response non-emptiness and prevent prompt leakage
     const validated = validateChatResponse(rawAnswer);
@@ -100,6 +104,9 @@ export async function orchestrateRAGChat(query, options = {}) {
       proposal: null,
       sources: ragResult.sources,
       retrieval: ragResult.retrieval,
+      promptId: ragResult.promptId || null,
+      promptVersion: ragResult.promptVersion || null,
+      promptHash: ragResult.promptHash || null,
     };
   } catch (error) {
     if (error instanceof AssistantServiceError) {
@@ -199,7 +206,12 @@ export async function orchestrateRAGChatStream(query, emit, options = {}) {
   let emittedTerminal = false;
 
   try {
-    const stream = await llmStreamGenerator(ragResult.prompt, { signal });
+    const stream = await llmStreamGenerator(ragResult.prompt, {
+      ...options,
+      signal,
+      promptId: ragResult.promptId || null,
+      promptVersion: ragResult.promptVersion || null,
+    });
 
     for await (const chunk of stream) {
       if (signal?.aborted) {

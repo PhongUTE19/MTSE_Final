@@ -242,3 +242,54 @@ Below are three verified real-world incidents where AI tools produced incorrect,
   * Executed production client build: `npm --prefix client run build` — Vite build completed successfully in 9.94s with zero errors.
   * Executed git whitespace check: `git diff --check` — Passed with code 0 (no trailing whitespace, conflict markers, or line ending issues).
   * Verified that user changes (`AnalyticsHistoryTable.jsx` and user-modified badges) were completely preserved.
+
+---
+
+## 11. Agent Invocation Log: Hybrid Prompt Organization & Architecture Refactoring (RAG & Expense Agent)
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Refactor SpendWise prompt organization using a hybrid architecture covering both RAG/Knowledge Base and the Expense Agent. Extract static natural-language instructions into versioned `.md` files under `server/prompts/` while strictly keeping executable logic (regexes, schemas, guardrails, tools, and confirmation gates) in JavaScript.
+* **Key User Prompt:** *"Refactor SpendWise prompt organization using a hybrid approach, covering both RAG/Knowledge Base and the Expense Agent... Move substantial static natural-language instructions into appropriately organized, version-controlled `.md` files under the existing `prompts/` structure. Keep prompts grouped by capability and task, with clear IDs and explicit logical versions... Keep JavaScript responsible for loading prompts, applying dynamic variables, selecting tools, invoking models, validating results, and handling errors. Do not leave duplicate active prompt strings in the code after extraction... Keep executable logic in code (regex patterns, guardrails, Zod/JSON schemas, tool declarations, structured-output validation, confirmation gates)... Preserve behavior and prompt management... Ensure all required `.md` files are included in production Docker images... Update AI_USAGE.md... Run relevant tests, client/server production builds, and git diff --check."*
+* **Files Reviewed and Changed:**
+  * `server/Dockerfile`:
+    * Added `COPY prompts/ ./prompts/` to ensure production Docker images bundle prompt templates and resolve correctly from runtime working directories.
+  * `server/prompts/knowledgeBase/grounded-v1.md`:
+    * Created versioned Markdown template for grounded RAG prompt containing passive reference instructions, untrusted context/query XML boundary guidelines, and `{{systemPrompt}}`, `{{context}}`, and `{{question}}` placeholders.
+  * `server/prompts/knowledgeBase/system-v1.md`:
+    * Created versioned baseline system prompt for the SpendWise Assistant with strict grounding, out-of-scope policies, and security guardrail rules.
+  * `server/prompts/expenseAgent/context-v1.md`:
+    * Created versioned conversation turn formatting template (`Conversation context:\n{{context}}\n\nCurrent user request: {{message}}`).
+  * `server/src/features/knowledgeBase/ragPrompt.js`:
+    * Created dedicated prompt management module exporting `RAG_PROMPT_IDS` (`GROUNDED: 'rag_grounded'`, `SYSTEM: 'rag_system'`), `RAG_PROMPT_VERSION = 'v1'`, `getRagPrompt`, `getRagPromptDetails`, `renderRagPrompt`, and `computeRagPromptVersion`.
+    * Implemented concise operational fallback instructions to safeguard execution resilience without duplicating verbose prompt paragraphs in code.
+  * `server/src/features/knowledgeBase/promptBuilder.js`:
+    * Refactored `buildGroundedPrompt` to resolve templates via `getRagPrompt`, removing large inline static instruction strings.
+    * Added `buildGroundedPromptDetails` to return prompt text along with stable ID, logical version, and content hash.
+    * Retained input sanitization logic in code.
+  * `server/src/features/knowledgeBase/ragService.js`:
+    * Updated `executeRAG` to invoke `buildGroundedPromptDetails` and expose `promptId`, `promptVersion`, and `promptHash` in the execution result.
+  * `server/src/features/assistant/assistant.service.js`:
+    * Propagated `promptId` and `promptVersion` in `orchestrateRAGChat` and `orchestrateRAGChatStream` to `llmGenerator` and `llmStreamGenerator`, enabling accurate telemetry recording.
+    * Returned prompt metadata in normalized orchestrator response contract.
+  * `server/src/features/expenseAgent/expenseAgentPrompt.js`:
+    * Added `EXPENSE_AGENT_PROMPT_IDS.CONTEXT = 'expense_agent_context'`.
+    * Replaced bloated duplicate prompt strings in `BUILTIN_FALLBACKS` with concise operational fallbacks, eliminating active prompt duplication in JavaScript code.
+    * Added `formatConversationContext` helper for clean multi-turn template rendering.
+  * `server/src/features/expenseAgent/expenseAgent.service.js`:
+    * Replaced inline template literal with `formatConversationContext`, removing hardcoded formatting strings from service logic.
+  * `tests/unit/promptRegistry.test.js`:
+    * Expanded test suite to 73 unit tests (including 8 new tests for RAG prompt loading, hashing, fallback, interpolation, and telemetry propagation, plus tests for context prompt loading and `formatConversationContext`).
+* **Executable Logic Intentionally Retained in Code:**
+  * Regex patterns: `INJECTION_PATTERNS`, sanitization tags (`retrieved_context`, `student_question`, etc.).
+  * Guardrail matching & enforcement: `detectPromptInjection`, `classifyScope`, `enforceReceiptGuardrails`, `validateChatResponse`.
+  * Zod / JSON schemas & tool declarations: `searchTransactionsArgsSchema`, `spendingSummaryArgsSchema`, `createTransactionArgsSchema`, `receiptExtractionSchema`, `SEARCH_TRANSACTIONS_TOOL`, `SPENDING_SUMMARY_TOOL`, `CREATE_TRANSACTION_TOOL`.
+  * Financial write authorization and confirmation gates: in-memory proposal store, expiration timer, idempotent processing lock, and authenticated JWT user validation.
+  * Error mapping & retry configurations: `executeWithRetry`, exponential backoff, rate limiting, and timeout wrappers.
+* **Review & Verification:**
+  * Executed focused prompt test suite: `node --test tests/unit/promptRegistry.test.js tests/unit/knowledgeBase.test.js tests/unit/chatOrchestrator.test.js tests/unit/expenseAgent.test.js tests/unit/aiCapabilitiesGuardrails.test.js` — All 73 tests passed across 20 test suites.
+  * Executed full relevant AI and prompt test suite: `node --test tests/unit/promptRegistry.test.js tests/unit/knowledgeBase.test.js tests/unit/chatOrchestrator.test.js tests/unit/expenseAgent.test.js tests/unit/aiCapabilitiesGuardrails.test.js tests/unit/receiptExtractionSchema.test.js tests/unit/receiptGuardrails.test.js tests/unit/transactionProposal.test.js tests/unit/spendingSummary.test.js tests/unit/systemPrompt.test.js` — All 101 tests passed across 15 test suites with zero failures.
+  * Executed client production build: `npm --prefix client run build` — Vite production bundle built cleanly in 20.78s with zero errors.
+  * Executed git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
+  * Verified Docker packaging: `server/Dockerfile` now bundles `COPY prompts/ ./prompts/`.
+  * Preserved all user changes and unrelated branch commits.

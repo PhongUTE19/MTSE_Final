@@ -1,6 +1,6 @@
 import { config } from '../../config.js';
 import { retrieveRelevantChunks } from './retriever.js';
-import { buildGroundedPrompt, formatContextSections } from './promptBuilder.js';
+import { buildGroundedPrompt, buildGroundedPromptDetails, formatContextSections } from './promptBuilder.js';
 import { SERVER_MESSAGES } from '../../constants/index.js';
 import { detectPromptInjection, classifyScope } from '../../shared/guardrails/index.js';
 
@@ -174,14 +174,17 @@ export async function executeRAG(query, options = {}) {
   };
 
   const context = formatContextSections(retrievedChunks);
-  const prompt = buildGroundedPrompt(query, retrievedChunks, systemPrompt);
+  const promptDetails = buildGroundedPromptDetails(query, retrievedChunks, systemPrompt, options);
 
   return {
     status: 'SUFFICIENT',
     passedThreshold: true,
     sources,
     context,
-    prompt,
+    prompt: promptDetails.text,
+    promptId: promptDetails.id,
+    promptVersion: promptDetails.baseVersion,
+    promptHash: promptDetails.hash,
     retrievedChunks: diagnosticChunks,
     usedChunks: diagnosticChunks,
     retrieval: retrievalMetadata,

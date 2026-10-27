@@ -16,7 +16,21 @@ import {
   summarySystemInstruction,
   createSystemInstruction,
   assistantSystemInstruction,
+  formatConversationContext,
 } from '../../server/src/features/expenseAgent/expenseAgentPrompt.js';
+import {
+  RAG_PROMPT_IDS,
+  RAG_PROMPT_VERSION,
+  getRagPrompt,
+  getRagPromptDetails,
+  renderRagPrompt,
+  computeRagPromptVersion,
+} from '../../server/src/features/knowledgeBase/ragPrompt.js';
+import {
+  buildGroundedPrompt,
+  buildGroundedPromptDetails,
+} from '../../server/src/features/knowledgeBase/promptBuilder.js';
+import { orchestrateRAGChat } from '../../server/src/features/assistant/assistant.service.js';
 import { runGeminiExpenseAgent } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
 import { getRecentUsageRecords } from '../../server/src/features/analytics/index.js';
 
@@ -63,6 +77,7 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
       assert.equal(EXPENSE_AGENT_PROMPT_IDS.SUMMARY, 'expense_agent_summary');
       assert.equal(EXPENSE_AGENT_PROMPT_IDS.CREATE, 'expense_agent_create');
       assert.equal(EXPENSE_AGENT_PROMPT_IDS.ASSISTANT, 'expense_agent_assistant');
+      assert.equal(EXPENSE_AGENT_PROMPT_IDS.CONTEXT, 'expense_agent_context');
     });
 
     it('loads and interpolates {{today}} in search prompt from Git-tracked file', () => {
@@ -115,6 +130,15 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
       assert.match(summarySystemInstruction(today), /get_spending_summary/);
       assert.match(createSystemInstruction(today), /create_transaction/);
       assert.match(assistantSystemInstruction(today), /search_transactions/);
+    });
+
+    it('formats conversation context with versioned template or passes raw message if empty', () => {
+      const singleTurn = formatConversationContext('', 'Hello there');
+      assert.equal(singleTurn, 'Hello there');
+
+      const multiTurn = formatConversationContext('User: Hi\nAssistant: Hello', 'What did I spend?');
+      assert.match(multiTurn, /Conversation context:\nUser: Hi\nAssistant: Hello/);
+      assert.match(multiTurn, /Current user request: What did I spend\?/);
     });
   });
 
@@ -199,6 +223,110 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
       assert.equal(latest.promptVersion, 'v1');
       assert.equal(latest.promptHash, result.promptHash);
       assert.equal(latest.prompt, undefined, 'Telemetry must not log raw prompt content');
+    });
+  });
+
+  describe('5. RAG / Knowledge Base Grounded Prompt Management', () => {
+    it('defines stable IDs and version for knowledge base prompts', () => {
+      assert.equal(RAG_PROMPT_IDS.GROUNDED, 'rag_grounded');
+      assert.equal(RAG_PROMPT_IDS.SYSTEM, 'rag_system');
+      assert.equal(RAG_PROMPT_VERSION, 'v1');
+    });
+
+    it('loads grounded prompt from version-controlled file and renders context and query delimiters', () => {
+      const details = getRagPromptDetails('grounded', {
+        variables: {
+          systemPrompt: 'You are SpendWise Assistant.',
+          context: '[Source 1: Doc A | Section: Policy | Chunk ID: c1]\nContent A',
+          question: 'What is the limit?',
+        },
+      });
+
+      assert.equal(details.id, 'rag_grounded');
+      assert.equal(details.baseVersion, 'v1');
+      assert.ok(details.version.startsWith('rag_grounded:v1:'));
+      assert.match(details.text, /You are SpendWise Assistant\./);
+      assert.match(details.text, /=== UNTRUSTED REFERENCE CONTEXT ===/);
+      assert.match(details.text, /<retrieved_context>\nContext:\n\[Source 1: Doc A/);
+      assert.match(details.text, /=== UNTRUSTED USER QUERY ===/);
+      assert.match(details.text, /<student_question>\nUser Question:\nWhat is the limit\?/);
+    });
+
+    it('loads system prompt from version-controlled markdown file', () => {
+      const prompt = getRagPrompt('system');
+      assert.equal(prompt.id, 'rag_system');
+      assert.match(prompt.text, /You are the SpendWise Assistant/);
+      assert.match(prompt.text, /Strict rules:/);
+      assert.match(prompt.text, /Security, Scope, and System Integrity:/);
+    });
+
+    it('buildGroundedPrompt and buildGroundedPromptDetails preserve grounding formatting and metadata', () => {
+      const chunks = [
+        { id: 'chunk-1', source: 'handbook.pdf', title: 'Tuition Policy', content: 'Tuition must be paid on time.' },
+      ];
+      const promptText = buildGroundedPrompt('How to pay?', chunks, 'Custom system instruction');
+      assert.match(promptText, /Custom system instruction/);
+      assert.match(promptText, /\[Source 1: Document: handbook\.pdf \| Section: Tuition Policy \| Chunk ID: chunk-1\]/);
+      assert.match(promptText, /Tuition must be paid on time\./);
+
+      const details = buildGroundedPromptDetails('How to pay?', chunks, 'Custom system instruction');
+      assert.equal(details.id, 'rag_grounded');
+      assert.equal(details.baseVersion, 'v1');
+      assert.ok(details.hash && details.hash.length === 64);
+      assert.equal(details.text, promptText);
+    });
+
+    it('propagates prompt metadata to llmGenerator and response in orchestrateRAGChat', async () => {
+      let passedOptions = null;
+      const fakeExecutor = async () => ({
+        passedThreshold: true,
+        sources: [{ id: 'c1', title: 'Section A' }],
+        retrieval: { similarityThreshold: 0.6, bestScore: 0.8 },
+        prompt: 'Grounded prompt content',
+        promptId: 'rag_grounded',
+        promptVersion: 'v1',
+        promptHash: 'fakehash123',
+      });
+      const fakeGenerator = async (prompt, opts) => {
+        passedOptions = opts;
+        return 'Here is the answer from documentation.';
+      };
+
+      const result = await orchestrateRAGChat('What is the policy?', {
+        ragExecutor: fakeExecutor,
+        llmGenerator: fakeGenerator,
+      });
+
+      assert.equal(result.strategy, 'rag');
+      assert.equal(result.answer, 'Here is the answer from documentation.');
+      assert.equal(result.promptId, 'rag_grounded');
+      assert.equal(result.promptVersion, 'v1');
+      assert.equal(result.promptHash, 'fakehash123');
+      assert.equal(passedOptions.promptId, 'rag_grounded');
+      assert.equal(passedOptions.promptVersion, 'v1');
+    });
+
+    it('falls back gracefully when missing RAG prompt version is requested', () => {
+      const fallback = getRagPrompt('grounded', {
+        version: 'v999',
+        variables: { systemPrompt: 'Sys', context: 'Ctx', question: 'Q' },
+      });
+      assert.equal(fallback.baseVersion, 'v1');
+      assert.match(fallback.text, /Sys/);
+      assert.match(fallback.text, /Ctx/);
+    });
+
+    it('renderRagPrompt handles both {{key}} and ${key} interpolation', () => {
+      const rendered1 = renderRagPrompt('Hello {{name}}', { name: 'World' });
+      const rendered2 = renderRagPrompt('Hello ${name}', { name: 'World' });
+      assert.equal(rendered1, 'Hello World');
+      assert.equal(rendered2, 'Hello World');
+    });
+
+    it('computeRagPromptVersion generates stable hash based version identifier', () => {
+      const v = computeRagPromptVersion('rag_grounded', 'v1', 'sample content');
+      assert.ok(v.startsWith('rag_grounded:v1:'));
+      assert.equal(v.split(':').length, 3);
     });
   });
 });
