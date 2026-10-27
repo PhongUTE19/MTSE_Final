@@ -1,20 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { INITIAL_TRANSACTION } from '../expense/expenseConstants';
 import TransactionFields, { validateTransactionData } from '../expense/TransactionFields';
 
-export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDiscard }) {
-  const [form, setForm] = useState({
+function buildInitialForm(draft) {
+  return {
     ...INITIAL_TRANSACTION,
     ...draft,
     merchant: draft?.merchant || '',
     date: draft?.date || draft?.transactionDate || '',
-    amount: draft?.amount ?? draft?.totalAmount ?? '',
-  });
+    amount: (draft?.amount !== undefined && draft?.amount !== null && draft?.amount !== '')
+      ? draft.amount
+      : ((draft?.totalAmount !== undefined && draft?.totalAmount !== null) ? draft.totalAmount : ''),
+    category: draft?.category || INITIAL_TRANSACTION.category,
+    note: draft?.note || '',
+    items: draft?.items || [],
+  };
+}
+
+export default function ReceiptReview({ file, previewUrl, draft, onConfirm, onDiscard }) {
+  const [form, setForm] = useState(() => buildInitialForm(draft));
   const [error, setError] = useState('');
   const [action, setAction] = useState('');
   const busy = Boolean(action);
 
+  useEffect(() => {
+    setForm(buildInitialForm(draft));
+    setError('');
+    setAction('');
+  }, [draft]);
+
   async function handleConfirm() {
+    if (!form.date || !/^\d{4}-\d{2}-\d{2}$/.test(form.date)) {
+      setError('Enter a valid date (YYYY-MM-DD) before saving.');
+      return;
+    }
     const validation = validateTransactionData(form, { locale: 'en' });
     if (!validation.isValid) {
       setError(validation.error);

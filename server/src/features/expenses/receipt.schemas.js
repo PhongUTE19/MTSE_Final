@@ -22,13 +22,80 @@ function normalizeReceiptCategory(value) {
   return 'Other expenses';
 }
 
+function isValidCalendarDate(y, m, d) {
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.getUTCFullYear() === y && date.getUTCMonth() === m - 1 && date.getUTCDate() === d;
+}
+
+export function normalizeReceiptDate(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed || trimmed === 'null' || trimmed === 'undefined') return null;
+
+  // 1. Exact ISO date-only format: YYYY-MM-DD (e.g. 2026-10-24 or with trailing time/Z)
+  const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s].*)?$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (isValidCalendarDate(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 2. Slash or dot YMD format: YYYY/MM/DD or YYYY.MM.DD
+  const slashYmd = trimmed.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})(?:[T\s].*)?$/);
+  if (slashYmd) {
+    const [, year, month, day] = slashYmd;
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (isValidCalendarDate(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  // 3. Day-first format common on Vietnamese and European receipts: DD/MM/YYYY or DD-MM-YYYY or DD.MM.YYYY
+  const dmyMatch = trimmed.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})(?:[T\s].*)?$/);
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch;
+    const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
+    if (isValidCalendarDate(y, m, d)) {
+      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    }
+  }
+
+  return null;
+}
+
+export function normalizeReceiptAmount(value) {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') {
+    return Number.isFinite(value) && value > 0 ? value : null;
+  }
+  if (typeof value === 'string') {
+    const cleaned = value.replace(/[$₫€£¥]|VND|USD|EUR/gi, '').trim();
+    const normalizedStr = cleaned.replace(/,/g, '');
+    const num = Number(normalizedStr);
+    return Number.isFinite(num) && num > 0 ? num : null;
+  }
+  return null;
+}
+
 function normalizeReceiptItems(value) {
   if (!Array.isArray(value)) return value;
   return value.flatMap((item) => {
     if (!item || typeof item !== 'object') return [];
     const name = item.name ?? item.description ?? item.item ?? item.product ?? item.title;
     if (typeof name !== 'string' || !name.trim()) return [];
-    return [{ name: name.trim(), amount: item.amount ?? item.price ?? item.total ?? null }];
+    const rawAmt = item.amount ?? item.price ?? item.total ?? null;
+    const amount = normalizeReceiptAmount(rawAmt);
+    return [{ name: name.trim(), amount }];
   });
 }
 
@@ -40,18 +107,24 @@ export const receiptExtractionSchema = z.object({
   documentType: z.enum(['receipt', 'invoice', 'unknown']).default('receipt'),
   transactionType: z.enum(['expense', 'income', 'unknown']).default('expense'),
   merchant: nullableText(120),
-  transactionDate: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullable()
-    .optional()
-    .transform((value) => value || null),
-  totalAmount: z.coerce
-    .number()
-    .positive()
-    .nullable()
-    .optional()
-    .transform((value) => (Number.isFinite(value) ? value : null)),
+  transactionDate: z.preprocess(
+    normalizeReceiptDate,
+    z
+      .string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/)
+      .nullable()
+      .optional()
+      .transform((value) => value || null)
+  ),
+  totalAmount: z.preprocess(
+    normalizeReceiptAmount,
+    z
+      .number()
+      .positive()
+      .nullable()
+      .optional()
+      .transform((value) => (Number.isFinite(value) ? value : null))
+  ),
   currency: z.preprocess(
     (value) => (typeof value === 'string' && value.trim().length === 3 ? value.trim().toUpperCase() : 'VND'),
     z.string().length(3).default('VND')
@@ -85,11 +158,25 @@ export const receiptExtractionSchema = z.object({
   ),
   warnings: z.array(z.string().trim().min(1).max(200)).max(20).default([]),
 }).strict().transform((extraction) => {
+  const warnings = [...extraction.warnings];
+  if (extraction.transactionDate === null && !warnings.some((w) => /transaction date/i.test(w))) {
+    warnings.push('Transaction date could not be determined from the receipt; please enter the date.');
+  }
+  if (extraction.totalAmount === null && !warnings.some((w) => /total amount/i.test(w))) {
+    warnings.push('Total amount could not be determined from the receipt; please enter the amount.');
+  }
+
   // Vietnamese receipts commonly use a period as a thousands separator
   // (for example, 183.000 VND). Gemini sometimes returns 183 instead of
   // 183000 after visual parsing. VND has no commonly used fractional unit;
   // small positive values are therefore normalized for receipt review.
-  if (extraction.currency !== 'VND') return extraction;
+  if (extraction.currency !== 'VND') {
+    return {
+      ...extraction,
+      warnings,
+    };
+  }
+
   const totalAmount =
     extraction.totalAmount === null
       ? null
@@ -101,16 +188,16 @@ export const receiptExtractionSchema = z.object({
   const changed =
     totalAmount !== extraction.totalAmount ||
     items.some((item, index) => item.amount !== extraction.items[index].amount);
+
+  if (changed) {
+    warnings.push('VND values under 1,000 were normalized as thousands; please review before saving.');
+  }
+
   return {
     ...extraction,
     totalAmount,
     items,
-    warnings: changed
-      ? [
-          ...extraction.warnings,
-          'VND values under 1,000 were normalized as thousands; please review before saving.',
-        ]
-      : extraction.warnings,
+    warnings,
   };
 });
 

@@ -67,7 +67,7 @@ function publicReceipt(row) {
   };
 }
 
-function toDraft(extraction) {
+export function toDraft(extraction) {
   return {
     ...extraction,
     type: extraction.transactionType === 'income' ? 'income' : 'expense',

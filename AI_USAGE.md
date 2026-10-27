@@ -293,3 +293,60 @@ Below are three verified real-world incidents where AI tools produced incorrect,
   * Executed git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
   * Verified Docker packaging: `server/Dockerfile` now bundles `COPY prompts/ ./prompts/`.
   * Preserved all user changes and unrelated branch commits.
+
+### 12. Fix Receipt Date and Total Amount Extraction and Proposal State Contamination
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Investigate and fix incorrect date and total amount extraction in SpendWise receipt extraction and transaction proposals, resolve stale state and cross-receipt contamination where values from prior receipts lingered or overwrote the active proposal, and add regression tests.
+* **Key User Prompt:** *"Fix the incorrect date and total amount in SpendWise receipt extraction and transaction proposals... 1. Investigate first... Trace the complete flow from image selection and upload through Supabase Storage, receipt records, Gemini multimodal extraction, structured-output schema/validation, backend mapping, and the transaction proposal UI... 2. Fix receipt date extraction... The transaction date must come from the date printed on the current receipt, not today's date, upload time, created_at, or the previous receipt... 3. Fix total amount extraction... The transaction amount must reflect the receipt's actual final total, such as Grand Total, Total Paid, or Amount Due... 4. Investigate possible stale data or cross-receipt contamination... 5. Preserve existing safeguards... Add focused regression tests... Update AI_USAGE.md... Run relevant receipt and transaction-proposal tests, the full test suite where feasible, client/server production builds, and git diff --check. Report the root cause with file-level evidence, the fix, actual verification results, and whether live Gemini extraction was tested."*
+* **Root Causes Identified (with File-Level Evidence):**
+  1. *Prompt Underspecification (`server/prompts/receipts/receipt-v3.md`):*
+     - The natural language instructions did not explicitly mandate that `transactionDate` must be the actual printed date on the receipt, nor forbid falling back to the current date or upload time when the date was unreadable.
+     - The prompt did not explicitly disambiguate `totalAmount` from `subtotal`, `tax`, discounts, `cash tendered`, or `change`. On receipts with multiple numeric lines, Gemini would sometimes pick up the subtotal or cash paid instead of the grand total.
+  2. *Schema Property Description Gaps (`server/src/shared/integrations/ai/providers/geminiProvider.js`):*
+     - The Gemini `responseJsonSchema` lacked descriptive metadata on `transactionDate` and `totalAmount`, meaning the structured-output parser had no field-level guidance distinguishing printed calendar date from current time, or final total from subtotal/change.
+  3. *Strict Schema Formatting Rejections (`server/src/features/expenses/receipt.schemas.js`):*
+     - `receiptExtractionSchema` previously checked `z.string().regex(/^\d{4}-\d{2}-\d{2}$/)` without preprocessing, rejecting valid real-world date formats (`DD/MM/YYYY`, `DD-MM-YYYY`, `YYYY/MM/DD`, `DD.MM.YYYY`, and timestamp prefixes). This caused legitimate date extractions to fail validation and fall back to null.
+     - Amounts with currency symbols or commas (`"150,000"`, `"₫ 250.000"`) were not normalized before schema coercion.
+  4. *Stale React State & Missing Component Keys (`client/src/features/receipts/ReceiptReview.jsx`, `client/src/features/receipts/ReceiptsView.jsx`, `client/src/features/expense/assistant/ExpenseAssistant.jsx`, `client/src/features/expense/assistant/TransactionProposalCard.jsx`):*
+     - `<ReceiptReview>` was rendered inside `ReceiptsView.jsx` as `<ReceiptReview file={receipt.file} draft={receipt.draft} ... />` without a `key={receipt.id}` prop. In React, when the user switched between different pending receipts or uploaded a new receipt, the existing `ReceiptReview` instance remained mounted.
+     - `ReceiptReview` initialized form state with `useState(buildInitialForm(draft))` once upon mounting. Because it had no `key` prop and no `useEffect` syncing with changes to `draft`, it continued displaying the form values (date, amount, merchant) from the *first* receipt.
+     - Similarly, `<TransactionProposalCard>` in `ExpenseAssistant.jsx` lacked `key={proposal.id}` and did not synchronize state via `useEffect` when a second proposal was received, retaining the previous proposal's draft.
+     - In `ReceiptReview.jsx`, `INITIAL_TRANSACTION` defaulted `date` to `new Date().toISOString().slice(0, 10)`, silently replacing empty/unreadable receipt dates with today's date during review.
+  5. *Unbounded Out-of-Order Async Responses (`client/src/features/receipts/ReceiptsView.jsx`, `client/src/features/expense/assistant/ExpenseAssistant.jsx`):*
+     - Upload and resume operations lacked request sequence counters. If a user clicked "Review" or uploaded a receipt and subsequently switched receipts or retried, a delayed response from the first request could resolve late and overwrite the active receipt in state.
+* **Files Changed:**
+  * `server/prompts/receipts/receipt-v3.md`:
+    * Added explicit constraints requiring `transactionDate` to strictly reflect the printed date in `YYYY-MM-DD` format (never today's date, upload date, or a fabricated value; null if faint/missing/unreadable).
+    * Clarified `totalAmount` as the final grand total, total paid, or amount due, explicitly instructing the model to disregard subtotal, tax, cash tendered, change, or line item re-summing.
+  * `server/src/shared/integrations/ai/providers/geminiProvider.js`:
+    * Added comprehensive `description` properties to `transactionDate` and `totalAmount` in `responseJsonSchema` for Gemini multimodal extraction.
+  * `server/src/features/expenses/receipt.schemas.js`:
+    * Implemented `isValidCalendarDate` and `normalizeReceiptDate` pure calendar parser supporting `YYYY-MM-DD`, `YYYY/MM/DD`, `DD/MM/YYYY`, `DD-MM-YYYY`, `DD.MM.YYYY`, and timestamp prefixes without timezone shifts.
+    * Implemented `normalizeReceiptAmount` cleaning currency symbols and thousand separators while rejecting zero or negative amounts.
+    * Added automated warnings to `receiptExtractionSchema` when `transactionDate` or `totalAmount` is null, alerting the user to supply the missing information before confirming.
+  * `server/src/features/expenses/receipt.service.js`:
+    * Exported `toDraft` for direct testing and verified mapping of null/empty fields to editable blank strings.
+  * `client/src/features/receipts/ReceiptReview.jsx`:
+    * Added `buildInitialForm` where `date` strictly uses `draft?.date || draft?.transactionDate || ''` (never defaulting to today).
+    * Added `useEffect` to synchronize form state whenever `draft` changes.
+    * Added client validation in `handleConfirm` requiring valid `YYYY-MM-DD` date before submission.
+  * `client/src/features/receipts/ReceiptsView.jsx`:
+    * Added `key={receipt.id}` to `<ReceiptReview>` to ensure fresh component lifecycle per receipt.
+    * Added `activeUploadIdRef` sequence counter to `uploadReceipt`, `resumePendingReview`, and `closeReceiptReview` to drop stale, out-of-order asynchronous responses.
+  * `client/src/features/expense/assistant/ExpenseAssistant.jsx`:
+    * Added `key={proposal.id}` to `<TransactionProposalCard>` and `key={receipt.id}` to `<ReceiptReview>`.
+    * Added `activeReceiptUploadRef` sequence counter in `handleAttachReceipt`, `handleConfirmReceipt`, and `handleDiscardReceipt`.
+  * `client/src/features/expense/assistant/TransactionProposalCard.jsx`:
+    * Added `useEffect` to synchronize `draft` state when `proposal.id` or `proposal.transaction` changes.
+    * Handled null/undefined amounts safely and enforced date format validation before submission.
+  * `tests/unit/receiptDateAndAmountRegression.test.js`:
+    * Created comprehensive 13-test regression suite covering date normalization, calendar validation, grand total extraction vs subtotal/cash, missing/ambiguous handling, sequential and concurrent receipt processing isolation, and retry safety.
+* **Review & Verification:**
+  * Focused unit regression tests: `node --test tests/unit/receiptDateAndAmountRegression.test.js` — All 13 tests passed.
+  * Full relevant test suite: `node --test tests/unit/receiptExtractionSchema.test.js tests/unit/receiptServiceContract.test.js tests/unit/transactionProposal.test.js tests/unit/promptRegistry.test.js tests/unit/aiCapabilitiesGuardrails.test.js tests/unit/expenseAgent.test.js tests/unit/knowledgeBase.test.js tests/unit/chatOrchestrator.test.js tests/unit/receiptDateAndAmountRegression.test.js` — All 108 tests passed across 24 test suites with zero failures.
+  * Client production build: `npm --prefix client run build` — Vite production build completed cleanly in 13.70s with zero errors.
+  * Git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
+  * Live Gemini extraction testing note: Live Gemini API extraction calls were verified against unit contracts and offline mocked fixtures; live network calls to Gemini require runtime `GEMINI_API_KEY` configuration.
+  * Unrelated user changes preserved; no git commit or push executed.

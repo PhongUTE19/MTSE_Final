@@ -1,6 +1,13 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import TransactionFields from '../TransactionFields';
 import { ASSISTANT_LABELS } from './expenseAssistantLabels';
+
+function buildInitialDraft(transaction) {
+  return {
+    ...transaction,
+    amount: transaction?.amount != null ? String(transaction.amount) : '',
+  };
+}
 
 /**
  * Interactive card allowing users to review and confirm or cancel
@@ -8,13 +15,19 @@ import { ASSISTANT_LABELS } from './expenseAssistantLabels';
  */
 export default function TransactionProposalCard({ proposal, onConfirm, onCancel, busy }) {
   // Keep amount as a string while typing so users can delete and re-enter values.
-  const [draft, setDraft] = useState({
-    ...proposal.transaction,
-    amount: String(proposal.transaction.amount),
-  });
+  const [draft, setDraft] = useState(() => buildInitialDraft(proposal?.transaction));
   const [validationError, setValidationError] = useState('');
 
+  useEffect(() => {
+    setDraft(buildInitialDraft(proposal?.transaction));
+    setValidationError('');
+  }, [proposal?.id, proposal?.transaction]);
+
   function submit() {
+    if (!draft?.date || !/^\d{4}-\d{2}-\d{2}$/.test(draft.date)) {
+      setValidationError('Please select or enter a valid transaction date (YYYY-MM-DD).');
+      return;
+    }
     const amount = Number(draft.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       setValidationError(ASSISTANT_LABELS.AMOUNT_POSITIVE_ERROR);

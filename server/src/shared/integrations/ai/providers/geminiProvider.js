@@ -499,7 +499,38 @@ export async function extractReceiptImage(image, options = {}) {
         { text: prompt },
         { inlineData: { mimeType: preparedImage.mimeType, data: preparedImage.buffer.toString('base64') } },
       ] }],
-      config: { responseMimeType: 'application/json', responseJsonSchema: { type: 'object', properties: { documentType: { type: 'string', enum: ['receipt', 'invoice', 'unknown'] }, transactionType: { type: 'string', enum: ['expense', 'income', 'unknown'] }, merchant: { type: ['string', 'null'] }, transactionDate: { type: ['string', 'null'] }, totalAmount: { type: ['number', 'null'] }, currency: { type: 'string' }, category: { type: 'string', enum: RECEIPT_CATEGORIES }, items: { type: 'array', items: { type: 'object', properties: { name: { type: 'string' }, amount: { type: ['number', 'null'] } } } } } }, temperature: 0 },
+      config: {
+        responseMimeType: 'application/json',
+        responseJsonSchema: {
+          type: 'object',
+          properties: {
+            documentType: { type: 'string', enum: ['receipt', 'invoice', 'unknown'] },
+            transactionType: { type: 'string', enum: ['expense', 'income', 'unknown'] },
+            merchant: { type: ['string', 'null'] },
+            transactionDate: {
+              type: ['string', 'null'],
+              description: 'The purchase or transaction date printed on this specific receipt in YYYY-MM-DD format. Null if missing, ambiguous, or unreadable. Never use today\'s date or upload date.',
+            },
+            totalAmount: {
+              type: ['number', 'null'],
+              description: 'The final grand total, total paid, or amount due printed on this receipt. Never use subtotal, tax amount, discount, tip, cash tendered, or change.',
+            },
+            currency: { type: 'string' },
+            category: { type: 'string', enum: RECEIPT_CATEGORIES },
+            items: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: {
+                  name: { type: 'string' },
+                  amount: { type: ['number', 'null'] },
+                },
+              },
+            },
+          },
+        },
+        temperature: 0,
+      },
     }), undefined, undefined, timeoutMs);
     const validated = validateStructuredOutput(result.text || '', receiptExtractionSchema, { throwOnError: true });
     enforceReceiptGuardrails(validated.data);

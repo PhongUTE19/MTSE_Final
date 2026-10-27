@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { expenseApi } from '../expense/expenseApi';
 import ReceiptReview from './ReceiptReview';
 import {
@@ -20,6 +20,7 @@ export default function ReceiptsView({
   const [processingReceipt, setProcessingReceipt] = useState(null);
   const [pendingReviews, setPendingReviews] = useState([]);
   const [pendingActionId, setPendingActionId] = useState(null);
+  const activeUploadIdRef = useRef(0);
 
   useEffect(() => {
     loadPendingReviews();
@@ -47,6 +48,7 @@ export default function ReceiptsView({
       return;
     }
 
+    const uploadId = ++activeUploadIdRef.current;
     const previewUrl = URL.createObjectURL(file);
     let keepPreview = false;
     onError?.('');
@@ -54,6 +56,10 @@ export default function ReceiptsView({
 
     try {
       const result = await expenseApi.upload(file);
+      if (uploadId !== activeUploadIdRef.current) {
+        URL.revokeObjectURL(previewUrl);
+        return;
+      }
       keepPreview = true;
       setReceipt({
         id: result.receipt.id,
@@ -63,16 +69,21 @@ export default function ReceiptsView({
         draft: result.receipt.extraction,
       });
     } catch (requestError) {
-      onError?.(requestError.message);
-      await loadPendingReviews();
+      if (uploadId === activeUploadIdRef.current) {
+        onError?.(requestError.message);
+        await loadPendingReviews();
+      }
     } finally {
-      setProcessingReceipt(null);
+      if (uploadId === activeUploadIdRef.current) {
+        setProcessingReceipt(null);
+      }
       if (!keepPreview) URL.revokeObjectURL(previewUrl);
       event.target.value = '';
     }
   }
 
   function closeReceiptReview() {
+    activeUploadIdRef.current++;
     setReceipt((current) => {
       if (current?.localPreview && current.previewUrl) {
         URL.revokeObjectURL(current.previewUrl);
@@ -106,12 +117,14 @@ export default function ReceiptsView({
 
   async function resumePendingReview(pendingReceipt) {
     if (processingReceipt || receipt) return;
+    const actionId = ++activeUploadIdRef.current;
     try {
       setPendingActionId(pendingReceipt.id);
       onError?.('');
       if (pendingReceipt.status === 'failed') {
         const result = await expenseApi.retryReceipt(pendingReceipt.id);
         const preview = await expenseApi.previewReceipt(pendingReceipt.id);
+        if (actionId !== activeUploadIdRef.current) return;
         setReceipt({
           id: pendingReceipt.id,
           file: { name: pendingReceipt.filename, size: pendingReceipt.size },
@@ -122,6 +135,7 @@ export default function ReceiptsView({
         await loadPendingReviews();
       } else {
         const preview = await expenseApi.previewReceipt(pendingReceipt.id);
+        if (actionId !== activeUploadIdRef.current) return;
         setReceipt({
           id: pendingReceipt.id,
           file: { name: pendingReceipt.filename, size: pendingReceipt.size },
@@ -131,10 +145,14 @@ export default function ReceiptsView({
         });
       }
     } catch (requestError) {
-      onError?.(requestError.message);
-      await loadPendingReviews();
+      if (actionId === activeUploadIdRef.current) {
+        onError?.(requestError.message);
+        await loadPendingReviews();
+      }
     } finally {
-      setPendingActionId(null);
+      if (actionId === activeUploadIdRef.current) {
+        setPendingActionId(null);
+      }
     }
   }
 
@@ -242,6 +260,7 @@ export default function ReceiptsView({
 
       {receipt && (
         <ReceiptReview
+          key={receipt.id}
           file={receipt.file}
           previewUrl={receipt.previewUrl}
           draft={receipt.draft}

@@ -26,6 +26,7 @@ export default function ExpenseAssistant({
   const [proposal, setProposal] = useState(null);
   const [receipt, setReceipt] = useState(null);
   const imageInputRef = useRef(null);
+  const activeReceiptUploadRef = useRef(0);
 
   const assistant = useChat({
     userId,
@@ -72,11 +73,16 @@ export default function ExpenseAssistant({
   }
 
   async function handleAttachReceipt(file) {
+    const uploadId = ++activeReceiptUploadRef.current;
     const previewUrl = URL.createObjectURL(file);
     setBusy(true);
     setError('');
     try {
       const response = await onReceiptUpload(file);
+      if (uploadId !== activeReceiptUploadRef.current) {
+        URL.revokeObjectURL(previewUrl);
+        return;
+      }
       setReceipt({
         id: response.receipt.id,
         file,
@@ -85,14 +91,19 @@ export default function ExpenseAssistant({
       });
     } catch (requestError) {
       URL.revokeObjectURL(previewUrl);
-      setError(requestError.message);
+      if (uploadId === activeReceiptUploadRef.current) {
+        setError(requestError.message);
+      }
     } finally {
-      setBusy(false);
+      if (uploadId === activeReceiptUploadRef.current) {
+        setBusy(false);
+      }
     }
   }
 
   async function handleConfirmReceipt(transaction) {
     if (!receipt) return;
+    activeReceiptUploadRef.current++;
     await onReceiptConfirm(receipt.id, transaction);
     URL.revokeObjectURL(receipt.previewUrl);
     setReceipt(null);
@@ -102,6 +113,7 @@ export default function ExpenseAssistant({
 
   async function handleDiscardReceipt() {
     if (!receipt) return;
+    activeReceiptUploadRef.current++;
     await onReceiptDiscard(receipt.id);
     URL.revokeObjectURL(receipt.previewUrl);
     setReceipt(null);
@@ -147,6 +159,7 @@ export default function ExpenseAssistant({
           <>
             {proposal && (
               <TransactionProposalCard
+                key={proposal.id || `${proposal.transaction?.merchant}-${proposal.transaction?.amount}`}
                 proposal={proposal}
                 onConfirm={handleConfirmProposal}
                 onCancel={handleCancelProposal}
@@ -156,6 +169,7 @@ export default function ExpenseAssistant({
 
             {receipt && (
               <ReceiptReview
+                key={receipt.id}
                 file={receipt.file}
                 previewUrl={receipt.previewUrl}
                 draft={receipt.draft}
