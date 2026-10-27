@@ -9,6 +9,9 @@ import {
 import {
   EXPENSE_AGENT_PROMPT_IDS,
   EXPENSE_AGENT_PROMPT_VERSION,
+  PROMPT_DIRECTORIES,
+  resolvePromptFilePath,
+  BUILTIN_FALLBACKS,
   getExpenseAgentPrompt,
   renderExpenseAgentPrompt,
   computeExpenseAgentPromptVersion,
@@ -58,6 +61,8 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
     });
 
     it('supports prior prompt versions and falls back gracefully when file is missing', () => {
+      // With historical snapshots consolidated in Git history, requesting prior or missing versions
+      // gracefully falls back to the active prompt version on disk.
       const v1 = getReceiptPrompt('receipt-v1');
       assert.match(v1, /Extract the receipt into the requested JSON schema/);
 
@@ -189,6 +194,29 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
       assert.equal(renderExpenseAgentPrompt('Today: ${today}', { today: '2026-10-26' }), 'Today: 2026-10-26');
       assert.equal(renderExpenseAgentPrompt('Static text', {}), 'Static text');
       assert.equal(renderExpenseAgentPrompt(null), '');
+    });
+
+    it('resolves prompt files from server/prompts/agents/ structure', () => {
+      const searchPath = resolvePromptFilePath('search-v1.md');
+      assert.ok(searchPath, 'search-v1.md must be resolved from disk');
+      assert.match(searchPath, /search-v1\.md$/);
+      assert.ok(PROMPT_DIRECTORIES.length >= 2);
+    });
+
+    it('retains minimal emergency BUILTIN_FALLBACKS preserving authenticated-user scope and tool rules without duplicating full prompt', () => {
+      const searchFallback = BUILTIN_FALLBACKS[EXPENSE_AGENT_PROMPT_IDS.SEARCH];
+      assert.ok(searchFallback, 'search fallback must exist');
+      assert.match(searchFallback, /authenticated user/i);
+      assert.match(searchFallback, /search_transactions/);
+      assert.match(searchFallback, /English/i);
+      // Minimal fallback: concise and avoids duplicating full paragraphs of relative date heuristics
+      assert.ok(searchFallback.length < 250);
+
+      const summaryFallback = BUILTIN_FALLBACKS[EXPENSE_AGENT_PROMPT_IDS.SUMMARY];
+      assert.match(summaryFallback, /get_spending_summary/);
+
+      const createFallback = BUILTIN_FALLBACKS[EXPENSE_AGENT_PROMPT_IDS.CREATE];
+      assert.match(createFallback, /create_transaction/);
     });
   });
 

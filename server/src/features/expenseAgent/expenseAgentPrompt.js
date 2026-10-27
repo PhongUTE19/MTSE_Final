@@ -5,7 +5,33 @@ import { hashPrompt } from '../analytics/usageTracker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const promptsDirectory = path.resolve(__dirname, '../../../prompts/expenseAgent');
+
+/**
+ * Candidate directories checked for version-controlled agent prompts.
+ * Prompts under server/prompts/agents/ are prioritized, with fallback to
+ * server/prompts/expenseAgent/ for backward compatibility.
+ */
+export const PROMPT_DIRECTORIES = Object.freeze([
+  path.resolve(__dirname, '../../../prompts/agents'),
+  path.resolve(__dirname, '../../../prompts/expenseAgent'),
+]);
+
+/**
+ * Resolves the location of a prompt template on disk across supported directory structures.
+ * Checks server/prompts/agents first, falling back to server/prompts/expenseAgent.
+ *
+ * @param {string} filename - e.g. 'search-v1.md'
+ * @returns {string|null} Resolved absolute file path or null if not found
+ */
+export function resolvePromptFilePath(filename) {
+  for (const dir of PROMPT_DIRECTORIES) {
+    const candidate = path.join(dir, filename);
+    if (fs.existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
 
 /**
  * Stable prompt identifiers for the approved Expense Agent workflows.
@@ -28,7 +54,24 @@ const PROMPT_FILE_PREFIX = Object.freeze({
   [EXPENSE_AGENT_PROMPT_IDS.CONTEXT]: 'context',
 });
 
-const BUILTIN_FALLBACKS = Object.freeze({
+/**
+ * Minimal emergency operational fallbacks.
+ *
+ * RATIONALE & SAFELIGHT ARCHITECTURE:
+ * Complete natural-language prompts—including prompt injection defense, untrusted input
+ * boundaries, and Vietnamese relative date resolution ("hôm qua", "tuần trước", "tháng này")—
+ * are maintained in Git-versioned Markdown files under server/prompts/agents/ (with compatibility
+ * fallback to server/prompts/expenseAgent/).
+ *
+ * These inline fallbacks exist strictly as an emergency resilience layer to prevent catastrophic
+ * system crashes if filesystem access fails (e.g. disk corruption, missing read permissions, or
+ * container volume mounting failures). They are intentionally concise and non-duplicative,
+ * while preserving vital security guardrails:
+ * 1. Scope restriction to the authenticated user.
+ * 2. Mandate to use the appropriate approved tool (search_transactions, get_spending_summary, create_transaction).
+ * 3. Concise English response instructions.
+ */
+export const BUILTIN_FALLBACKS = Object.freeze({
   [EXPENSE_AGENT_PROMPT_IDS.SEARCH]: 'You are the transaction-search assistant for the authenticated user. Today is {{today}}. You must use search_transactions to answer every transaction lookup. Answer concisely in English.',
   [EXPENSE_AGENT_PROMPT_IDS.SUMMARY]: 'You are the spending-summary assistant for the authenticated user. Today is {{today}} in Asia/Ho_Chi_Minh. You must use get_spending_summary for every summary request. Answer concisely in English.',
   [EXPENSE_AGENT_PROMPT_IDS.CREATE]: 'You create transaction proposals only for the authenticated user. Today is {{today}} in Asia/Ho_Chi_Minh. Use create_transaction to prepare a proposal. The tool only creates a proposal, never a saved transaction.',
@@ -108,15 +151,15 @@ export function getExpenseAgentPrompt(agentType, options = {}) {
     isOverride = true;
   } else {
     const filePrefix = PROMPT_FILE_PREFIX[promptId] || 'search';
-    const filePath = path.join(promptsDirectory, `${filePrefix}-${requestedVersion}.md`);
+    const filePath = resolvePromptFilePath(`${filePrefix}-${requestedVersion}.md`);
 
     try {
-      if (fs.existsSync(filePath)) {
+      if (filePath) {
         rawTemplate = fs.readFileSync(filePath, 'utf-8').trim();
       } else {
         // Fallback to default version if custom version file is missing
-        const defaultPath = path.join(promptsDirectory, `${filePrefix}-${EXPENSE_AGENT_PROMPT_VERSION}.md`);
-        if (fs.existsSync(defaultPath)) {
+        const defaultPath = resolvePromptFilePath(`${filePrefix}-${EXPENSE_AGENT_PROMPT_VERSION}.md`);
+        if (defaultPath) {
           console.warn(`[ExpenseAgentPrompt] Prompt "${promptId}" version "${requestedVersion}" not found. Falling back to default "${EXPENSE_AGENT_PROMPT_VERSION}".`);
           rawTemplate = fs.readFileSync(defaultPath, 'utf-8').trim();
           baseVersion = EXPENSE_AGENT_PROMPT_VERSION;

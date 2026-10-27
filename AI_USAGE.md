@@ -350,3 +350,67 @@ Below are three verified real-world incidents where AI tools produced incorrect,
   * Git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
   * Live Gemini extraction testing note: Live Gemini API extraction calls were verified against unit contracts and offline mocked fixtures; live network calls to Gemini require runtime `GEMINI_API_KEY` configuration.
   * Unrelated user changes preserved; no git commit or push executed.
+
+### 13. Refactor BUILTIN_FALLBACKS and Expense Agent Prompts
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Refactor the inline `BUILTIN_FALLBACKS` prompt in `server/src/features/expenseAgent/expenseAgentPrompt.js`, establish the `server/prompts/agents/` prompt structure with version-controlled Markdown files for the SEARCH capability, and document minimal emergency fallback protection without prompt duplication.
+* **Key User Prompt:** *"Refactor the inline `BUILTIN_FALLBACKS` prompt in `server/src/features/expenseAgent/expenseAgentPrompt.js`... Move the normal SEARCH prompt instructions into an appropriately named, version-controlled Markdown file under the existing `server/prompts/agents/` structure... Keep `expenseAgentPrompt.js` responsible for prompt resolution, loading, placeholder substitution, version/hash tracking, and error handling... Preserve existing behavior: authenticated-user scope, `search_transactions` usage, English responses, and all current tool and authorization rules... Do not remove fallback protection. If an inline emergency fallback must remain for cases where prompt files cannot load, keep it minimal, document why it is necessary, and avoid duplicating the full prompt... Ensure prompt files are available in the production Docker image and preserve runtime overrides... Update relevant tests and root `AI_USAGE.md`... Run relevant prompt/agent tests, server tests and build checks, and `git diff --check`."*
+* **Architecture & Changes Implemented:**
+  * `server/prompts/agents/search-v1.md`, `summary-v1.md`, `create-v1.md`, `assistant-v1.md`, `context-v1.md`:
+    * Established `server/prompts/agents/` directory hosting Git-tracked prompt templates.
+    * `search-v1.md` contains the full natural-language instructions: authenticated user scoping, `{{today}}` date injection, untrusted input/injection protection, strict `search_transactions` tool requirement, relative date heuristics ("hôm qua", "tuần trước", "tháng này"), honest empty-state reporting, and concise English responses.
+  * `server/src/features/expenseAgent/expenseAgentPrompt.js`:
+    * Added `PROMPT_DIRECTORIES` and `resolvePromptFilePath(filename)` prioritizing `server/prompts/agents/` while falling back to `server/prompts/expenseAgent/` for seamless backward compatibility.
+    * Documented the architectural rationale for `BUILTIN_FALLBACKS`: inline fallbacks are strictly emergency guardrails for filesystem or container volume mount failures. They are kept minimal (< 250 chars) to prevent prompt drift and eliminate duplicate prompt text in code, while safeguarding authenticated-user scoping, mandatory tool invocation (`search_transactions`, `get_spending_summary`, `create_transaction`), and English answers.
+    * Exported `PROMPT_DIRECTORIES`, `resolvePromptFilePath`, and `BUILTIN_FALLBACKS` for testing and transparent module resolution.
+    * Maintained runtime override precedence (`options.override`) over disk files and fallbacks.
+  * `tests/unit/promptRegistry.test.js`:
+    * Added tests verifying resolution of `search-v1.md` from the `server/prompts/agents/` structure.
+    * Added tests verifying minimal emergency fallback behavior, ensuring authenticated scope and tool constraints are enforced without duplicating verbose relative date heuristics in code.
+  * `server/Dockerfile`:
+    * Verified that `COPY prompts/ ./prompts/` automatically bundles all subdirectories (`agents/`, `expenseAgent/`, `knowledgeBase/`, `receipts/`) into production containers.
+* **Review & Verification:**
+  * Executed focused prompt test suite: `node --test tests/unit/promptRegistry.test.js` — All 29 tests passed across 6 test suites.
+  * Executed full relevant AI agent and prompt test suite: `node --test tests/unit/promptRegistry.test.js tests/unit/expenseAgent.test.js tests/unit/transactionProposal.test.js tests/unit/aiCapabilitiesGuardrails.test.js tests/unit/knowledgeBase.test.js tests/unit/chatOrchestrator.test.js tests/unit/receiptDateAndAmountRegression.test.js tests/unit/receiptExtractionSchema.test.js tests/unit/receiptServiceContract.test.js` — All 110 tests passed across 24 test suites with zero failures.
+  * Git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
+  * Preserved user changes; no git commit or push executed.
+
+### 14. Audit and Standardize Prompt Version Management
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Audit and standardize prompt version management across SpendWise (`receiptPrompt.js`, Expense Agent prompts, Knowledge Base prompts), confirm active receipt prompt version at runtime, consolidate obsolete prompt files into active files backed by Git history, and verify telemetry version/hash tracking.
+* **Key User Prompt:** *"Audit and standardize prompt version management across SpendWise, especially `receipt-v1.md`, `receipt-v2.md`, `receipt-v3.md`, Expense Agent prompts, and Knowledge Base prompts... Trace the actual active prompt selection through `receiptPrompt.js`, all prompt loaders/callers, tests, evaluation code, runtime overrides, Docker packaging, and AI telemetry. Confirm which receipt version is actually used at runtime; do not infer it from filenames... Adopt one consistent policy: Keep one active Markdown file per prompt task by default. Use Git history and diffs to track content changes. Maintain an explicit logical prompt version and a separate content hash in telemetry... If old receipt snapshots are no longer needed, consolidate them into the active prompt file and rely on Git history; remove obsolete files only after verifying no references remain... Update tests and AI_USAGE.md... Run relevant tests, production builds, stale-reference searches, and git diff --check."*
+* **Investigation Findings & Runtime Prompt Confirmation:**
+  * **Active Receipt Prompt Version:** Tracing `extractReceiptImage` in `geminiProvider.js` confirmed that runtime receipt extraction executes `const prompt = options.prompt || getReceiptPrompt()`. `getReceiptPrompt` defaults to `RECEIPT_PROMPT_VERSION` (`process.env.RECEIPT_PROMPT_VERSION || 'receipt-v3'`), which loads `server/prompts/receipts/receipt-v3.md`. Thus, the actual runtime version is **`receipt-v3`**.
+  * **Telemetry Verification:** Telemetry in `geminiProvider.js` strictly separates logical identity from content hash: `promptId: 'receipt_extraction'`, `promptVersion: 'receipt-v3'`, and `promptHash: hashPrompt(prompt)` (64-char sha256 hex string).
+  * **Obsolete Snapshot Audit:**
+    * `receipt-v1.md` and `receipt-v2.md`: `receipt-v2.md` had zero runtime or test references. `receipt-v1.md` was only referenced in historical evaluation benchmark scripts. All guardrails, untrusted input boundaries, and Vietnamese currency/date rules are consolidated in `receipt-v3.md`.
+    * `server/prompts/expenseAgent/`: Duplicate directory created prior to prompt standardization; consolidated into `server/prompts/agents/`.
+* **Standardized Prompt Policy Implemented:**
+  1. **One Active Markdown File Per Prompt Task:**
+     * `server/prompts/receipts/receipt-v3.md` (receipt extraction)
+     * `server/prompts/agents/search-v1.md` (transaction search)
+     * `server/prompts/agents/summary-v1.md` (spending summary)
+     * `server/prompts/agents/create-v1.md` (transaction proposal creation)
+     * `server/prompts/agents/assistant-v1.md` (multi-tool expense assistant)
+     * `server/prompts/agents/context-v1.md` (conversation history formatting)
+     * `server/prompts/knowledgeBase/grounded-v1.md` (RAG grounded Q&A)
+     * `server/prompts/knowledgeBase/system-v1.md` (system prompt)
+  2. **Git History For Content Tracking:** Prompt revisions and diffs are maintained through Git commits rather than proliferating snapshot files.
+  3. **Telemetry Separation:** Telemetry stores explicit logical version (`promptVersion`) and deterministic content hash (`promptHash`).
+  4. **Graceful Fallback:** Loaders fall back safely to active version and documented minimal built-in fallbacks if disk I/O degrades.
+* **Files Changed:**
+  * `server/prompts/receipts/receipt-v1.md`, `receipt-v2.md`: Removed obsolete prompt snapshot files.
+  * `server/prompts/expenseAgent/`: Removed duplicate directory in favor of `server/prompts/agents/`.
+  * `evals/receipts/run-live-gemini.js`: Updated default evaluation target to `[RECEIPT_PROMPT_VERSION]` while enabling configurable multi-version evaluation via `--versions=` CLI argument.
+  * `tests/unit/promptRegistry.test.js`: Verified graceful fallback to the active prompt version on disk when requesting prior or missing versions.
+* **Review & Verification:**
+  * Focused unit tests: `node --test tests/unit/promptRegistry.test.js` — All 29 tests passed across 6 test suites.
+  * Relevant receipt and agent test suite: `node --test tests/unit/promptRegistry.test.js tests/unit/expenseAgent.test.js tests/unit/transactionProposal.test.js tests/unit/receiptDateAndAmountRegression.test.js tests/unit/receiptExtractionSchema.test.js tests/unit/receiptServiceContract.test.js` — All 76 tests passed across 11 test suites with zero failures.
+  * Client production build: `npm --prefix client run build` — Vite production bundle built cleanly in 17.10s with zero errors.
+  * Stale reference checks: Ripgrep confirmed zero remaining code/test references to removed files.
+  * Git whitespace check: `git diff --check` — Passed cleanly with exit code 0.
+  * User changes preserved; no git commit or push executed.

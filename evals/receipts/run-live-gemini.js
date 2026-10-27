@@ -1,6 +1,6 @@
 /**
- * Runs the synthetic corpus against real configured Gemini using receipt-v1
- * and receipt-v3. It never calls Supabase or application HTTP endpoints.
+ * Runs the synthetic corpus against real configured Gemini using the active
+ * receipt extraction prompt. It never calls Supabase or application HTTP endpoints.
  */
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractReceiptImage } from '../../server/src/shared/integrations/ai/index.js';
 import { config } from '../../server/src/config.js';
-import { getReceiptPrompt } from '../../server/src/features/expenses/receiptPrompt.js';
+import { getReceiptPrompt, RECEIPT_PROMPT_VERSION } from '../../server/src/features/expenses/receiptPrompt.js';
 import { liveReceiptCases } from './live-cases.js';
 
 const root = path.dirname(fileURLToPath(import.meta.url));
@@ -17,7 +17,8 @@ const outputName = process.argv.find((argument) => argument.startsWith('--output
 if (!/^[a-z0-9._-]+$/i.test(outputName)) throw new Error('Invalid --output filename.');
 const outputPath = path.join(root, outputName);
 const reportPath = path.join(root, outputName === 'live-results.json' ? 'LIVE_EVALUATION_REPORT.md' : `${path.parse(outputName).name}.md`);
-const promptVersions = ['receipt-v1', 'receipt-v3'];
+const promptVersions = process.argv.find((argument) => argument.startsWith('--versions='))?.split('=')[1]?.split(',')
+  || [RECEIPT_PROMPT_VERSION];
 const batchIndex = Number.parseInt(process.argv.find((argument) => argument.startsWith('--batch='))?.split('=')[1] || '0', 10);
 const batchSize = Number.parseInt(process.argv.find((argument) => argument.startsWith('--batch-size='))?.split('=')[1] || '20', 10);
 const reset = process.argv.includes('--reset');
