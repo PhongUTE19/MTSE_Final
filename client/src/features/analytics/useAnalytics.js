@@ -25,6 +25,9 @@ export function useAnalytics(options = {}) {
     outcome: 'all',
     page: 1,
     limit: ANALYTICS_CONFIG.DEFAULT_PAGE_SIZE,
+    search: '',
+    sortBy: 'timestamp',
+    sortOrder: 'desc',
     ...(options.initialFilters || {}),
   }));
 
@@ -38,6 +41,8 @@ export function useAnalytics(options = {}) {
   const [historyData, setHistoryData] = useState(null);
 
   const isMountedRef = useRef(true);
+  const prevCoreFiltersRef = useRef(null);
+
   useEffect(() => {
     isMountedRef.current = true;
     return () => {
@@ -53,19 +58,45 @@ export function useAnalytics(options = {}) {
     }
     setError(null);
 
-    try {
-      const [ov, ts, bd, hist] = await Promise.all([
-        fetchAnalyticsOverview(activeFilters),
-        fetchAnalyticsTimeseries(activeFilters),
-        fetchAnalyticsBreakdown(activeFilters),
-        fetchAnalyticsHistory(activeFilters),
-      ]);
+    const prevCore = prevCoreFiltersRef.current;
+    const coreChanged =
+      isManualRefresh ||
+      !prevCore ||
+      prevCore.timeRange !== activeFilters.timeRange ||
+      prevCore.feature !== activeFilters.feature ||
+      prevCore.model !== activeFilters.model ||
+      prevCore.outcome !== activeFilters.outcome ||
+      prevCore.startDate !== activeFilters.startDate ||
+      prevCore.endDate !== activeFilters.endDate;
 
-      if (isMountedRef.current) {
-        setOverview(ov);
-        setTimeseries(ts || []);
-        setBreakdown(bd);
-        setHistoryData(hist);
+    try {
+      if (coreChanged) {
+        const [ov, ts, bd, hist] = await Promise.all([
+          fetchAnalyticsOverview(activeFilters),
+          fetchAnalyticsTimeseries(activeFilters),
+          fetchAnalyticsBreakdown(activeFilters),
+          fetchAnalyticsHistory(activeFilters),
+        ]);
+
+        if (isMountedRef.current) {
+          setOverview(ov);
+          setTimeseries(ts || []);
+          setBreakdown(bd);
+          setHistoryData(hist);
+          prevCoreFiltersRef.current = {
+            timeRange: activeFilters.timeRange,
+            feature: activeFilters.feature,
+            model: activeFilters.model,
+            outcome: activeFilters.outcome,
+            startDate: activeFilters.startDate,
+            endDate: activeFilters.endDate,
+          };
+        }
+      } else {
+        const hist = await fetchAnalyticsHistory(activeFilters);
+        if (isMountedRef.current) {
+          setHistoryData(hist);
+        }
       }
     } catch (err) {
       if (isMountedRef.current) {

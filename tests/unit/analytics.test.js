@@ -34,6 +34,10 @@ import {
   MODEL_PRICING_REGISTRY,
   calculateRequestCost,
   normalizeModelName,
+  sortInMemoryRecords,
+  filterInMemoryRecords,
+  SORT_FIELDS,
+  SORT_ORDERS,
 } from '../../server/src/features/analytics/index.js';
 
 describe('AI Usage Analytics Suite', () => {
@@ -538,7 +542,92 @@ describe('AI Usage Analytics Suite', () => {
       assert.ok(failedOnly.records.every((r) => r.outcome === 'failure'));
     });
 
-    it('validates query parameters with Zod schema', () => {
+    it('searches full request history dataset by feature, model, operation, promptId, or request ID', async () => {
+      // 1. Search by feature
+      const embedSearch = await getAnalyticsHistory({ search: 'embedding' });
+      assert.ok(embedSearch.records.length > 0);
+      assert.ok(embedSearch.records.every((r) => r.feature === 'embedding'));
+
+      // 2. Search by model
+      const modelSearch = await getAnalyticsHistory({ search: 'text-embedding-004' });
+      assert.ok(modelSearch.records.length > 0);
+      assert.ok(modelSearch.records.every((r) => r.model === 'text-embedding-004'));
+
+      // 3. Search by operation
+      const opSearch = await getAnalyticsHistory({ search: 'generate_answer_stream' });
+      assert.ok(opSearch.records.length > 0);
+      assert.ok(opSearch.records.every((r) => r.operation === 'generate_answer_stream'));
+
+      // 4. Search by request ID prefix
+      const idSearch = await getAnalyticsHistory({ search: 'rec-query-1' });
+      assert.ok(idSearch.records.length >= 1);
+      assert.ok(idSearch.records.every((r) => r.id.includes('rec-query-1')));
+
+      // 5. Preserves existing filters alongside search
+      const combined = await getAnalyticsHistory({ outcome: 'failure', search: 'rag_chat' });
+      assert.ok(combined.records.length > 0);
+      assert.ok(combined.records.every((r) => r.outcome === 'failure' && r.feature === 'rag_chat'));
+
+      // 6. Non-matching search returns clear empty result
+      const emptyResult = await getAnalyticsHistory({ search: 'non-existent-query-xyz' });
+      assert.equal(emptyResult.records.length, 0);
+      assert.equal(emptyResult.total, 0);
+    });
+
+    it('sorts the entire matching dataset before pagination slicing', async () => {
+      // Sort ascending by durationMs:
+      const sortedAscPage1 = await getAnalyticsHistory({
+        sortBy: 'durationMs',
+        sortOrder: 'asc',
+        page: 1,
+        limit: 2,
+      });
+      assert.equal(sortedAscPage1.records.length, 2);
+      assert.ok(sortedAscPage1.records[0].durationMs <= sortedAscPage1.records[1].durationMs);
+
+      const sortedAscPage2 = await getAnalyticsHistory({
+        sortBy: 'durationMs',
+        sortOrder: 'asc',
+        page: 2,
+        limit: 2,
+      });
+      assert.ok(sortedAscPage2.records.length >= 1);
+      assert.ok(sortedAscPage2.records[0].durationMs >= sortedAscPage1.records[1].durationMs);
+
+      // Sort descending by durationMs:
+      const sortedDescPage1 = await getAnalyticsHistory({
+        sortBy: 'durationMs',
+        sortOrder: 'desc',
+        page: 1,
+        limit: 2,
+      });
+      assert.equal(sortedDescPage1.records.length, 2);
+      assert.ok(sortedDescPage1.records[0].durationMs >= sortedDescPage1.records[1].durationMs);
+
+      const sortedDescPage2 = await getAnalyticsHistory({
+        sortBy: 'durationMs',
+        sortOrder: 'desc',
+        page: 2,
+        limit: 2,
+      });
+      assert.ok(sortedDescPage2.records.length >= 1);
+      assert.ok(sortedDescPage2.records[0].durationMs <= sortedDescPage1.records[1].durationMs);
+
+      // Sort by total tokens:
+      const tokenSorted = await getAnalyticsHistory({
+        sortBy: 'tokens',
+        sortOrder: 'asc',
+        page: 1,
+        limit: 10,
+      });
+      assert.ok(tokenSorted.records.length >= 3);
+      const tokenCounts = tokenSorted.records.map((r) => r.tokenUsage?.totalTokens ?? -1);
+      for (let i = 1; i < tokenCounts.length; i++) {
+        assert.ok(tokenCounts[i] >= tokenCounts[i - 1]);
+      }
+    });
+
+    it('validates query parameters with Zod schema and clamps bounds', () => {
       const valid = analyticsFilterSchema.safeParse({
         timeRange: '24h',
         feature: 'rag_chat',
@@ -554,10 +643,23 @@ describe('AI Usage Analytics Suite', () => {
       const validHistory = analyticsHistorySchema.safeParse({
         page: '2',
         limit: '50',
+        search: '  gemini  ',
+        sortBy: 'tokens',
+        sortOrder: 'asc',
       });
       assert.equal(validHistory.success, true);
       assert.equal(validHistory.data.page, 2);
       assert.equal(validHistory.data.limit, 50);
+      assert.equal(validHistory.data.search, 'gemini');
+      assert.equal(validHistory.data.sortBy, 'tokens');
+      assert.equal(validHistory.data.sortOrder, 'asc');
+
+      // Clamps out of range limit
+      const clamped = analyticsHistorySchema.safeParse({
+        limit: '9999',
+      });
+      assert.equal(clamped.success, true);
+      assert.equal(clamped.data.limit, 100); // MAX_LIMIT
     });
   });
 
@@ -710,6 +812,41 @@ describe('AI Usage Analytics Suite', () => {
       const rec2 = formatDbToRecord(row2);
       assert.equal(rec2.promptVersion, 'receipt-v3');
       assert.equal(rec2.promptHash, 'ddeb76aaa7d49ee52363870faa4951b9bdf1addfecd6208f2466ede81bc09243');
+    });
+
+    it('filterInMemoryRecords filters by search string across multiple properties', () => {
+      const records = [
+        { id: '1', feature: 'receipt_extraction', operation: 'ocr', model: 'gemini-2.5-flash', outcome: 'success', promptId: 'p-1' },
+        { id: '2', feature: 'chat', operation: 'answer', model: 'gemini-3.5-flash-lite', outcome: 'failure', promptId: 'p-2' },
+        { id: '3', feature: 'embedding', operation: 'vector', model: 'text-embedding-004', outcome: 'success', promptId: 'p-3' },
+      ];
+
+      assert.equal(filterInMemoryRecords(records, { search: 'receipt' }).length, 1);
+      assert.equal(filterInMemoryRecords(records, { search: 'flash-lite' }).length, 1);
+      assert.equal(filterInMemoryRecords(records, { search: 'p-3' }).length, 1);
+      assert.equal(filterInMemoryRecords(records, { search: 'failure' }).length, 1);
+      assert.equal(filterInMemoryRecords(records, { search: 'xyz-no-match' }).length, 0);
+      assert.equal(filterInMemoryRecords(records, { search: '' }).length, 3);
+    });
+
+    it('sortInMemoryRecords sorts multiple columns ascending, descending, and breaks ties deterministically', () => {
+      const records = [
+        { id: '1', timestamp: '2026-10-20T10:00:00Z', durationMs: 300, estimatedCost: 0.05, feature: 'chat' },
+        { id: '2', timestamp: '2026-10-20T11:00:00Z', durationMs: 100, estimatedCost: 0.01, feature: 'receipt' },
+        { id: '3', timestamp: '2026-10-20T09:00:00Z', durationMs: 200, estimatedCost: 0.10, feature: 'analytics' },
+      ];
+
+      // Sort durationMs asc
+      const ascDuration = sortInMemoryRecords([...records], 'durationMs', 'asc');
+      assert.deepEqual(ascDuration.map((r) => r.durationMs), [100, 200, 300]);
+
+      // Sort cost desc
+      const descCost = sortInMemoryRecords([...records], 'cost', 'desc');
+      assert.deepEqual(descCost.map((r) => r.estimatedCost), [0.10, 0.05, 0.01]);
+
+      // Sort feature asc
+      const ascFeature = sortInMemoryRecords([...records], 'feature', 'asc');
+      assert.deepEqual(ascFeature.map((r) => r.feature), ['analytics', 'chat', 'receipt']);
     });
   });
 

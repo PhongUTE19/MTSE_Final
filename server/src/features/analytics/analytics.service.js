@@ -55,7 +55,7 @@ export async function getAnalyticsBreakdown(filters = {}) {
 }
 
 /**
- * Retrieves paginated request history with filtering.
+ * Retrieves paginated request history with filtering, search, and full-dataset sorting.
  *
  * @param {object} [filters={}]
  * @returns {Promise<{ page: number, limit: number, total: number, totalPages: number, records: Array<object> }>}
@@ -68,7 +68,14 @@ export async function getAnalyticsHistory(filters = {}) {
   );
   const offset = (page - 1) * limit;
 
-  const { records, total } = await fetchHistoryRecords(filters, { offset, limit });
+  const normalizedFilters = {
+    ...filters,
+    search: (filters.search || filters.q || '').trim(),
+    sortBy: filters.sortBy || filters.sortKey || 'timestamp',
+    sortOrder: (filters.sortOrder || filters.sortDirection || 'desc').toLowerCase(),
+  };
+
+  const { records, total } = await fetchHistoryRecords(normalizedFilters, { offset, limit });
 
   return {
     page,

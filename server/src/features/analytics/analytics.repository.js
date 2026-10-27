@@ -1,12 +1,14 @@
 import { getSupabaseClient } from '../../shared/integrations/supabase.js';
 import { defaultUsageStore } from './usageTracker.js';
-import { resolveTimeBounds, filterInMemoryRecords } from './analytics.utils.js';
+import { resolveTimeBounds, filterInMemoryRecords, sortInMemoryRecords } from './analytics.utils.js';
 import {
   ANALYTICS_TABLE,
   IN_MEMORY_DEFAULTS,
   PERSISTENCE_PROVIDERS,
   PROVIDERS,
 } from './analytics.constants.js';
+
+import { estimateTokensForRequest, calculateEstimatedBackfillCost } from './tokenEstimator.js';
 
 /**
  * Formats a normalized usage record into a database row for ai_usage_analytics.
@@ -33,6 +35,9 @@ export function formatRecordForDb(record) {
     output_tokens: record.tokenUsage?.outputTokens ?? null,
     total_tokens: record.tokenUsage?.totalTokens ?? null,
     token_counts_available: Boolean(record.tokenUsage?.tokenCountsAvailable),
+    estimated_input_tokens: record.estimatedTokens?.inputTokens ?? record.estimatedInputTokens ?? null,
+    estimated_output_tokens: record.estimatedTokens?.outputTokens ?? record.estimatedOutputTokens ?? null,
+    estimated_total_tokens: record.estimatedTokens?.totalTokens ?? record.estimatedTotalTokens ?? null,
     prompt_id: record.promptId || null,
     prompt_version: record.promptVersion || null,
     prompt_hash: record.promptHash || null,
@@ -52,8 +57,7 @@ export function formatRecordForDb(record) {
 export function formatDbToRecord(row) {
   const isRefusal = Boolean(row.is_refusal);
   const totalAttempts = row.total_attempts || 1;
-  const estimatedCost = row.estimated_cost != null ? Number(row.estimated_cost) : null;
-  const costStatus = row.cost_status || (estimatedCost !== null ? 'calculated' : 'unknown');
+  const rawCost = row.estimated_cost != null ? Number(row.estimated_cost) : null;
 
   // Parse prompt metadata safely, supporting historical rows where hash was in prompt_version
   let promptId = row.prompt_id || null;
@@ -77,6 +81,63 @@ export function formatDbToRecord(row) {
     }
   }
 
+  // Safely derive total_tokens if missing and both input and output counts exist
+  const hasInput = typeof row.input_tokens === 'number';
+  const hasOutput = typeof row.output_tokens === 'number';
+  const hasTotal = typeof row.total_tokens === 'number';
+
+  const totalTokens = hasTotal
+    ? row.total_tokens
+    : (hasInput && hasOutput ? row.input_tokens + row.output_tokens : null);
+
+  const tokenCountsAvailable = typeof row.token_counts_available === 'boolean'
+    ? row.token_counts_available
+    : Boolean(hasInput && hasOutput);
+
+  // Read or deterministically generate separate estimated token fields
+  const storedEstIn = row.estimated_input_tokens ?? row.attempts?.[0]?.estimatedTokens?.inputTokens ?? null;
+  const storedEstOut = row.estimated_output_tokens ?? row.attempts?.[0]?.estimatedTokens?.outputTokens ?? null;
+  const storedEstTot = row.estimated_total_tokens ?? row.attempts?.[0]?.estimatedTokens?.totalTokens ?? null;
+
+  let estimatedTokens = null;
+  if (!tokenCountsAvailable || !hasInput || !hasOutput) {
+    if (storedEstTot != null) {
+      estimatedTokens = {
+        inputTokens: storedEstIn,
+        outputTokens: storedEstOut,
+        totalTokens: storedEstTot,
+        effectiveInputTokens: hasInput ? row.input_tokens : storedEstIn,
+        effectiveOutputTokens: hasOutput ? row.output_tokens : storedEstOut,
+        effectiveTotalTokens: storedEstTot,
+        isEstimated: true,
+      };
+    } else {
+      const estimate = estimateTokensForRequest(row);
+      estimatedTokens = {
+        inputTokens: estimate.estimatedInputTokens,
+        outputTokens: estimate.estimatedOutputTokens,
+        totalTokens: estimate.estimatedTotalTokens,
+        effectiveInputTokens: estimate.effectiveInputTokens,
+        effectiveOutputTokens: estimate.effectiveOutputTokens,
+        effectiveTotalTokens: estimate.effectiveTotalTokens,
+        isEstimated: true,
+      };
+    }
+  }
+
+  let finalEstimatedCost = rawCost;
+  let costStatus = row.cost_status;
+
+  if (!costStatus || costStatus === 'unknown') {
+    if (finalEstimatedCost !== null) {
+      costStatus = 'calculated';
+    } else if (!hasInput || !hasOutput) {
+      costStatus = 'missing_tokens';
+    } else {
+      costStatus = 'unknown_pricing';
+    }
+  }
+
   return {
     id: row.id,
     timestamp: row.timestamp,
@@ -94,27 +155,31 @@ export function formatDbToRecord(row) {
     attemptCount: totalAttempts,
     attempts: row.attempts || [],
     tokenUsage: {
-      inputTokens: row.input_tokens,
-      outputTokens: row.output_tokens,
-      totalTokens: row.total_tokens,
-      tokenCountsAvailable: row.token_counts_available,
+      inputTokens: hasInput ? row.input_tokens : null,
+      outputTokens: hasOutput ? row.output_tokens : null,
+      totalTokens,
+      tokenCountsAvailable,
       tokenCountsComplete: Boolean(
-        row.token_counts_available &&
-        row.input_tokens !== null &&
-        row.output_tokens !== null &&
-        row.total_tokens !== null
+        tokenCountsAvailable &&
+        hasInput &&
+        hasOutput &&
+        totalTokens !== null
       ),
     },
+    estimatedTokens,
+    estimatedInputTokens: estimatedTokens?.inputTokens ?? null,
+    estimatedOutputTokens: estimatedTokens?.outputTokens ?? null,
+    estimatedTotalTokens: estimatedTokens?.totalTokens ?? null,
     promptId,
     promptVersion,
     promptHash,
     toolsExecuted: row.tools_executed || [],
     cost: {
-      estimatedCostUsd: estimatedCost,
+      estimatedCostUsd: finalEstimatedCost,
       costStatus,
       currency: 'USD',
     },
-    estimatedCost,
+    estimatedCost: finalEstimatedCost,
     costStatus,
     error: row.error,
   };
@@ -136,6 +201,24 @@ function applyDatabaseFilters(baseQuery, filters = {}) {
   if (filters.feature && filters.feature !== 'all') query = query.eq('feature', filters.feature);
   if (filters.model && filters.model !== 'all') query = query.eq('model', filters.model);
   if (filters.outcome && filters.outcome !== 'all') query = query.eq('outcome', filters.outcome);
+
+  const rawSearch = (filters.search || filters.q || '').trim();
+  if (rawSearch) {
+    const term = `%${rawSearch.replace(/[,%()]/g, '\\$&')}%`;
+    const orConditions = [
+      `feature.ilike.${term}`,
+      `operation.ilike.${term}`,
+      `model.ilike.${term}`,
+      `outcome.ilike.${term}`,
+      `prompt_id.ilike.${term}`,
+      `prompt_version.ilike.${term}`,
+      `prompt_hash.ilike.${term}`,
+    ];
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawSearch)) {
+      orConditions.push(`id.eq.${rawSearch}`);
+    }
+    query = query.or(orConditions.join(','));
+  }
 
   return query;
 }
@@ -163,7 +246,7 @@ export async function fetchOverviewRecords(filters = {}) {
     try {
       const baseQuery = client
         .from(ANALYTICS_TABLE)
-        .select('outcome, duration_ms, input_tokens, output_tokens, total_tokens, token_counts_available');
+        .select('id, feature, operation, model, timestamp, outcome, duration_ms, input_tokens, output_tokens, total_tokens, token_counts_available, estimated_cost, cost_status, attempts');
 
       const { data, error } = await applyDatabaseFilters(baseQuery, filters);
       if (error) throw new Error(error.message);
@@ -205,7 +288,7 @@ export async function fetchTimeseriesRecords(filters = {}) {
     try {
       const baseQuery = client
         .from(ANALYTICS_TABLE)
-        .select('timestamp, outcome, duration_ms, total_tokens, token_counts_available')
+        .select('timestamp, outcome, duration_ms, total_tokens, token_counts_available, estimated_cost, cost_status')
         .order('timestamp', { ascending: true });
 
       const { data, error } = await applyDatabaseFilters(baseQuery, filters);
@@ -259,16 +342,38 @@ export async function fetchBreakdownRecords(filters = {}) {
  */
 export async function fetchHistoryRecords(filters = {}, { offset = 0, limit = 20 } = {}) {
   const client = getRepositoryClient();
+  const sortBy = filters.sortBy || filters.sortKey || 'timestamp';
+  const sortOrder = (filters.sortOrder || filters.sortDirection || 'desc').toLowerCase();
+  const ascending = sortOrder === 'asc';
+
+  const SORT_COLUMN_MAP = {
+    timestamp: 'timestamp',
+    feature: 'feature',
+    model: 'model',
+    outcome: 'outcome',
+    durationMs: 'duration_ms',
+    tokens: 'total_tokens',
+    cost: 'estimated_cost',
+    totalAttempts: 'total_attempts',
+  };
+  const sortColumn = SORT_COLUMN_MAP[sortBy] || 'timestamp';
 
   if (client) {
     try {
-      const baseQuery = client
+      let baseQuery = client
         .from(ANALYTICS_TABLE)
-        .select('*', { count: 'exact' })
-        .order('timestamp', { ascending: false })
+        .select('*', { count: 'exact' });
+
+      baseQuery = applyDatabaseFilters(baseQuery, filters);
+      baseQuery = baseQuery
+        .order(sortColumn, { ascending, nullsFirst: false })
         .range(offset, offset + limit - 1);
 
-      const { data, count, error } = await applyDatabaseFilters(baseQuery, filters);
+      if (sortColumn !== 'timestamp') {
+        baseQuery = baseQuery.order('timestamp', { ascending: false });
+      }
+
+      const { data, count, error } = await baseQuery;
       if (error) throw new Error(error.message);
 
       return {
@@ -285,7 +390,7 @@ export async function fetchHistoryRecords(filters = {}, { offset = 0, limit = 20
     defaultUsageStore.getRecent(IN_MEMORY_DEFAULTS.RECENT_QUERY_LIMIT),
     filters
   );
-  filtered.sort((a, b) => (b.timestamp > a.timestamp ? 1 : -1));
+  sortInMemoryRecords(filtered, sortBy, sortOrder);
 
   return {
     records: filtered.slice(offset, offset + limit),

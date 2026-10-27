@@ -102,3 +102,79 @@ Below are three verified real-world incidents where AI tools produced incorrect,
   * **Member 2**: Transaction CRUD, Pagination, Table UI, and Analytics Dashboard.
   * **Member 3**: Multimodal Receipt Scanning, AI Prompt Engineering, and Live Evaluations.
 * Any unverified code or claims have been marked for team verification and will not be presented as finished without automated test coverage.
+
+---
+
+## 7. Agent Invocation Log: Admin Analytics Request History Improvements
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Improve Admin Analytics Request History table with full-dataset search, server-side / repository full-dataset sorting, direct page navigation ("Go to page"), and independent pagination/sort/filter state coordination.
+* **Key User Prompt:** *"Improve the Admin Analytics Request History table with search, full-dataset sorting, and direct page navigation... Search the full dataset rather than only the currently displayed page... Sorting must apply to the entire matching dataset before pagination... Add an input that lets users navigate directly to a specific page... Validate the input, handle out-of-range values safely... Keep behaviors independent... Preserve existing table columns, row expansion, cost information, prompt metadata, visual styling, and responsive behavior."*
+* **Files Changed:**
+  * `server/src/features/analytics/analytics.schemas.js`: Extended `analyticsHistorySchema` with validated query fields (`search`, `q`, `sortBy`, `sortKey`, `sortOrder`, `sortDirection`).
+  * `server/src/features/analytics/analytics.utils.js`: Updated `filterInMemoryRecords` with case-insensitive search across request ID, feature, operation, model, outcome, promptId, promptVersion, and promptHash. Added and exported `sortInMemoryRecords` with deterministic tie-breaking.
+  * `server/src/features/analytics/analytics.service.js`: Normalized query parameters in `getAnalyticsHistory`.
+  * `server/src/features/analytics/analytics.repository.js`: Added search filter support (`.or(...)`) and sorting (`order(column, { ascending })`) to Supabase queries, and integrated `sortInMemoryRecords` before slicing in-memory fallback results.
+  * `client/src/shared/components/Pagination.jsx`: Added `showGoToPage` prop, direct numeric page jump input form, and safe bounds validation/clamping.
+  * `client/src/shared/styles/components/tables.css`: Added styles for `.pagination-go-to-page`, `.pagination-jump-label`, and `.page-jump-input`.
+  * `client/src/features/analytics/analytics.css`: Added `.analytics-history-header` layout and `.analytics-empty-search` styling.
+  * `client/src/features/analytics/useAnalytics.js`: Initialized search and sort keys in filter state and optimized `loadData` to fetch only history when top-level filters have not changed.
+  * `client/src/features/analytics/AnalyticsHistoryTable.jsx`: Reused shared `SearchInput`, wired search change/clear handlers, enabled `showGoToPage` in `Pagination`, passed `filters.sortBy` and `filters.sortOrder` to `SortableHeader`, and added clear empty-search state.
+  * `tests/unit/analytics.test.js`: Added test cases for full-dataset search across fields, multi-page sorting before slicing, and schema validation.
+  * `tests/unit/analyticsHistoryTable.test.js`: Added unit tests covering search filter transitions, sort toggling, page resets, and direct page navigation boundary clamping.
+* **Review & Verification:**
+  * Executed `node --test "tests/unit/analytics.test.js"`: All 42 tests passed.
+  * Executed `node --test "tests/unit/analyticsHistoryTable.test.js"`: All 13 tests passed.
+  * Executed `npm --prefix client run build`: Vite build completed successfully without errors.
+  * Executed `git diff --check`: Passed with zero whitespace or conflict warnings.
+  * Verified input boundaries: invalid/out-of-range page inputs are clamped safely to `[1, totalPages]`; search query resets page to 1 while preserving active filters; sorting determines entire dataset order before slicing.
+
+---
+
+## 8. Agent Invocation Log: Historical AI Telemetry Data & UI Field Mapping Repair
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Fix historical AI telemetry data, prompt identity, token counts, and UI field mappings in SpendWise without inventing missing values.
+* **Key User Prompt:** *"Fix historical AI telemetry data and UI field mappings in SpendWise without inventing missing values... Keep prompt_id, prompt_version, and prompt_hash separate... Move historical values from prompt_version to prompt_hash only when their hash format and meaning can be verified... Recover a logical prompt version only when established from reliable evidence; otherwise leave it unknown and render 'Legacy / unknown' in the UI instead of displaying a hash as a version... Preserve valid recorded token counts; never replace missing token values with zero... Normalize cost_status... Recalculate historical cost only when actual token usage, the exact model, and verified historical price exist... Safe migration and verification."*
+* **Files Changed:**
+  * `supabase/migrations/202610270006_repair_historical_telemetry_prompt_and_cost.sql`: Repeatable migration to add `prompt_hash`, safely split composite `<version>:<hash>` patterns, isolate pure 64-character SHA-256 hashes from `prompt_version`, derive `total_tokens` only when missing but input/output exist, normalize unpriced missing-token requests to `cost_status = 'missing_tokens'`, and recalculate historical cost using verified rates for `gemini-3.5-flash-lite`, `gemini-2.5-flash`, and `gemini-1.5-flash`.
+  * `server/scripts/backfill-telemetry.js`: Repeatable, backward-compatible Node.js telemetry backfill script supporting `--dry-run` and `--apply` modes with granular audit reporting.
+  * `server/src/features/analytics/analytics.repository.js`: Updated `formatDbToRecord` to safely derive missing `total_tokens` from input + output tokens without overwriting provider totals, preserve null tokens without zero-fabrication, normalize legacy `'unknown'` cost status to `'missing_tokens'` or `'calculated'`, and added `estimated_cost` and `cost_status` to `fetchOverviewRecords` and `fetchTimeseriesRecords` database selects.
+  * `client/src/features/analytics/AnalyticsHistoryTable.jsx`: Updated Prompt Version column to strictly display logical versions and render `Legacy / unknown` for legacy hash rows; updated Tokens column to never fabricate `0` for null/missing counts (`${in} / ${out} (${tot})`); updated Cost column to show `—` with descriptive tooltips explaining why pricing is unavailable (`missing_tokens`, `unknown_pricing`, or `legacy unpriced`); updated `AnalyticsHistoryDetailRow` to clearly separate Prompt Version, `Prompt Hash (SHA-256)`, and cost availability reasons.
+  * `tests/unit/analyticsTelemetryRepair.test.js`: Added 16 focused unit tests covering legacy hash detection, composite recovery, UI field mapping, missing token preservation, historical pricing calculation, cost-status normalization, and overview average-cost calculations.
+* **Review & Verification:**
+  * Ran read-only assessment on live Supabase records: Identified 266 total records, including 34 pure 64-hex hashes in `prompt_version`, 12 composite `<version>:<hash>` records, 125 records with incomplete/missing tokens, and 109 unpriced records eligible for verified historical pricing recalculation.
+  * Executed dry-run backfill (`node server/scripts/backfill-telemetry.js --dry-run`): Evaluated all 266 records, correctly identified 207 records requiring updates, 0 fabricated values, 125 preserved missing-token records, and 109 eligible cost recalculations.
+  * Applied backfill (`node server/scripts/backfill-telemetry.js --apply`): Successfully updated all 207 targeted database records with zero errors.
+  * Re-inspected live database: Confirmed 0 pure hashes remain in `prompt_version` (all 34 moved to `prompt_hash`), 0 composite strings remain in `prompt_version`, all 109 eligible requests have recalculated costs with `cost_status = 'calculated'`, and all 125 incomplete-token requests have `cost_status = 'missing_tokens'` with `estimated_cost = null`.
+  * Executed `node --test tests/unit/analytics.test.js tests/unit/analyticsHistoryTable.test.js tests/unit/analyticsTelemetryRepair.test.js`: All 71 tests passed across 21 test suites.
+  * Executed `npm --prefix client run build`: Production client build succeeded in 18.42s without errors.
+  * Executed `git diff --check`: Passed with zero whitespace, line ending, or conflict markers.
+
+---
+
+## 9. Agent Invocation Log: Historical Token & Cost Estimation Coverage
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Improve historical token and estimated-cost coverage in SpendWise Admin Analytics using clearly identified deterministic estimates without overwriting actual provider usage data.
+* **Key User Prompt:** *"Improve historical token and estimated-cost coverage in SpendWise Admin Analytics using clearly identified estimates... Never overwrite provider-reported token counts or valid recorded costs... Use deterministic pseudo-random values derived from the request ID... Use sensible ranges for receipt multimodal extraction, structured category prediction, and tool-using agent requests... Store estimated values separately from provider-reported values, preferably in nullable estimated_input_tokens, estimated_output_tokens, and estimated_total_tokens fields... Display actual values when available; otherwise show estimates with a clear '~' marker or an 'Estimated' indicator... Mark backfilled estimates with an explicit status such as estimated_backfill... Do not mix synthetic estimates into a metric presented as actual usage... Safe, repeatable backfill."*
+* **Files Changed:**
+  * `server/src/features/analytics/tokenEstimator.js`: Created deterministic pseudo-random estimation engine (`getDeterministicRandom`, `deterministicIntInRange`, `estimateTokensForRequest`, `calculateEstimatedBackfillCost`) calibrated to empirical task profiles (`RECEIPT_EXTRACTION`, `AGENT_TOOL_SELECTION`, `AGENT_SUMMARY`, `KNOWLEDGE_EMBEDDING`, `GENERAL_FALLBACK`).
+  * `supabase/migrations/202610270007_add_estimated_tokens_to_ai_usage.sql`: Added nullable columns `estimated_input_tokens`, `estimated_output_tokens`, `estimated_total_tokens` and partial index `idx_ai_usage_estimated_tokens`.
+  * `server/scripts/backfill-telemetry.js`: Updated backfill script to deterministically estimate missing token usage, calculate estimated cost from verified model rates, set `cost_status = 'estimated_backfill'`, and preserve all actual provider tokens and recorded costs intact.
+  * `server/src/features/analytics/analytics.repository.js`: Updated `formatRecordForDb` and `formatDbToRecord` to persist and decode separate estimated token dimensions, preserve existing `cost_status` values (`calculated` vs `estimated_backfill`), and provide fallback deterministic estimation on the fly.
+  * `server/src/features/analytics/analytics.utils.js`: Updated `calculateOverviewMetrics` to strictly compute verified actual average costs from `calculated` records, separately report `estimatedCostUsd` and `estimatedPricedCount`, compute combined average costs labeled as estimated, and fallback to effective estimated total tokens in `sortInMemoryRecords`.
+  * `client/src/features/analytics/AnalyticsHistoryTable.jsx`: Updated Tokens column to display `~${in} / ~${out} (~${tot})` with `~Estimated` subtext for estimated tokens; updated Cost column to display `~$${cost}` with `~Est` subtext for `estimated_backfill` status; updated `AnalyticsHistoryDetailRow` to clearly distinguish `Actual` vs `Estimated (Deterministic backfill estimate)`.
+  * `client/src/features/analytics/AnalyticsKpiCards.jsx`: Updated Avg Cost KPI card to preserve the verified actual average cost in `stat-value` and transparently display separate verified vs estimated breakdowns and sample counts.
+  * `tests/unit/analyticsTokenEstimator.test.js`: Added 16 focused unit tests covering deterministic pseudo-random repeatability, sensible profile ranges, failure output reductions, partial token preservation, pricing lookup, database mapping, and verified vs estimated overview metrics separation.
+* **Review & Verification:**
+  * Pre-backfill read-only inspection: Identified 141 records with actual provider tokens and 128 records with missing tokens (89 knowledge embeddings with actual output=0, 20 agent tool selections, 9 agent summaries, 10 receipt extractions).
+  * Executed dry run (`node server/scripts/backfill-telemetry.js --dry-run`): Evaluated all 269 records; confirmed 141 actual provider token records were preserved untouched, 128 records qualified for deterministic token estimation and backfill pricing, and 0 unpriced unknown models existed.
+  * Executed backfill apply (`node server/scripts/backfill-telemetry.js --apply`): Successfully updated all 128 missing records with zero errors.
+  * Live database inspection: Verified 141 records have `cost_status = 'calculated'` (100% verified actual costs preserved) and 128 records have `cost_status = 'estimated_backfill'` with non-null estimated tokens and costs. Total cost coverage reached 100% (269 of 269 records).
+  * Executed `node --test tests/unit/analytics.test.js tests/unit/analyticsHistoryTable.test.js tests/unit/analyticsTelemetryRepair.test.js tests/unit/analyticsTokenEstimator.test.js`: All 87 tests passed across 28 suites with zero failures.
+  * Executed `npm --prefix client run build`: Production client bundle built in 9.94s with zero errors.
+  * Executed `git diff --check`: Passed with zero whitespace, line ending, or conflict warnings.

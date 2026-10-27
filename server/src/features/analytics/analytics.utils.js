@@ -57,8 +57,10 @@ export function calculateOverviewMetrics(records = []) {
   let totalTokens = 0;
   let recordsWithMissingTokens = 0;
 
-  let totalCostUsd = 0;
-  let pricedRequestCount = 0;
+  let verifiedCostUsd = 0;
+  let verifiedPricedCount = 0;
+  let estimatedCostUsd = 0;
+  let estimatedPricedCount = 0;
   let unpricedRequestCount = 0;
 
   const latencies = [];
@@ -81,9 +83,16 @@ export function calculateOverviewMetrics(records = []) {
     }
 
     const costVal = rec.estimatedCost ?? rec.cost?.estimatedCostUsd;
+    const costStatus = rec.costStatus || rec.cost?.costStatus;
+
     if (typeof costVal === 'number' && !isNaN(costVal)) {
-      totalCostUsd += costVal;
-      pricedRequestCount++;
+      if (costStatus === 'estimated_backfill') {
+        estimatedCostUsd += costVal;
+        estimatedPricedCount++;
+      } else {
+        verifiedCostUsd += costVal;
+        verifiedPricedCount++;
+      }
     } else {
       unpricedRequestCount++;
     }
@@ -101,12 +110,24 @@ export function calculateOverviewMetrics(records = []) {
   const failureRate = totalRequests > 0 ? Number(((failureCount / totalRequests) * 100).toFixed(1)) : 0;
   const refusalRate = totalRequests > 0 ? Number(((refusalCount / totalRequests) * 100).toFixed(1)) : 0;
 
-  const avgCostPerRequestUsd = pricedRequestCount > 0
-    ? Number((totalCostUsd / pricedRequestCount).toFixed(6))
+  // Verified actual costs (strictly actual usage)
+  const verifiedAvgCostPerRequestUsd = verifiedPricedCount > 0
+    ? Number((verifiedCostUsd / verifiedPricedCount).toFixed(6))
     : null;
-  const roundedTotalCostUsd = Number(totalCostUsd.toFixed(6));
+  const roundedVerifiedCostUsd = Number(verifiedCostUsd.toFixed(6));
+
+  // Combined metrics (transparently including deterministic backfill estimates)
+  const totalPricedCount = verifiedPricedCount + estimatedPricedCount;
+  const combinedTotalCostUsd = Number((verifiedCostUsd + estimatedCostUsd).toFixed(6));
+  const combinedAvgCostPerRequestUsd = totalPricedCount > 0
+    ? Number((combinedTotalCostUsd / totalPricedCount).toFixed(6))
+    : null;
+
   const costCoverageRate = totalRequests > 0
-    ? Number(((pricedRequestCount / totalRequests) * 100).toFixed(1))
+    ? Number(((totalPricedCount / totalRequests) * 100).toFixed(1))
+    : 0;
+  const verifiedCoverageRate = totalRequests > 0
+    ? Number(((verifiedPricedCount / totalRequests) * 100).toFixed(1))
     : 0;
 
   return {
@@ -125,9 +146,22 @@ export function calculateOverviewMetrics(records = []) {
     p50LatencyMs,
     p95LatencyMs,
     latencySampleCount,
-    totalCostUsd: roundedTotalCostUsd,
-    avgCostPerRequestUsd,
-    pricedRequestCount,
+    // Verified actual metrics
+    totalCostUsd: roundedVerifiedCostUsd,
+    avgCostPerRequestUsd: verifiedAvgCostPerRequestUsd,
+    pricedRequestCount: verifiedPricedCount,
+    verifiedCostUsd: roundedVerifiedCostUsd,
+    verifiedAvgCostPerRequestUsd,
+    verifiedPricedCount,
+    verifiedCoverageRate,
+    // Explicitly labeled estimated metrics
+    estimatedCostUsd: Number(estimatedCostUsd.toFixed(6)),
+    estimatedPricedCount,
+    estimatedAvgCostPerRequestUsd: estimatedPricedCount > 0 ? Number((estimatedCostUsd / estimatedPricedCount).toFixed(6)) : null,
+    // Combined totals
+    combinedTotalCostUsd,
+    combinedAvgCostPerRequestUsd,
+    totalPricedCount,
     unpricedRequestCount,
     costCoverageRate,
   };
@@ -231,7 +265,7 @@ export function calculateDistributions(records = []) {
 }
 
 /**
- * Filters in-memory records based on time bounds, feature, model, and outcome.
+ * Filters in-memory records based on time bounds, feature, model, outcome, and search term.
  *
  * @param {Array<object>} records
  * @param {object} [filters={}]
@@ -239,6 +273,7 @@ export function calculateDistributions(records = []) {
  */
 export function filterInMemoryRecords(records = [], filters = {}) {
   const { start, end } = resolveTimeBounds(filters);
+  const rawSearch = (filters.search || filters.q || '').trim().toLowerCase();
 
   return records.filter((rec) => {
     if (start && rec.timestamp < start) return false;
@@ -246,6 +281,97 @@ export function filterInMemoryRecords(records = [], filters = {}) {
     if (filters.feature && filters.feature !== 'all' && rec.feature !== filters.feature) return false;
     if (filters.model && filters.model !== 'all' && rec.model !== filters.model) return false;
     if (filters.outcome && filters.outcome !== 'all' && rec.outcome !== filters.outcome) return false;
+
+    if (rawSearch) {
+      const matches = Boolean(
+        (rec.id && String(rec.id).toLowerCase().includes(rawSearch)) ||
+        (rec.feature && String(rec.feature).toLowerCase().includes(rawSearch)) ||
+        (rec.operation && String(rec.operation).toLowerCase().includes(rawSearch)) ||
+        (rec.model && String(rec.model).toLowerCase().includes(rawSearch)) ||
+        (rec.outcome && String(rec.outcome).toLowerCase().includes(rawSearch)) ||
+        (rec.promptId && String(rec.promptId).toLowerCase().includes(rawSearch)) ||
+        (rec.promptVersion && String(rec.promptVersion).toLowerCase().includes(rawSearch)) ||
+        (rec.promptHash && String(rec.promptHash).toLowerCase().includes(rawSearch))
+      );
+      if (!matches) return false;
+    }
+
     return true;
+  });
+}
+
+/**
+ * Sorts in-memory analytics usage records across the full dataset.
+ *
+ * @param {Array<object>} records
+ * @param {string} [sortBy='timestamp']
+ * @param {'asc'|'desc'} [sortOrder='desc']
+ * @returns {Array<object>}
+ */
+export function sortInMemoryRecords(records = [], sortBy = 'timestamp', sortOrder = 'desc') {
+  const isDesc = sortOrder === 'desc';
+
+  return records.sort((a, b) => {
+    let result = 0;
+
+    switch (sortBy) {
+      case 'timestamp': {
+        const timeA = new Date(a.timestamp || 0).getTime();
+        const timeB = new Date(b.timestamp || 0).getTime();
+        result = timeA - timeB;
+        break;
+      }
+      case 'feature': {
+        result = String(a.feature || '').localeCompare(String(b.feature || ''));
+        break;
+      }
+      case 'model': {
+        result = String(a.model || '').localeCompare(String(b.model || ''));
+        break;
+      }
+      case 'outcome': {
+        result = String(a.outcome || '').localeCompare(String(b.outcome || ''));
+        break;
+      }
+      case 'durationMs': {
+        const valA = typeof a.durationMs === 'number' ? a.durationMs : 0;
+        const valB = typeof b.durationMs === 'number' ? b.durationMs : 0;
+        result = valA - valB;
+        break;
+      }
+      case 'tokens': {
+        const valA = a.tokenUsage?.totalTokens ?? a.estimatedTokens?.effectiveTotalTokens ?? a.estimatedTotalTokens ?? -1;
+        const valB = b.tokenUsage?.totalTokens ?? b.estimatedTokens?.effectiveTotalTokens ?? b.estimatedTotalTokens ?? -1;
+        result = valA - valB;
+        break;
+      }
+      case 'cost': {
+        const valA = a.estimatedCost ?? a.cost?.estimatedCostUsd ?? -1;
+        const valB = b.estimatedCost ?? b.cost?.estimatedCostUsd ?? -1;
+        result = valA - valB;
+        break;
+      }
+      case 'totalAttempts': {
+        const valA = a.totalAttempts || a.attemptCount || 1;
+        const valB = b.totalAttempts || b.attemptCount || 1;
+        result = valA - valB;
+        break;
+      }
+      default: {
+        const timeA = new Date(a.timestamp || 0).getTime();
+        const timeB = new Date(b.timestamp || 0).getTime();
+        result = timeA - timeB;
+        break;
+      }
+    }
+
+    if (result !== 0) {
+      return isDesc ? -result : result;
+    }
+
+    // Deterministic tie-breaker
+    const secA = new Date(a.timestamp || 0).getTime();
+    const secB = new Date(b.timestamp || 0).getTime();
+    return secB - secA;
   });
 }

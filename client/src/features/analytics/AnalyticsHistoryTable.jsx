@@ -1,24 +1,11 @@
 import React, { useState } from 'react';
 import { UI_LABELS } from '../../shared/constants';
-import { ANALYTICS_CONFIG, ANALYTICS_CHART_CONFIG } from './analyticsConstants';
+import { ANALYTICS_CONFIG } from './analyticsConstants';
 import { validatePagination } from '../../shared/utils';
 import { formatTimestamp } from '../../shared/utils/formatters';
-import { useSort } from '../../shared/hooks';
 import Pagination from '../../shared/components/Pagination';
 import SortableHeader from '../../shared/components/SortableHeader';
-
-const historyComparators = {
-  tokens: (a, b, dir) => {
-    const valA = a?.tokenUsage?.totalTokens ?? -1;
-    const valB = b?.tokenUsage?.totalTokens ?? -1;
-    return dir === 'desc' ? valB - valA : valA - valB;
-  },
-  cost: (a, b, dir) => {
-    const valA = a?.estimatedCost ?? -1;
-    const valB = b?.estimatedCost ?? -1;
-    return dir === 'desc' ? valB - valA : valA - valB;
-  },
-};
+import SearchInput from '../../shared/components/SearchInput';
 
 /**
  * Renders expanded details for a request including tool calls, cost details, and attempt history.
@@ -41,11 +28,14 @@ function AnalyticsHistoryDetailRow({ record }) {
             </div>
           )}
 
-          {record.promptVersion && (
-            <div className="analytics-detail-item">
-              <strong>Prompt Version:</strong> <span className="font-mono">{record.promptVersion}</span>
-            </div>
-          )}
+          <div className="analytics-detail-item">
+            <strong>Prompt Version:</strong>{' '}
+            {record.promptVersion && !/^[a-f0-9]{64}$/i.test(record.promptVersion.trim()) ? (
+              <span className="font-mono">{record.promptVersion}</span>
+            ) : (
+              <span className="text-muted">Legacy / unknown</span>
+            )}
+          </div>
 
           {record.promptHash && (
             <div className="analytics-detail-item">
@@ -54,11 +44,47 @@ function AnalyticsHistoryDetailRow({ record }) {
           )}
 
           <div className="analytics-detail-item">
+            <strong>Token Usage:</strong>{' '}
+            {record.tokenUsage?.tokenCountsAvailable && record.tokenUsage?.inputTokens != null ? (
+              <span>
+                Actual: {record.tokenUsage.inputTokens} in / {record.tokenUsage.outputTokens != null ? record.tokenUsage.outputTokens : '—'} out ({record.tokenUsage.totalTokens != null ? record.tokenUsage.totalTokens : '—'} total)
+              </span>
+            ) : (record.estimatedTokens || record.estimatedTotalTokens != null) ? (
+              <span>
+                Estimated: ~{record.estimatedTokens?.effectiveInputTokens ?? record.estimatedInputTokens ?? '—'} in / ~{record.estimatedTokens?.effectiveOutputTokens ?? record.estimatedOutputTokens ?? '—'} out (~{record.estimatedTokens?.effectiveTotalTokens ?? record.estimatedTotalTokens ?? '—'} total){' '}
+                <span className="analytics-detail-category">(Deterministic backfill estimate)</span>
+              </span>
+            ) : (
+              <span className="text-muted">Unavailable from provider</span>
+            )}
+          </div>
+
+          <div className="analytics-detail-item">
             <strong>Estimated Cost:</strong>{' '}
             <span>
-              {record.estimatedCost != null
-                ? `$${record.estimatedCost.toFixed(6)} USD (${record.cost?.pricingModel || record.model})`
-                : `Pricing unavailable (${record.costStatus || 'unpriced'})`}
+              {record.estimatedCost != null ? (
+                record.costStatus === 'estimated_backfill' ? (
+                  <span>
+                    ~${record.estimatedCost.toFixed(6)} USD ({record.cost?.pricingModel || record.model}){' '}
+                    <span className="analytics-detail-category">(Estimated from backfilled tokens)</span>
+                  </span>
+                ) : (
+                  <span>
+                    ${record.estimatedCost.toFixed(6)} USD (${record.cost?.pricingModel || record.model}){' '}
+                    <span className="analytics-detail-category">(Calculated from actual tokens)</span>
+                  </span>
+                )
+              ) : (
+                <span className="text-muted">
+                  Pricing unavailable ({
+                    record.costStatus === 'missing_tokens'
+                      ? 'missing token counts'
+                      : record.costStatus === 'unknown_pricing'
+                        ? `unverified model pricing for ${record.model || 'unknown'}`
+                        : 'legacy unpriced request'
+                  })
+                </span>
+              )}
             </span>
           </div>
 
@@ -104,7 +130,7 @@ function AnalyticsHistoryDetailRow({ record }) {
 
 export default function AnalyticsHistoryTable({
   historyData,
-  filters,
+  filters = {},
   onChangeFilters,
   loading = false,
 }) {
@@ -118,14 +144,44 @@ export default function AnalyticsHistoryTable({
     totalPages = 1,
   } = historyData || {};
 
-  const { sortKey, sortDirection, toggleSort, applySort } = useSort({
-    comparators: historyComparators,
-  });
-
-  const sortedRecords = applySort(records);
+  const currentSortKey = filters.sortBy || 'timestamp';
+  const currentDirection = filters.sortOrder || 'desc';
 
   const toggleExpand = (id) => {
     setExpandedRowId((prev) => (prev === id ? null : id));
+  };
+
+  const handleSearchChange = (val) => {
+    onChangeFilters({
+      ...filters,
+      search: val,
+      page: 1,
+    });
+  };
+
+  const handleSearchClear = () => {
+    onChangeFilters({
+      ...filters,
+      search: '',
+      page: 1,
+    });
+  };
+
+  const handleSort = (columnKey) => {
+    let nextDirection = 'desc';
+    if (currentSortKey === columnKey) {
+      nextDirection = currentDirection === 'desc' ? 'asc' : 'desc';
+    } else {
+      nextDirection = ['timestamp', 'durationMs', 'tokens', 'cost', 'totalAttempts'].includes(columnKey)
+        ? 'desc'
+        : 'asc';
+    }
+    onChangeFilters({
+      ...filters,
+      sortBy: columnKey,
+      sortOrder: nextDirection,
+      page: 1,
+    });
   };
 
   const handlePageChange = (newPage) => {
@@ -156,9 +212,19 @@ export default function AnalyticsHistoryTable({
             {UI_LABELS.ANALYTICS.HISTORY.SUBTITLE}
           </p>
         </div>
+        <div className="table-search-box">
+          <SearchInput
+            value={filters.search || ''}
+            onChange={handleSearchChange}
+            onClear={handleSearchClear}
+            placeholder="Search ID, feature, model, prompt, outcome..."
+            ariaLabel="Search request history"
+            disabled={loading && records.length === 0}
+          />
+        </div>
       </div>
 
-      {/* Reusable Pagination Component */}
+      {/* Reusable Pagination Component with Direct Page Jump */}
       <Pagination
         page={page}
         limit={limit}
@@ -168,6 +234,7 @@ export default function AnalyticsHistoryTable({
         onPageChange={handlePageChange}
         onLimitChange={handleLimitChange}
         loading={loading}
+        showGoToPage={true}
         showingLabel={(from, to, tot) => (
           <span>
             {UI_LABELS.COMMON.SHOWING} <strong>{from}–{to}</strong>{' '}
@@ -182,66 +249,66 @@ export default function AnalyticsHistoryTable({
             <tr>
               <SortableHeader
                 columnKey="timestamp"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_TIMESTAMP}
               </SortableHeader>
               <SortableHeader
                 columnKey="feature"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_FEATURE}
               </SortableHeader>
               <SortableHeader
                 columnKey="model"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_MODEL}
               </SortableHeader>
               <SortableHeader
                 columnKey="outcome"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_OUTCOME}
               </SortableHeader>
               <SortableHeader
                 columnKey="durationMs"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_LATENCY}
               </SortableHeader>
               <SortableHeader
                 columnKey="tokens"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_TOKENS}
               </SortableHeader>
               <th>{UI_LABELS.ANALYTICS.HISTORY.TH_PROMPT_VERSION}</th>
               <SortableHeader
                 columnKey="cost"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_COST}
               </SortableHeader>
               <SortableHeader
                 columnKey="totalAttempts"
-                currentSortKey={sortKey}
-                currentDirection={sortDirection}
-                onSort={toggleSort}
+                currentSortKey={currentSortKey}
+                currentDirection={currentDirection}
+                onSort={handleSort}
               >
                 {UI_LABELS.ANALYTICS.HISTORY.TH_ATTEMPTS}
               </SortableHeader>
@@ -258,16 +325,37 @@ export default function AnalyticsHistoryTable({
             ) : records.length === 0 ? (
               <tr>
                 <td colSpan="10" className="empty-state">
-                  {UI_LABELS.ANALYTICS.HISTORY.EMPTY_STATE}
+                  {filters.search ? (
+                    <div className="analytics-empty-search">
+                      <p>No request history found matching &ldquo;{filters.search}&rdquo;.</p>
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm"
+                        onClick={handleSearchClear}
+                        style={{ marginTop: '8px' }}
+                      >
+                        Clear search
+                      </button>
+                    </div>
+                  ) : (
+                    UI_LABELS.ANALYTICS.HISTORY.EMPTY_STATE
+                  )}
                 </td>
               </tr>
             ) : (
-              sortedRecords.map((rec) => {
+              records.map((rec) => {
                 const isExpanded = expandedRowId === rec.id;
-                const promptDisplay = rec.promptVersion
-                  ? rec.promptVersion
-                  : (rec.promptHash ? `${rec.promptHash.slice(0, 8)}…` : '—');
-                const hasDetails = rec.outcome === 'failure' || rec.outcome === 'refusal' || rec.error || (rec.toolsExecuted && rec.toolsExecuted.length > 0) || rec.promptId || rec.promptHash;
+                const isPureHash = rec.promptVersion && /^[a-f0-9]{64}$/i.test(rec.promptVersion.trim());
+                const hasExplicitVersion = Boolean(rec.promptVersion && !isPureHash);
+                const hasDetails = rec.outcome === 'failure' ||
+                  rec.outcome === 'refusal' ||
+                  Boolean(rec.error) ||
+                  Boolean(rec.toolsExecuted && rec.toolsExecuted.length > 0) ||
+                  Boolean(rec.promptId) ||
+                  Boolean(rec.promptHash) ||
+                  rec.costStatus === 'estimated_backfill' ||
+                  Boolean(rec.estimatedTokens) ||
+                  rec.estimatedCost == null;
 
                 return (
                   <React.Fragment key={rec.id}>
@@ -300,20 +388,60 @@ export default function AnalyticsHistoryTable({
                         {rec.durationMs != null ? `${rec.durationMs} ms` : '—'}
                       </td>
                       <td className="text-nowrap">
-                        {rec.tokenUsage?.tokenCountsAvailable ? (
+                        {rec.tokenUsage?.tokenCountsAvailable && rec.tokenUsage?.inputTokens != null ? (
                           <span>
-                            {rec.tokenUsage.inputTokens ?? 0} / {rec.tokenUsage.outputTokens ?? 0}
-                            <strong> ({rec.tokenUsage.totalTokens ?? 0})</strong>
+                            {rec.tokenUsage.inputTokens} / {rec.tokenUsage.outputTokens != null ? rec.tokenUsage.outputTokens : '—'}
+                            <strong> ({rec.tokenUsage.totalTokens != null ? rec.tokenUsage.totalTokens : '—'})</strong>
+                          </span>
+                        ) : (rec.estimatedTokens || rec.estimatedTotalTokens != null) ? (
+                          <span title="Estimated tokens derived deterministically from request context">
+                            {rec.estimatedTokens?.effectiveInputTokens ?? rec.estimatedInputTokens ?? '—'} /{' '}
+                            {rec.estimatedTokens?.effectiveOutputTokens ?? rec.estimatedOutputTokens ?? '—'}
+                            <strong> ({rec.estimatedTokens?.effectiveTotalTokens ?? rec.estimatedTotalTokens ?? '—'})</strong>
+                            <small className="table-subtext" style={{ display: 'block', color: 'var(--color-warning)' }}>
+                              ~Est
+                            </small>
                           </span>
                         ) : (
-                          <span className="text-muted">—</span>
+                          <span className="text-muted" title="Token counts unavailable from provider">—</span>
                         )}
                       </td>
-                      <td className="font-mono" title={rec.promptHash ? `Hash: ${rec.promptHash}` : (rec.promptVersion || '')}>
-                        {promptDisplay}
+                      <td
+                        className="font-mono"
+                        title={rec.promptHash ? `Hash: ${rec.promptHash}` : (hasExplicitVersion ? `Version: ${rec.promptVersion}` : undefined)}
+                      >
+                        {hasExplicitVersion ? (
+                          rec.promptVersion
+                        ) : (
+                          <span className="text-muted">Legacy / unknown</span>
+                        )}
                       </td>
                       <td className="text-nowrap font-mono">
-                        {rec.estimatedCost != null ? `$${rec.estimatedCost.toFixed(5)}` : '—'}
+                        {rec.estimatedCost != null ? (
+                          rec.costStatus === 'estimated_backfill' ? (
+                            <span title={`Estimated cost based on deterministic token estimates (~$${rec.estimatedCost.toFixed(6)} USD)`}>
+                              ${rec.estimatedCost.toFixed(5)}
+                              <small className="table-subtext" style={{ display: 'block', color: 'var(--color-warning)' }}>
+                                ~Est
+                              </small>
+                            </span>
+                          ) : (
+                            `$${rec.estimatedCost.toFixed(5)}`
+                          )
+                        ) : (
+                          <span
+                            className="text-muted"
+                            title={
+                              rec.costStatus === 'missing_tokens'
+                                ? 'Pricing unavailable: token counts missing'
+                                : rec.costStatus === 'unknown_pricing'
+                                  ? 'Pricing unavailable: unverified model pricing'
+                                  : 'Pricing unavailable: legacy unpriced request'
+                            }
+                          >
+                            —
+                          </span>
+                        )}
                       </td>
                       <td className="text-center">
                         {rec.totalAttempts || 1}

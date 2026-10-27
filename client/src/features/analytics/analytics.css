@@ -85,6 +85,25 @@
 /* --------------------------------------------------------------------------
    Request History Table Failure Details Box
    -------------------------------------------------------------------------- */
+.analytics-history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.analytics-history-header .table-search-box {
+  min-width: 240px;
+  max-width: 360px;
+}
+
+.analytics-empty-search {
+  padding: var(--space-4) var(--space-2);
+  text-align: center;
+}
+
 .analytics-history-detail-row {
   background: var(--color-surface-subtle);
 }

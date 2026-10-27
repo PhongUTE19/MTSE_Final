@@ -1,5 +1,7 @@
 /* Shared workspace shell: sidebar, main column, page header. Used by WorkspaceLayout and route guard loading screens. */
-html, body, #root {
+html,
+body,
+#root {
   min-height: 100%;
   margin: 0;
 }
@@ -26,7 +28,8 @@ body:has(.expense-shell) {
   cursor: pointer;
 }
 
-.sidebar-signout:hover, .sidebar-signout:focus-visible {
+.sidebar-signout:hover,
+.sidebar-signout:focus-visible {
   color: var(--color-sidebar-fg);
   text-decoration: underline;
 }
@@ -49,11 +52,13 @@ body:has(.expense-shell) {
   background: var(--gradient-sidebar);
   color: var(--color-sidebar-fg);
   border-right: 1px solid var(--workspace-rail-border);
-  box-shadow: 10px 0 30px rgba(15,23,42,.14);
+  box-shadow: 10px 0 30px rgba(15, 23, 42, .14);
   backdrop-filter: blur(18px);
 }
 
-.brand, .sidebar-user, .expense-header {
+.brand,
+.sidebar-user,
+.expense-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -83,7 +88,9 @@ body:has(.expense-shell) {
   letter-spacing: -.6px;
 }
 
-.brand small, .sidebar-user small, .sidebar-section-label {
+.brand small,
+.sidebar-user small,
+.sidebar-section-label {
   display: block;
   color: var(--color-sidebar-muted);
   font-size: 10px;
@@ -144,7 +151,7 @@ body:has(.expense-shell) {
   border-top: 1px solid var(--workspace-rail-border);
 }
 
-.sidebar-user > span {
+.sidebar-user>span {
   display: grid;
   width: 32px;
   height: 32px;
@@ -196,17 +203,22 @@ body:has(.expense-shell) {
   .expense-shell {
     padding-left: 178px;
   }
+
   .expense-sidebar {
     width: 178px;
     padding: 22px 10px 12px;
   }
-  .sidebar-section-label, .sidebar-user div {
+
+  .sidebar-section-label,
+  .sidebar-user div {
     display: none;
   }
+
   .expense-sidebar nav {
     margin-top: 40px;
     gap: 6px;
   }
+
   .expense-main {
     padding: 32px 30px 44px;
   }
@@ -216,6 +228,7 @@ body:has(.expense-shell) {
   .expense-main {
     padding: 28px 22px 40px;
   }
+
   .expense-header {
     align-items: flex-start;
     flex-direction: column;
@@ -228,6 +241,7 @@ body:has(.expense-shell) {
     display: block;
     padding-left: 0;
   }
+
   .expense-sidebar {
     position: static;
     width: 100%;
@@ -236,6 +250,7 @@ body:has(.expense-shell) {
     padding: 14px 16px 0;
     display: block;
   }
+
   .expense-sidebar nav {
     display: flex;
     width: calc(100% + 32px);
@@ -243,18 +258,22 @@ body:has(.expense-shell) {
     padding: 0 8px;
     overflow-x: auto;
   }
+
   .expense-sidebar nav button {
     flex: 1 0 auto;
     min-height: 39px;
     padding: 8px 12px;
     border-radius: var(--radius-md) var(--radius-md) 0 0;
   }
+
   .sidebar-user {
     display: none;
   }
+
   .expense-main {
     padding: 22px 14px 32px;
   }
+
   .expense-header h1 {
     font-size: 26px;
   }
@@ -299,7 +318,8 @@ td small {
   white-space: nowrap;
 }
 
-.form-error, .page-error {
+.form-error,
+.page-error {
   margin: 14px 0;
   padding: 11px 12px;
   border: 1px solid var(--color-error-border);
@@ -332,6 +352,6 @@ td small {
 }
 
 /* Spacing between the workspace header and admin page content. */
-.expense-main > .dashboard-container {
+.expense-main>.dashboard-container {
   margin-top: 24px;
 }

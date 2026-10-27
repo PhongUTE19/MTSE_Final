@@ -10,7 +10,6 @@
   font-size: var(--font-size-xs);
   padding: var(--space-0-5) var(--space-2);
   border-radius: var(--radius-sm);
-  white-space: nowrap;
   font-weight: var(--font-weight-medium);
   line-height: var(--line-height-normal);
   background-color: var(--color-surface-muted);

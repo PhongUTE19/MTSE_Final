@@ -22,6 +22,19 @@ export const analyticsFilterSchema = z.object({
   outcome: z.enum(OUTCOME_OPTIONS).optional().default('all'),
 });
 
+export const SORT_FIELDS = [
+  'timestamp',
+  'feature',
+  'model',
+  'outcome',
+  'durationMs',
+  'tokens',
+  'cost',
+  'totalAttempts',
+];
+
+export const SORT_ORDERS = ['asc', 'desc'];
+
 /**
  * Schema for paginated request history queries.
  */
@@ -41,4 +54,10 @@ export const analyticsHistorySchema = z.object({
   feature: z.string().optional().default('all'),
   model: z.string().optional().default('all'),
   outcome: z.enum(OUTCOME_OPTIONS).optional().default('all'),
+  search: z.string().trim().optional().default(''),
+  q: z.string().trim().optional(),
+  sortBy: z.enum(SORT_FIELDS).optional().default('timestamp'),
+  sortKey: z.enum(SORT_FIELDS).optional(),
+  sortOrder: z.enum(SORT_ORDERS).optional().default('desc'),
+  sortDirection: z.enum(SORT_ORDERS).optional(),
 });

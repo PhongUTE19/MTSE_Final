@@ -90,8 +90,25 @@ export default function AnalyticsKpiCards({ overview }) {
           {avgCostPerRequestUsd != null ? `$${avgCostPerRequestUsd.toFixed(6)}` : '—'}
         </span>
         <span className="stat-sub">
-          Total: ${totalCostUsd.toFixed(4)} · {pricedRequestCount} of {totalRequests} priced ({costCoverageRate}%)
+          {overview.estimatedPricedCount > 0 ? (
+            <>
+              Verified: ${totalCostUsd.toFixed(4)} ({pricedRequestCount} reqs) · Est: ~${(overview.estimatedCostUsd || 0).toFixed(4)} ({overview.estimatedPricedCount} reqs)
+            </>
+          ) : (
+            <>
+              Total: ${totalCostUsd.toFixed(4)} · {pricedRequestCount} of {totalRequests} priced ({costCoverageRate}%)
+            </>
+          )}
         </span>
+        {overview.estimatedPricedCount > 0 && overview.combinedAvgCostPerRequestUsd != null && (
+          <div
+            className="badge badge-subtle"
+            style={{ marginTop: '4px' }}
+            title="Combined average including deterministic estimates for requests with missing provider tokens"
+          >
+            Combined avg: ~${overview.combinedAvgCostPerRequestUsd.toFixed(6)} ({overview.totalPricedCount || (pricedRequestCount + overview.estimatedPricedCount)} of {totalRequests} priced)
+          </div>
+        )}
         {unpricedRequestCount > 0 && (
           <div className="badge badge-warning" title="Requests with unpriced models or missing token counts">
             {unpricedRequestCount} unpriced request{unpricedRequestCount > 1 ? 's' : ''}
