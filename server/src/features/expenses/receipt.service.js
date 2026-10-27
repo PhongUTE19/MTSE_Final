@@ -139,10 +139,8 @@ async function processStoredReceipt(user, receipt, image, options = {}) {
       error?.name === 'AIResponseTimeoutError' ||
       String(error?.message || '').toLowerCase().includes('timed out');
     console.error('[ReceiptService] Receipt extraction failed', {
-      code: error?.code ?? null,
-      message: error?.message ?? null,
-      details: error?.details ?? null,
-      hint: error?.hint ?? null,
+      name: error?.name || 'Error',
+      code: error?.receiptFailureCode || error?.code || null,
       receiptId: receipt.id,
       isTimeout,
     });

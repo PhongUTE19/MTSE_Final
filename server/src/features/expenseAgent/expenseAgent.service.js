@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/errors/index.js';
-import { HTTP_STATUS } from '../../constants/index.js';
+import { HTTP_STATUS, SERVER_MESSAGES } from '../../constants/index.js';
+import { detectPromptInjection } from '../../shared/guardrails/index.js';
 import { createTransaction, getSpendingSummary, listTransactions } from '../expenses/expenses.service.js';
 import { createTransactionArgsSchema, searchTransactionsArgsSchema, spendingSummaryArgsSchema } from './expenseAgent.schemas.js';
 import { runGeminiExpenseAgent } from './geminiExpenseAgent.js';
@@ -10,6 +11,10 @@ const proposals = new Map();
 let now = () => Date.now();
 
 export async function searchTransactionsForUser(user, message, options = {}) {
+  const injection = detectPromptInjection(message);
+  if (injection.isInjection) {
+    return { answer: SERVER_MESSAGES.ERRORS.PROMPT_INJECTION_REFUSAL, toolName: null, toolResult: null };
+  }
   let executedSteps = 0;
   const executeTool = async (toolName, rawArgs) => {
     executedSteps += 1;
@@ -40,6 +45,10 @@ export async function searchTransactionsForUser(user, message, options = {}) {
 }
 
 export async function getSpendingSummaryForUser(user, message, options = {}) {
+  const injection = detectPromptInjection(message);
+  if (injection.isInjection) {
+    return { answer: SERVER_MESSAGES.ERRORS.PROMPT_INJECTION_REFUSAL, toolName: null, toolResult: null };
+  }
   let executedSteps = 0;
   const executeTool = async (toolName, rawArgs) => {
     executedSteps += 1;
@@ -83,6 +92,10 @@ function createProposalFromArgs(user, rawArgs) {
 }
 
 export async function createTransactionProposalForUser(user, message, options = {}) {
+  const injection = detectPromptInjection(message);
+  if (injection.isInjection) {
+    return { answer: SERVER_MESSAGES.ERRORS.PROMPT_INJECTION_REFUSAL, toolName: null, toolResult: null };
+  }
   const executeTool = async (toolName, rawArgs) => {
     if (toolName !== 'create_transaction') throw new AppError('Unsupported expense agent tool.', HTTP_STATUS.BAD_REQUEST);
     return createProposalFromArgs(user, rawArgs);
@@ -98,6 +111,17 @@ export async function createTransactionProposalForUser(user, message, options = 
 
 /** Single chat endpoint where Gemini selects 1 of 3 declared tools. */
 export async function runExpenseAssistantForUser(user, message, options = {}) {
+  const injection = detectPromptInjection(message);
+  if (injection.isInjection) {
+    return { answer: SERVER_MESSAGES.ERRORS.PROMPT_INJECTION_REFUSAL, toolName: null, toolResult: null };
+  }
+  if (Array.isArray(options.history)) {
+    for (const turn of options.history) {
+      if (detectPromptInjection(turn.text).isInjection) {
+        return { answer: SERVER_MESSAGES.ERRORS.PROMPT_INJECTION_REFUSAL, toolName: null, toolResult: null };
+      }
+    }
+  }
   let executedSteps = 0;
   const executeTool = async (toolName, rawArgs) => {
     executedSteps += 1;

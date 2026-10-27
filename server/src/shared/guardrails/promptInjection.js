@@ -6,8 +6,8 @@ import { SERVER_MESSAGES } from '../../constants/index.js';
  */
 const INJECTION_PATTERNS = [
   // Instruction override / directive hijacking
-  /(?:ignore|disregard|forget|override|bypass|clear|drop)\s+(?:all\s+)?(?:previous|prior|above|system|existing|default)\s+(?:instructions|prompts?|rules?|directives?|guidelines?)/i,
-  /(?:new\s+instructions?|system\s+override|admin\s+override):\s*(?:you\s+(?:are|must)|ignore|forget)/i,
+  /(?:ignore|disregard|forget|override|bypass|clear|drop|reset)\s+(?:all\s+)?(?:previous|prior|above|system|existing|default)\s+(?:instructions|prompts?|rules?|directives?|guidelines?|constraints?|restrictions?)/i,
+  /(?:new\s+instructions?|system\s+override|admin\s+override|developer\s+override|system\s+directive|system\s+instruction):\s*(?:you\s+(?:are|must)|ignore|forget|do|answer|bypass)/i,
   /(?:stop|cease)\s+being\s+(?:the\s+)?(?:spendwise\s+assistant|an?\s+ai|helpful)/i,
 
   // Jailbreak, roleplay bypass, unrestricted persona
@@ -23,7 +23,7 @@ const INJECTION_PATTERNS = [
   /(?:repeat\s+after\s+me\s*:?\s*)?(?:You\s+are\s+the\s+SpendWise\s+Assistant)/i,
 
   // Delimiter and boundary manipulation
-  /(?:<\/retrieved_context>|<\/student_question>|<\/user_question>|<system>|\[SYSTEM_PROMPT\]|\[INSTRUCTION\])/i,
+  /(?:<\/?(?:retrieved_context|student_question|user_question|system|prompt|instruction|context)>|\[\/?(?:SYSTEM_PROMPT|INSTRUCTION|SYSTEM|ASSISTANT)\]|<\|im_start\|>|<\|im_end\|>)/i,
 ];
 
 /**
@@ -93,7 +93,7 @@ export function sanitizeGeneratedOutput(output, options = {}) {
   }
 
   // Strip simulated tag delimiters if the model echoed them, preserving whitespace
-  text = text.replace(/<\/?(?:retrieved_context|student_question|user_question|context)>/gi, '');
+  text = text.replace(/<\/?(?:retrieved_context|student_question|user_question|context|system|prompt|instruction)>/gi, '');
 
   return {
     isLeaking: false,

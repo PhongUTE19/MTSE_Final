@@ -42,6 +42,24 @@ AI tools were employed as pair-programming assistants to accelerate repetitive t
 * **Generated Code**: `client/src/layouts/AuthenticatedRouteGuard.jsx` and `client/src/layouts/AdminRouteGuard.jsx`.
 * **Human Review**: Tested redirect loops, verified that missing `app_metadata.role` defaults safely to `user`, and confirmed that unauthenticated visitors are redirected to `/auth`.
 
+### 3.4 Early Multimodal OCR & Structured Output Scaffolding [Reconstructed]
+* **Evidence Source**: Git commit `215cf21` ("finish Multimodal, Structured Output and create guide doc for user", 2026-10-24) and diffs.
+* **Reconstructed Task Summary**: Scaffolding receipt image upload middleware (`receiptUpload.middleware.js` using Sharp and Multer), Zod extraction schemas (`receipt.schemas.js`), and prompt versions `receipt-v1.md`, `receipt-v2.md`, `receipt-v3.md` targeting Gemini 3.5 Flash vision.
+* **Attribution & Limitations**: Initial scaffolding utilized pair-programming AI assistance (Copilot / Gemini). Exact prompt text prior to `AI_USAGE.md` creation was not recorded at invocation time; marked for team confirmation.
+* **Human Engineering Review**: Team added image pixel safety bounds (`limitInputPixels: 8000*8000`), magic bytes validation, VND thousands separator normalization (`normalizeLikelyVndThousands`), and review-only draft isolation requiring explicit user confirmation before transaction persistence.
+
+### 3.5 Tool-Using Expense Agent Scaffolding [Reconstructed]
+* **Evidence Source**: Git commits `b72eedb`, `cd9f7fa`, `647b6e5` (feat: transaction search, spending summary, 3 tools and assistant UI, 2026-10-25).
+* **Reconstructed Task Summary**: Implementation of function declarations for `search_transactions`, `get_spending_summary`, and `create_transaction` using Google GenAI SDK function-calling protocol in `geminiExpenseAgent.js` and `expenseAgent.service.js`.
+* **Attribution & Limitations**: AI tools assisted in prototyping tool schemas and route scaffolding. Exact author prompts predating `AI_USAGE.md` are reconstructed from code artifacts and marked for team confirmation.
+* **Human Engineering Review**: Enforced strict Zod validation on model-generated arguments (`searchTransactionsArgsSchema`, `spendingSummaryArgsSchema`, `createTransactionArgsSchema`), quarantined user identity strictly to authenticated JWT tokens (`userClient(user)`), and separated proposal drafting from financial write operations with a 10-minute in-memory TTL.
+
+### 3.6 RAG Pipeline & Guardrail Foundation [Reconstructed]
+* **Evidence Source**: Git commit `9d71673` ("feat: guardrails", 2026-10-20) and diffs.
+* **Reconstructed Task Summary**: Scaffolding prompt injection detection (`promptInjection.js`), scope classification (`scopeGuard.js`), response validation (`responseValidator.js`), and grounding prompt assembly (`promptBuilder.js`).
+* **Attribution & Limitations**: Pattern dictionaries and test fixtures were developed with AI pair-programming assistance. Specific prompt iterations predating `AI_USAGE.md` are reconstructed from git diffs and marked for team confirmation.
+* **Human Engineering Review**: Implemented strict grounding rules, out-of-scope intent boundaries, regex boundary checks, system prompt signature leakage sanitization, and `withTimeout` race protection against hanging connections.
+
 ---
 
 ## 4. Code Reviewed, Modified, and Verified by Team Members
@@ -178,3 +196,49 @@ Below are three verified real-world incidents where AI tools produced incorrect,
   * Executed `node --test tests/unit/analytics.test.js tests/unit/analyticsHistoryTable.test.js tests/unit/analyticsTelemetryRepair.test.js tests/unit/analyticsTokenEstimator.test.js`: All 87 tests passed across 28 suites with zero failures.
   * Executed `npm --prefix client run build`: Production client bundle built in 9.94s with zero errors.
   * Executed `git diff --check`: Passed with zero whitespace, line ending, or conflict warnings.
+
+---
+
+## 10. Agent Invocation Log: System Prompts, Guardrails, and Fallback Behavior Audit & Hardening
+
+* **Date:** 2026-10-27
+* **Tool / Model:** Antigravity IDE / Gemini 3.8 Flash (Medium)
+* **Task Summary:** Audit and improve system prompts, guardrails, and fallback behavior for every existing SpendWise AI capability (Multimodal Receipt Extraction, Structured Output, Tool-Using Expense Agent, and RAG).
+* **Key User Prompt:** *"Audit and improve system prompts, guardrails, and fallback behavior for every existing SpendWise AI capability... Multimodal input: handle receipt images only, extract supported fields without inventing unreadable/missing values, treat image text as untrusted data... Structured output: require expected schema, validate against application schema before business logic/persistence, never silently coerce invalid fields... Tool-using Expense Agent: define supported financial scope, allowed tools, data-isolation, treat user messages/receipts/tools as untrusted, backend arithmetic, explicit confirmation before write operations, prevent duplicate writes on retry... RAG: grounded answers, untrusted context, clear limitations... Safe logging without secrets or raw receipt contents... Update AI_USAGE.md including historical entries predating it... Run tests and verify."*
+* **Files Reviewed and Changed:**
+  * `server/src/shared/guardrails/promptInjection.js`:
+    * Expanded `INJECTION_PATTERNS` to catch directive prefixes (`system override:`, `system instruction:`, `developer override:`), reset instructions (`reset all rules/constraints`), and extended delimiter boundary tags (`<retrieved_context>`, `<student_question>`, `<user_question>`, `<system>`, `<prompt>`, `<instruction>`, `[SYSTEM]`, `[ASSISTANT]`, `<|im_start|>`, `<|im_end|>`).
+    * Updated `sanitizeGeneratedOutput` to strip simulated tag delimiters if echoed by models.
+  * `server/src/features/expenses/receiptGuardrails.js`:
+    * Hardened `enforceReceiptGuardrails` with object validation and extended prompt injection inspection across `merchant`, `note`, `category`, and line item names.
+    * Throws operational `ReceiptGuardrailError` with codes `NOT_A_RECEIPT`, `PROMPT_INJECTION_REJECTED`, or `EXTRACTION_FAILED`.
+  * `server/src/shared/integrations/ai/providers/geminiProvider.js`:
+    * Added image buffer validation at the start of `extractReceiptImage` to reject missing or empty image buffers early with `AIResponseValidationError`.
+    * Imported and surfaced operational errors safely.
+  * `server/src/features/expenses/receipt.service.js`:
+    * Sanitized error logging in `processStoredReceipt` to record only operational error names, codes, and IDs, masking raw receipt content, parsed text, or personal financial payload data.
+    * Maintained safe fallback: unreadable images or timeouts mark receipts as `failed` for user retry while permanently rejected prompt injections clean up temporary storage.
+  * `server/prompts/expenseAgent/assistant-v1.md`, `search-v1.md`, `summary-v1.md`, `create-v1.md`:
+    * Enhanced prompts with explicit financial scope boundaries (personal expense tracking for authenticated user only).
+    * Explicitly classified user messages, receipt text, and tool results as untrusted input.
+    * Prohibited arbitrary mental arithmetic, mandating that all totals, balances, and category sums derive strictly from backend tool results.
+    * Enforced explicit user confirmation boundaries: `create_transaction` prepares a draft proposal only, never a saved transaction; the model is prohibited from claiming success until confirmed by the user.
+    * Mandated honest reporting of empty results: state clearly that no transactions were found instead of hallucinating records.
+  * `server/src/features/expenseAgent/expenseAgentPrompt.js`:
+    * Synchronized `BUILTIN_FALLBACKS` with the updated prompt instructions for resilience when files are read from memory/fallback paths.
+  * `server/src/features/expenseAgent/geminiExpenseAgent.js`:
+    * Routed both clarification responses and final answers through `validateChatResponse` to eliminate empty responses, system prompt leakage, or echoed delimiter tags.
+  * `server/src/features/expenseAgent/expenseAgent.service.js`:
+    * Added `detectPromptInjection` guardrail checks on all user entry points: `searchTransactionsForUser`, `getSpendingSummaryForUser`, `createTransactionProposalForUser`, and `runExpenseAssistantForUser`.
+    * Validated prior conversation history turns in multi-turn assistant queries to block indirect injection.
+    * Reaffirmed idempotency and RLS isolation in `confirmTransactionProposal` via atomic `processing` status transition and JWT user validation.
+  * `server/src/features/knowledgeBase/promptBuilder.js`:
+    * Sanitized chunk contents in `formatContextSections` and student queries in `buildGroundedPrompt` by stripping delimiter boundary tags to prevent context breakout.
+  * `tests/unit/aiCapabilitiesGuardrails.test.js`:
+    * Created comprehensive 19-test suite verifying receipt buffer validation, category prompt injection blocking, structured output validation, codeblock extraction, agent injection rejection, agent leakage sanitization, proposal authorization/expiration/idempotency, and RAG delimiter integrity.
+* **Review & Verification:**
+  * Executed focused test suite: `node --test tests/unit/aiCapabilitiesGuardrails.test.js` — All 19 tests passed.
+  * Executed full AI test suite: `node --test tests/unit/guardrails.test.js tests/unit/receiptGuardrails.test.js tests/unit/expenseAgent.test.js tests/unit/promptRegistry.test.js tests/unit/aiCapabilitiesGuardrails.test.js tests/unit/chatOrchestrator.test.js tests/unit/spendingSummary.test.js` — All 83 tests passed across 21 test suites with zero failures.
+  * Executed production client build: `npm --prefix client run build` — Vite build completed successfully in 9.94s with zero errors.
+  * Executed git whitespace check: `git diff --check` — Passed with code 0 (no trailing whitespace, conflict markers, or line ending issues).
+  * Verified that user changes (`AnalyticsHistoryTable.jsx` and user-modified badges) were completely preserved.

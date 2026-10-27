@@ -2,6 +2,7 @@ import { config } from '../../config.js';
 import { RETRY_CONFIG } from '../../constants/index.js';
 import { recordUsage, hashPrompt } from '../analytics/index.js';
 import { getAIClient, executeWithRetry } from '../../shared/integrations/ai/providers/geminiProvider.js';
+import { validateChatResponse } from '../../shared/guardrails/index.js';
 import { getExpenseAgentPrompt, EXPENSE_AGENT_PROMPT_IDS } from './expenseAgentPrompt.js';
 
 export const SEARCH_TRANSACTIONS_TOOL = Object.freeze({
@@ -227,7 +228,8 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
   if (!call) {
     const clarification = firstResponse.text?.trim();
     if (!clarification) throw new Error('Gemini returned neither a function call nor a clarification.');
-    return { answer: clarification, toolName: null, toolResult: null, promptId, promptVersion, promptHash };
+    const validated = validateChatResponse(clarification);
+    return { answer: validated.answer, toolName: null, toolResult: null, promptId, promptVersion, promptHash };
   }
 
   const toolResult = await executeTool(call.name, call.args || {});
@@ -317,5 +319,6 @@ export async function runGeminiExpenseAgent(message, executeTool, options = {}) 
 
   const answer = finalResponse.text?.trim();
   if (!answer) throw new Error('Gemini returned an empty final answer.');
-  return { answer, toolName: call.name, toolResult, promptVersion };
+  const validated = validateChatResponse(answer);
+  return { answer: validated.answer, toolName: call.name, toolResult, promptVersion };
 }

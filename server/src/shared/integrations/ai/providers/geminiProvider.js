@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { config } from '../../../../config.js';
 import { SERVER_MESSAGES, RETRY_CONFIG, SERVER_CONFIG_DEFAULTS, GUARDRAIL_CONFIG } from '../../../../constants/index.js';
 import { recordUsage, hashPrompt } from '../../../../features/analytics/index.js';
-import { validateChatResponse, withTimeout, validateStructuredOutput } from '../../../guardrails/index.js';
+import { validateChatResponse, withTimeout, validateStructuredOutput, AIResponseValidationError } from '../../../guardrails/index.js';
 import { RECEIPT_CATEGORIES, receiptExtractionSchema } from '../../../../features/expenses/receipt.schemas.js';
 import { enforceReceiptGuardrails } from '../../../../features/expenses/receiptGuardrails.js';
 import { getReceiptPrompt, RECEIPT_PROMPT_ID, RECEIPT_PROMPT_VERSION } from '../../../../features/expenses/receiptPrompt.js';
@@ -483,6 +483,9 @@ async function prepareImageForExtraction(image) {
  * errors are surfaced as safe failures and must be live-probed before release.
  */
 export async function extractReceiptImage(image, options = {}) {
+  if (!image?.buffer || !Buffer.isBuffer(image.buffer) || image.buffer.length === 0) {
+    throw new AIResponseValidationError('Receipt image buffer is missing or empty.');
+  }
   const preparedImage = await prepareImageForExtraction(image);
   const ai = getAIClient();
   const model = options.model || config.geminiReceiptModel || config.geminiModel;
