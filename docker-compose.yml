@@ -12,7 +12,7 @@ services:
       - "3000:3000"
     environment:
       KNOWLEDGE_DIR: /app/data/knowledge
-      PROMPT_FILE: /app/data/system_prompt.txt
+      PROMPT_FILE: /app/data/prompts/system_prompt.txt
       PROMPT_FILE_DEFAULT: /app/data/prompts/system_prompt_default.txt
     volumes:
       - ./data:/app/data

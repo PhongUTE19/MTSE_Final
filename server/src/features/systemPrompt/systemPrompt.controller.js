@@ -1,5 +1,5 @@
 import * as promptsService from './systemPrompt.service.js';
-import { updateSystemPromptSchema } from './systemPrompt.schemas.js';
+import { updateSystemPromptSchema } from './systemPrompt.schema.js';
 import { getValidatedData } from '../../shared/middleware/index.js';
 
 

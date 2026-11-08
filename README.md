@@ -9,13 +9,13 @@ SpendWise is an intelligent personal finance management application designed for
 In accordance with approved Milestone 1 requirements, SpendWise implements three core AI capabilities:
 
 1. **Capability B (Tool-Using Agent)**:
-   * Conversational assistant (`server/src/features/expenseAgent/expenseAgent.service.js`) equipped with Google Gemini function-calling tools:
+   * Conversational assistant (`server/src/features/expenseAssistant/expenseAssistant.service.js`) equipped with Google Gemini function-calling tools:
      * `search_transactions`: Queries user transactions by date, merchant, or category.
      * `get_spending_summary`: Computes exact spending totals and category breakdowns in PostgreSQL (zero LLM arithmetic).
      * `create_transaction`: Generates transaction proposals.
    * **Proposal-Confirmation Safety Gate**: Financial write operations require explicit human confirmation via an interactive UI proposal card before any mutation is committed to the database.
 2. **Capability C (Structured Output)**:
-   * Receipt extraction (`server/src/features/expenses/receipts.service.js`) enforces strict JSON schema adherence through Gemini's `responseJsonSchema`, validated by Zod schemas (`server/src/features/expenses/receipts.schemas.js`). Eliminates syntax errors and guarantees predictable field types (merchant, date, total, items, tax, category).
+   * Receipt extraction (`server/src/features/receipt/receipt.service.js`) enforces strict JSON schema adherence through Gemini's `responseJsonSchema`, validated by Zod schemas (`server/src/features/receipt/receipt.schemas.js`). Eliminates syntax errors and guarantees predictable field types (merchant, date, total, items, tax, category).
 3. **Capability D (Multimodal Input)**:
    * Direct ingestion of receipt image files (JPEG, PNG, WebP up to 5 MB) into Google Gemini 3.5 Flash vision models. Extracts Vietnamese and English receipts in a single forward pass without brittle local OCR engines.
 
@@ -26,7 +26,7 @@ In accordance with approved Milestone 1 requirements, SpendWise implements three
 
 ## 2. Technology Stack & System Architecture
 
-* **Frontend**: React 18, Vite 6, React Router 6, Vanilla CSS design tokens.
+* **Frontend**: React 18, Vite, React Router 6, Tailwind CSS, Design Tokens, and Semantic Component CSS (6-layer architecture).
 * **Backend**: Node.js 20+, Express 4/5 (Feature-first modular structure).
 * **AI Provider**: Google Gemini API via `@google/genai` SDK (`gemini-3.5-flash-lite`, `gemini-embedding-001`).
 * **Vector Store**: Qdrant Cloud (3072-dimension cosine index in `spendwise` collection).
@@ -119,7 +119,7 @@ npm run dev
 To build and run SpendWise in isolated Docker containers from the repository root:
 
 ### Step 1: Ensure Environment Files Exist
-Confirm that `server/.env` contains your verified API keys. Docker Compose automatically forwards `SUPABASE_URL` and `SUPABASE_ANON_KEY` as build arguments to the client container.
+Confirm that `server/.env` contains your verified API keys and configuration, and `client/.env` defines `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the client container build.
 
 ### Step 2: Validate Docker Compose Configuration
 ```bash
@@ -158,10 +158,6 @@ docker compose --env-file server/.env down
 
 > [!IMPORTANT]
 > `docker compose down` stops and removes the project containers and shared internal network. Normal host-mounted code and persistent external cloud data (Supabase, Qdrant) remain intact. **Do not use `down -v` as the default command**, as removing volumes is unnecessary and can wipe local caches.
-
-### Automated Helper Scripts
-* **Windows (PowerShell)**: `.\deploy.ps1`
-* **Linux / macOS (Bash)**: `chmod +x deploy.sh && ./deploy.sh`
 
 ---
 
@@ -212,10 +208,10 @@ Sign out in the web client and sign back in. The new JWT token will contain `app
 
 ## 9. Testing & Quality Assurance
 
-SpendWise includes 344 offline unit and integration tests requiring zero third-party cloud API costs:
+SpendWise includes 833 offline unit and integration tests requiring zero third-party cloud API costs:
 
 ```bash
-# Run all automated tests (344 tests passing)
+# Run all automated tests (833 tests passing)
 npm test
 
 # Run unit tests only
@@ -229,9 +225,23 @@ npm run test:integration
 
 ## 10. Documentation Index
 
-* [docs/README/userstory.md](docs/README/userstory.md): Milestone 1 User Stories (US-01 through US-14) with Given/When/Then acceptance criteria and source-level traceability matrix.
-* [docs/README/architecture.md](docs/README/architecture.md): System architecture, multi-service topology, component responsibilities, directory trees, and sequence flow for tool-using AI requests.
-* [docs/README/adr/0001-spendwise-authentication-architecture.md](docs/README/adr/0001-spendwise-authentication-architecture.md): ADR for Supabase Auth, Bearer JWT, and client-side RLS enforcement.
-* [docs/README/adr/0002-multimodal-receipt-extraction.md](docs/README/adr/0002-multimodal-receipt-extraction.md): ADR for Native Gemini Multimodal Vision with Zod Structured Output.
-* [docs/README/adr/0003-agent-tool-calling-and-confirmation-gate.md](docs/README/adr/0003-agent-tool-calling-and-confirmation-gate.md): ADR for Tool-Using AI Agent with Proposal-Confirmation Gate.
-* [AI_USAGE.md](AI_USAGE.md): AI tools disclosure, review workflow, representative prompts, and audit of real AI mistakes and remediation.
+The SpendWise documentation is strictly partitioned between canonical engineering documentation and academic course deliverables:
+
+### Engineering Documentation (`docs/engineering/`)
+* [docs/engineering/architecture.md](docs/engineering/architecture.md): Canonical engineering architecture reference covering the 6-layer frontend design, dependency rules, component architecture, data flow, styling, and testing harness.
+* [docs/engineering/refactoring-plan.md](docs/engineering/refactoring-plan.md): Single master refactoring plan and living engineering backlog (`TECH-01` through `TECH-05`).
+* [docs/engineering/progress.md](docs/engineering/progress.md): Chronological verification history and milestone matrix.
+* [docs/engineering/implementation-guidelines.md](docs/engineering/implementation-guidelines.md): Technical invariants, VND ledger rules, and bootstrap DDL.
+* [docs/engineering/adrs/](docs/engineering/adrs/): Significant engineering Architecture Decision Records (`adr-0001` through `adr-0004`).
+* [docs/engineering/audits/](docs/engineering/audits/): Dated historical audit snapshots (`2026-11-08`, `2026-11-14`).
+
+### Academic & Course Deliverables (`docs/academic/`)
+* [docs/academic/architecture.md](docs/academic/architecture.md): Evaluator-facing multi-service system design, Docker deployment, and request flows.
+* [docs/academic/user-stories.md](docs/academic/user-stories.md): Milestone 1 User Stories (US-01 through US-14) with acceptance criteria and traceability matrix.
+* [docs/academic/adrs/](docs/academic/adrs/): Academic ADRs for authentication, multimodal receipt extraction, and agent confirmation gates.
+* [docs/academic/ai-usage.md](docs/academic/ai-usage.md): Course AI usage disclosure, prompt transcripts, and human review log.
+* [docs/academic/ai-data-flows/](docs/academic/ai-data-flows/): Source-traceable AI architecture and data-flow specifications.
+* [docs/academic/ai-receipts/](docs/academic/ai-receipts/): Multimodal receipt scanning implementation reports.
+
+### AI Coding Agent Guidelines
+* [AGENTS.md](AGENTS.md): Repository-wide coding-agent instructions, conventions, verification commands, and task-to-documentation lookup table.

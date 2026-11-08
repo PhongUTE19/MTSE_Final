@@ -1,27 +1,27 @@
 import express from 'express';
-import documentsRouter from '../features/documents/documents.routes.js';
-import promptsRouter from '../features/systemPrompt/systemPrompt.routes.js';
-import knowledgeRouter from '../features/knowledgeBase/knowledgeBase.routes.js';
-import analyticsRouter from '../features/analytics/analytics.routes.js';
+import documentRouter from '../features/document/document.route.js';
+import systemPromptRouter from '../features/systemPrompt/systemPrompt.route.js';
+import knowledgeBaseRouter from '../features/knowledgeBase/knowledgeBase.route.js';
+import aiUsageRouter from '../features/aiUsage/aiUsage.route.js';
 import { authenticate, authorize } from '../shared/middleware/index.js';
 
 const router = express.Router();
 
-// The legacy administration surface is intentionally protected at its single
+// The administration surface is intentionally protected at its single
 // mount point so every nested router has the same trusted identity and role
 // requirement. Roles originate only from verified Supabase app_metadata.
 router.use(authenticate, authorize('admin'));
 
-// Document management CRUD (modularized in features/documents)
-router.use('/documents', documentsRouter);
+// Document management CRUD (modularized in features/document)
+router.use('/document', documentRouter);
 
-// System prompt management (modularized in features/prompts)
-router.use('/prompt', promptsRouter);
+// System prompt management (modularized in features/systemPrompt)
+router.use('/system-prompt', systemPromptRouter);
 
-// AI usage analytics (modularized in features/analytics)
-router.use('/analytics', analyticsRouter);
+// AI usage monitoring (modularized in features/aiUsage)
+router.use('/ai-usage', aiUsageRouter);
 
-// Knowledge management: status, chunks, indexing (modularized in features/knowledge)
-router.use('/', knowledgeRouter);
+// Knowledge base management: status, chunks, indexing (modularized in features/knowledgeBase)
+router.use('/knowledge-base', knowledgeBaseRouter);
 
 export default router;

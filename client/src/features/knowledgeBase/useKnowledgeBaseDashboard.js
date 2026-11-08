@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useKnowledgeBase } from './useKnowledgeBase';
-import { useDocuments } from '../documents/useDocuments';
-import { useChunks } from '../documents/useChunks';
-import { useToast } from '../../shared/contexts/ToastContext';
+import { useDocuments } from '../document/useDocuments';
+import { useChunks } from '../document/useChunks';
+import { useToast } from '../../app/providers/index.js';
 
 /**
  * Coordinates Knowledge Base dashboard data synchronization: documents, chunks,

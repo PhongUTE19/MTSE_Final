@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { orchestrateChat, orchestrateChatStream, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
+import {
+  searchTransactionsForUser,
+  getSpendingSummaryForUser,
+  createTransactionProposalForUser,
+  runExpenseAssistantForUser,
+} from '../../server/src/features/expenseAgent/expenseAgent.service.js';
+import { AppError } from '../../server/src/shared/errors/index.js';
 
 describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
   describe('1. Default Strategy Selection & Normalized Contract', () => {
@@ -145,6 +152,47 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
       assert.equal(res.strategy, 'agent');
       assert.deepEqual(res.sources, []);
       assert.equal(res.retrieval, null);
+    });
+  });
+
+  describe('5. Expense Agent & Orchestrator Authentication Guards (P1-01)', () => {
+    it('rejects unauthenticated default agent orchestration with HTTP 401 before invoking Gemini', async () => {
+      for (const invalidUser of [undefined, null, {}, { id: 'u1' }, { token: 'tok-only' }]) {
+        await assert.rejects(
+          () => orchestrateChat('How much did I spend?', { strategy: 'agent', user: invalidUser }),
+          (err) => err instanceof ChatServiceError && err.statusCode === 401
+        );
+        await assert.rejects(
+          () => orchestrateChatStream('How much did I spend?', () => {}, { strategy: 'agent', user: invalidUser }),
+          (err) => err instanceof ChatServiceError && err.statusCode === 401
+        );
+      }
+    });
+
+    it('rejects missing user id or token in all expenseAgent entrypoints with HTTP 401 before invoking agentRunner', async () => {
+      const entrypoints = [
+        runExpenseAssistantForUser,
+        searchTransactionsForUser,
+        getSpendingSummaryForUser,
+        createTransactionProposalForUser,
+      ];
+
+      for (const fn of entrypoints) {
+        for (const invalidUser of [undefined, null, {}, { id: 'u1' }, { token: 'tok-only' }]) {
+          let runnerCalled = false;
+          await assert.rejects(
+            () =>
+              fn(invalidUser, 'Show my expenses', {
+                agentRunner: async () => {
+                  runnerCalled = true;
+                  return { answer: 'should not run', toolName: null, toolResult: null };
+                },
+              }),
+            (err) => err instanceof AppError && err.statusCode === 401
+          );
+          assert.equal(runnerCalled, false, `${fn.name} must not call agentRunner when user is unauthenticated`);
+        }
+      }
     });
   });
 });

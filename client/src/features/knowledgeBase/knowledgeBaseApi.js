@@ -6,11 +6,8 @@ import { API_ENDPOINTS, APP_MESSAGES, HTTP_METHODS, PAGINATION } from '../../sha
 import { apiRequest, apiJsonRequest } from '../../shared/services/apiClient';
 
 export function fetchKnowledgeStatus() {
-  return apiRequest(API_ENDPOINTS.ADMIN_STATUS, {}, APP_MESSAGES.API_ERROR.FETCH_STATUS);
+  return apiRequest(API_ENDPOINTS.ADMIN_KNOWLEDGE_STATUS, {}, APP_MESSAGES.API_ERROR.FETCH_STATUS);
 }
-
-// Backward-compatible alias for existing callers
-export const fetchAdminStatus = fetchKnowledgeStatus;
 
 /**
  * Fetches parsed markdown chunks with optional pagination and keyword search.
@@ -30,10 +27,10 @@ export function fetchChunks({
   if (search && search.trim()) params.set('q', search.trim());
 
   const qs = params.toString();
-  const url = `${API_ENDPOINTS.ADMIN_CHUNKS}${qs ? `?${qs}` : ''}`;
+  const url = `${API_ENDPOINTS.ADMIN_KNOWLEDGE_CHUNKS}${qs ? `?${qs}` : ''}`;
   return apiRequest(url, {}, APP_MESSAGES.API_ERROR.FETCH_CHUNKS);
 }
 
 export function triggerIndexing() {
-  return apiJsonRequest(API_ENDPOINTS.ADMIN_INDEX, HTTP_METHODS.POST, undefined, APP_MESSAGES.API_ERROR.TRIGGER_INDEX);
+  return apiJsonRequest(API_ENDPOINTS.ADMIN_KNOWLEDGE_INDEX, HTTP_METHODS.POST, undefined, APP_MESSAGES.API_ERROR.TRIGGER_INDEX);
 }

@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { config } from '../../server/src/config.js';
 import {
   getAIProvider,
   registerAIProvider,
@@ -190,5 +191,50 @@ describe('AI Provider Abstraction Suite', () => {
     assert.equal(attempts.length, 2);
     assert.equal(attempts[0].status, 'failure');
     assert.equal(attempts[1].status, 'success');
+  });
+
+  it('geminiProvider.generateAnswer and generateAnswerStream default to config.geminiModel instead of config.geminiReceiptModel', async () => {
+    const originalModel = config.geminiModel;
+    const originalReceiptModel = config.geminiReceiptModel;
+    const capturedModels = [];
+
+    config.geminiModel = 'gemini-chat-model-test';
+    config.geminiReceiptModel = 'gemini-receipt-vision-only-test';
+
+    setAIClientForTests({
+      models: {
+        generateContent: async ({ model }) => {
+          capturedModels.push({ op: 'generateAnswer', model });
+          return { text: 'Chat model answer.' };
+        },
+        generateContentStream: async ({ model }) => {
+          capturedModels.push({ op: 'generateAnswerStream', model });
+          return (async function* () {
+            yield { text: 'Chat stream chunk.' };
+          })();
+        },
+      },
+    });
+
+    try {
+      const answer = await geminiProvider.generateAnswer('Hello');
+      assert.equal(answer, 'Chat model answer.');
+
+      const stream = await geminiProvider.generateAnswerStream('Hello stream');
+      const chunks = [];
+      for await (const chunk of stream) {
+        chunks.push(chunk.text);
+      }
+      assert.deepEqual(chunks, ['Chat stream chunk.']);
+
+      assert.deepEqual(capturedModels, [
+        { op: 'generateAnswer', model: 'gemini-chat-model-test' },
+        { op: 'generateAnswerStream', model: 'gemini-chat-model-test' },
+      ]);
+    } finally {
+      config.geminiModel = originalModel;
+      config.geminiReceiptModel = originalReceiptModel;
+      setAIClientForTests(null);
+    }
   });
 });

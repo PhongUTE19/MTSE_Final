@@ -107,6 +107,52 @@ describe('Receipt total amount extraction and normalization', () => {
     assert.equal(normalizeReceiptAmount('155,000 VND'), 155000);
     assert.equal(normalizeReceiptAmount('₫ 250,000'), 250000);
     assert.equal(normalizeReceiptAmount('$ 42.50'), 42.5);
+    assert.equal(normalizeReceiptAmount('1.250.000'), 1250000);
+    assert.equal(normalizeReceiptAmount('45.000₫'), 45000);
+    assert.equal(normalizeReceiptAmount('45.000 VND'), 45000);
+    assert.equal(normalizeReceiptAmount('45.000'), 45000);
+    assert.equal(normalizeReceiptAmount('12.50'), 12.5);
+  });
+
+  it('preserves zero-value line items while keeping totalAmount strictly positive', () => {
+    assert.equal(normalizeReceiptAmount(0), null);
+    const parsed = receiptExtractionSchema.parse({
+      ...baseExtraction,
+      totalAmount: '1.250.000',
+      items: [
+        { name: 'Main Course', amount: '45.000₫' },
+        { name: 'Promo Discount Item', amount: 0 },
+        { name: 'Free Sample', amount: '0' },
+      ],
+    });
+    assert.equal(parsed.totalAmount, 1250000);
+    assert.deepEqual(parsed.items, [
+      { name: 'Main Course', amount: 45000 },
+      { name: 'Promo Discount Item', amount: 0 },
+      { name: 'Free Sample', amount: 0 },
+    ]);
+  });
+
+  it('emits non-VND currency warning, skips VND 1000x scaling, and prevents silent VND prefill in toDraft', () => {
+    const parsedUsd = receiptExtractionSchema.parse({
+      ...baseExtraction,
+      totalAmount: '12.50',
+      currency: 'USD',
+      items: [{ name: 'Sandwich', amount: '12.50' }],
+    });
+    assert.equal(parsedUsd.currency, 'USD');
+    assert.equal(parsedUsd.totalAmount, 12.5);
+    assert.equal(parsedUsd.items[0].amount, 12.5);
+    assert.ok(
+      parsedUsd.warnings.some((w) =>
+        w.includes('Receipt currency is USD, but transactions are saved in VND. Please review and enter the VND amount before confirming.')
+      )
+    );
+
+    const draft = toDraft(parsedUsd);
+    assert.equal(draft.amount, '');
+    assert.equal(draft.foreignAmount, 12.5);
+    assert.equal(draft.currency, 'USD');
   });
 
   it('returns null for zero, negative, or invalid amounts rather than fabricating', () => {

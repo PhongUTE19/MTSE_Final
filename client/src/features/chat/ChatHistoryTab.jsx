@@ -1,63 +1,36 @@
 import React from 'react';
+import EmptyState from '../../composites/dataDisplay/EmptyState.jsx';
+import { Stack } from '../../primitives/layout/index.js';
+import ChatHistoryItem from './ChatHistoryItem.jsx';
 
 /**
  * Generic history list tab for Chat conversations.
+ * Uses Base Button components for all interactions (new conversation, selection, deletion).
  */
 export default function ChatHistoryTab({
   conversations = [],
   activeId,
   onSelectConversation,
   onRemoveConversation,
-  onNewConversation,
   emptyLabel = 'No saved conversations.',
   deleteTooltip = 'Delete conversation',
-  newConversationLabel = '＋ New conversation',
 }) {
   return (
-    <div className="ai-history" role="list">
-      {onNewConversation && (
-        <div className="ai-history-actions">
-          <button
-            type="button"
-            className="secondary-button ai-history-new-btn"
-            onClick={onNewConversation}
-          >
-            {newConversationLabel}
-          </button>
-        </div>
-      )}
-
+    <Stack as="div" role="list" gap="xs">
       {conversations.length === 0 ? (
-        <div className="ai-history--empty">
-          <p className="ai-empty">{emptyLabel}</p>
-        </div>
+        <EmptyState message={emptyLabel} />
       ) : (
-        conversations.map((item) => {
-          const isActive = item.id === activeId;
-          return (
-            <div key={item.id} className={isActive ? 'ai-history-item active' : 'ai-history-item'}>
-              <button
-                type="button"
-                className="ai-history-select"
-                onClick={() => onSelectConversation(item.id)}
-              >
-                {item.title || 'New conversation'}
-              </button>
-              <button
-                type="button"
-                className="ai-history-delete"
-                onClick={() => onRemoveConversation(item.id)}
-                aria-label={deleteTooltip}
-                title={deleteTooltip}
-              >
-                ⌫
-              </button>
-            </div>
-          );
-        })
+        conversations.map((item) => (
+          <ChatHistoryItem
+            key={item.id}
+            title={item.title}
+            variant={item.id === activeId ? 'active' : 'default'}
+            onSelect={() => onSelectConversation(item.id)}
+            onDelete={() => onRemoveConversation(item.id)}
+            deleteTooltip={deleteTooltip}
+          />
+        ))
       )}
-    </div>
+    </Stack>
   );
 }
-
-export const AssistantHistoryTab = ChatHistoryTab;

@@ -198,19 +198,6 @@ export function sortItems(items = [], sortKey = null, sortDirection = 'asc', com
 }
 
 /**
- * Calculates the next sort direction when cycling through headers.
- * (none -> 'asc' -> 'desc' -> null)
- *
- * @param {'asc'|'desc'|null|'none'} currentDirection
- * @returns {'asc'|'desc'|null} Next direction
- */
-export function getNextSortDirection(currentDirection) {
-  if (!currentDirection || currentDirection === 'none') return 'asc';
-  if (currentDirection === 'asc') return 'desc';
-  return null;
-}
-
-/**
  * Serializes an object of parameters into a URL query string, omitting empty,
  * null, undefined values, and optional ignore values (e.g. 'all').
  * Handles arrays, dates, numbers, and strings cleanly.

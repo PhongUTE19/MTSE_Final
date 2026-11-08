@@ -4,9 +4,11 @@ import helmet from 'helmet';
 import { config } from './config.js';
 import { initVectorStore, getVectorStoreCount } from './features/knowledgeBase/vectorStore.js';
 import adminRouter from './routes/adminRoute.js';
-import assistantRouter from './features/assistant/assistant.routes.js';
-import expenseRouter from './features/expenses/expenses.routes.js';
-import expenseAgentRouter from './features/expenseAgent/expenseAgent.routes.js';
+import chatAssistantRouter from './features/chatAssistant/chatAssistant.route.js';
+import transactionRouter from './features/transaction/transaction.route.js';
+import receiptRouter from './features/receipt/receipt.route.js';
+import expenseAssistantRouter from './features/expenseAssistant/expenseAssistant.route.js';
+import transactionDraftRouter from './features/transactionDraft/transactionDraft.route.js';
 import { STATUS_KEYS, HTTP_STATUS } from './constants/index.js';
 import {
   errorHandler,
@@ -29,10 +31,11 @@ app.use('/api', apiRateLimiter);
 
 // Mounted API routes
 app.use('/api/admin', adminRouter);
-app.use('/api/user', assistantRouter);
-app.use('/api/assistant', assistantRouter);
-app.use('/api', expenseRouter);
-app.use('/api/expense-agent', expenseAgentRouter);
+app.use('/api/chat-assistant', chatAssistantRouter);
+app.use('/api', transactionRouter);
+app.use('/api/receipt', receiptRouter);
+app.use('/api/expense-assistant', expenseAssistantRouter);
+app.use('/api/transaction-draft', transactionDraftRouter);
 
 // Health check endpoint (queries vector database count)
 app.get('/api/health', async (req, res) => {

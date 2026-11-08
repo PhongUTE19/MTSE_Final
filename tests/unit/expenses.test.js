@@ -5,6 +5,7 @@ import {
   transactionQuerySchema,
   transactionSchema,
 } from '../../server/src/features/expenses/expenses.schemas.js';
+import { receiptConfirmSchema } from '../../server/src/features/expenses/receipt.schemas.js';
 import {
   createTransaction,
   deleteTransaction,
@@ -115,6 +116,30 @@ describe('Expense tracker schema and service', () => {
     await assert.rejects(
       () => deleteTransaction(testUser, row.id),
       { statusCode: 409, message: 'This transaction is linked to a receipt and cannot be deleted.' },
+    );
+  });
+
+  it('validates real UTC calendar dates across transactionSchema, transactionQuerySchema, and receiptConfirmSchema', () => {
+    // Reject impossible calendar dates (rollover and out-of-range months)
+    for (const invalidDate of ['2026-02-30', '2026-13-01', '2025-02-29']) {
+      assert.throws(() => transactionSchema.parse({ ...validTransaction, date: invalidDate }));
+      assert.throws(() => transactionQuerySchema.parse({ from: invalidDate }));
+      assert.throws(() => transactionQuerySchema.parse({ to: invalidDate }));
+      assert.throws(() =>
+        receiptConfirmSchema.parse({
+          finalTransaction: { ...validTransaction, date: invalidDate },
+        })
+      );
+    }
+
+    // Accept valid leap day 2024-02-29
+    assert.equal(transactionSchema.parse({ ...validTransaction, date: '2024-02-29' }).date, '2024-02-29');
+    assert.equal(transactionQuerySchema.parse({ from: '2024-02-29', to: '2024-02-29' }).from, '2024-02-29');
+    assert.equal(
+      receiptConfirmSchema.parse({
+        finalTransaction: { ...validTransaction, date: '2024-02-29' },
+      }).finalTransaction.date,
+      '2024-02-29'
     );
   });
 });

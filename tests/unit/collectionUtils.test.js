@@ -5,7 +5,6 @@ import {
   paginateItems,
   filterItems,
   sortItems,
-  getNextSortDirection,
   getNestedValue,
 } from '../../client/src/shared/utils/collectionUtils.js';
 import { formatNumber, formatTimestamp } from '../../client/src/shared/utils/formatters.js';
@@ -199,15 +198,6 @@ describe('Collection and Table Utilities Suite', () => {
       const originalCopy = [...items];
       sortItems(items, 'name', 'asc');
       assert.deepStrictEqual(items, originalCopy);
-    });
-  });
-
-  describe('getNextSortDirection', () => {
-    it('cycles from none to asc to desc to null', () => {
-      assert.strictEqual(getNextSortDirection(null), 'asc');
-      assert.strictEqual(getNextSortDirection('none'), 'asc');
-      assert.strictEqual(getNextSortDirection('asc'), 'desc');
-      assert.strictEqual(getNextSortDirection('desc'), null);
     });
   });
 

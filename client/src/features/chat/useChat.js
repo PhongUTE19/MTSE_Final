@@ -3,10 +3,11 @@ import {
   loadChatHistory,
   saveChatHistory,
   makeConversation,
+  buildHistoryPayload,
 } from './chatHistory.js';
 import { sendChatMessage } from './chatApi.js';
 import { useChatScroll } from '../../shared/hooks/useChatScroll.js';
-import { useConfirm } from '../../shared/hooks/index.js';
+import { useConfirm } from '../../app/providers/index.js';
 
 /**
  * State and interaction hook for the Chat drawer / floating popup.
@@ -39,6 +40,11 @@ export function useChat({
     setError('');
   }, [userId, namespace, storage]);
 
+  // Clear stale error whenever active conversation changes
+  useEffect(() => {
+    setError('');
+  }, [activeId]);
+
   // Persist conversations to storage
   useEffect(() => {
     if (userId && storage) {
@@ -58,14 +64,18 @@ export function useChat({
     onOpenChange?.(next);
   }
 
-  function updateActive(mutator) {
+  function updateConversation(conversationId, mutator) {
     setConversations((items) =>
-      items.map((item) => (item.id === activeId ? mutator(item) : item))
+      items.map((item) => (item.id === conversationId ? mutator(item) : item))
     );
   }
 
-  function appendMessage(role, text, extra = {}) {
-    updateActive((item) => ({
+  function updateActive(mutator) {
+    updateConversation(activeId, mutator);
+  }
+
+  function appendMessageToConversation(conversationId, role, text, extra = {}) {
+    updateConversation(conversationId, (item) => ({
       ...item,
       title: item.messages.length === 0 && role === 'user' ? text.slice(0, 48) : item.title,
       updatedAt: new Date().toISOString(),
@@ -74,6 +84,10 @@ export function useChat({
         { id: crypto.randomUUID(), role, text, ...extra },
       ],
     }));
+  }
+
+  function appendMessage(role, text, extra = {}) {
+    appendMessageToConversation(activeId, role, text, extra);
   }
 
   function handleRevealComplete(messageId) {
@@ -114,36 +128,45 @@ export function useChat({
       return;
     }
     const remaining = conversations.filter((item) => item.id !== id);
-    const next = remaining[0] || makeConversation();
-    setConversations(remaining.length ? remaining : [next]);
-    setActiveId(next.id);
-    setTab('chat');
+    if (id === activeId) {
+      const next = remaining[0] || makeConversation();
+      setConversations(remaining.length ? remaining : [next]);
+      setActiveId(next.id);
+      setTab('chat');
+      setError('');
+    } else {
+      setConversations(remaining);
+    }
   }
 
   async function sendMessage(text) {
-    if (!text || busy || !active) return;
-    const history = active.messages
-      .slice(-8)
-      .map(({ role, text: previousText }) => ({ role, text: previousText }));
+    const trimmed = (text || '').trim();
+    if (!trimmed || busy || !active) return;
+    if (trimmed.length > 1000) {
+      setError('Message exceeds the 1000-character limit. Please shorten your message.');
+      return;
+    }
+
+    const targetConversationId = active.id;
+    const history = buildHistoryPayload(active.messages, 8, 1000);
 
     setError('');
     setBusy(true);
     scrollToBottom(true);
-    appendMessage('user', text);
+    appendMessageToConversation(targetConversationId, 'user', trimmed);
 
     try {
-      const response = await onSendMessage(text, history);
-      appendMessage('assistant', response.answer || 'Done.', {
-        toolName: response.toolName,
-        result: response.toolResult,
-        proposal: response.proposal,
-        sources: response.sources,
+      const response = await onSendMessage(trimmed, history, { conversationId: targetConversationId });
+      appendMessageToConversation(targetConversationId, 'assistant', response?.answer || 'Done.', {
+        toolName: response?.toolName,
+        result: response?.toolResult,
+        sources: response?.sources,
         isNew: true,
       });
       return response;
     } catch (requestError) {
       setError(requestError.message);
-      appendMessage('assistant', 'Sorry, I encountered an error processing your request.');
+      appendMessageToConversation(targetConversationId, 'assistant', 'Sorry, I encountered an error processing your request.');
       throw requestError;
     } finally {
       setBusy(false);
@@ -176,5 +199,3 @@ export function useChat({
     removeConversation,
   };
 }
-
-export const useAssistant = useChat;

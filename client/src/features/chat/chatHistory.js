@@ -1,7 +1,7 @@
 const MAX_CONVERSATIONS = 10;
 const MAX_MESSAGES = 40;
 
-export function storageKey(userId, namespace = 'chat') {
+function storageKey(userId, namespace = 'chat') {
   return `spendwise:${namespace}:${userId}`;
 }
 
@@ -46,6 +46,24 @@ export function makeConversation(title = 'New conversation') {
     updatedAt: new Date().toISOString(),
     messages: [],
   };
+}
+
+/**
+ * Prepares and validates recent messages for LLM/assistant history.
+ * Ensures the items match schema expectations: only 'user' and 'assistant' roles,
+ * non-empty trimmed text, capped at maxItems (default 8), and each turn clamped
+ * to at most maxCharsPerItem (default 1000).
+ */
+export function buildHistoryPayload(messages, maxItems = 8, maxCharsPerItem = 1000) {
+  if (!Array.isArray(messages)) return [];
+  return messages
+    .filter((msg) => (msg.role === 'user' || msg.role === 'assistant') && typeof msg.text === 'string' && msg.text.trim())
+    .slice(-maxItems)
+    .map(({ role, text }) => {
+      const trimmed = text.trim();
+      const safeText = trimmed.length > maxCharsPerItem ? trimmed.slice(0, maxCharsPerItem) : trimmed;
+      return { role, text: safeText };
+    });
 }
 
 // Aliases for backwards compatibility

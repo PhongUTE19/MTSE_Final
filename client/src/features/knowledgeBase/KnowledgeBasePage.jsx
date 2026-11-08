@@ -1,46 +1,35 @@
 import React, { useState, useCallback } from 'react';
-import KnowledgeBaseStats from './KnowledgeBaseStats';
-import DocumentEditor from '../documents/DocumentEditor';
-import DocumentTable from '../documents/DocumentTable';
-import ChunkReview from '../documents/ChunkReview';
+import KnowledgeBaseSummary from './KnowledgeBaseSummary.jsx';
+import DocumentEditor from '../document/DocumentEditor';
+import DocumentTable from '../document/DocumentTable';
+import ChunkReview from '../document/ChunkReview';
 import SystemPromptEditor from '../systemPrompt/SystemPromptEditor';
-import WorkspaceLayout from '../../layouts/WorkspaceLayout';
-import HealthBadge from '../../shared/components/HealthBadge';
-import Drawer from '../../shared/components/Drawer';
-import { ToastProvider } from '../../shared/contexts/ToastContext';
-import { useHealth, useDrawer } from '../../shared/hooks';
+import { PageHeader } from '../../layouts/WorkspaceLayout.jsx';
+import { useWorkspace } from '../../app/providers/index.js';
+import OverlayDrawer from '../../composites/overlays/OverlayDrawer.jsx';
+import Button from '../../primitives/buttons/Button.jsx';
+import Inline from '../../primitives/layout/Inline.jsx';
+import Stack from '../../primitives/layout/Stack.jsx';
+import { useDrawer } from '../../shared/hooks';
 import { useKnowledgeBaseDashboard } from './useKnowledgeBaseDashboard';
-import { UI_LABELS, ADMIN_PANELS, ADMIN_TABS, USER_ROLES } from '../../shared/constants';
-import './knowledgeBase.css';
+import { UI_LABELS, ADMIN_PANELS } from '../../shared/constants';
 
 /**
- * Admin Knowledge Base page: renders the management dashboard inside the shared
- * workspace layout, with the health badge and toast context it depends on.
+ * Admin Knowledge Base page: renders the management dashboard with document management,
+ * chunk review, and system prompt configuration.
  */
-export default function KnowledgeBasePage({ user, onSignOut }) {
-  const { health, checkHealth } = useHealth(USER_ROLES.ADMIN);
+export default function KnowledgeBasePage() {
+  const { health, isOffline } = useWorkspace();
 
   return (
-    <ToastProvider>
-      <WorkspaceLayout
+    <Stack gap="lg">
+      <PageHeader
         eyebrow="ADMINISTRATION"
         title="Knowledge Base"
-        sidebarProps={{ activeView: ADMIN_TABS.KNOWLEDGE, user, onSignOut }}
-        headerAction={
-          <HealthBadge
-            status={health?.status}
-            indexedChunks={health?.indexedChunks}
-            loading={health?.loading}
-            error={health?.error}
-            onRetry={checkHealth}
-          />
-        }
-      >
-        <div className="dashboard-container">
-          <KnowledgeBaseContent health={health} onRefreshHealth={checkHealth} />
-        </div>
-      </WorkspaceLayout>
-    </ToastProvider>
+        description="Manage knowledge documents, inspect vector chunks, and configure the AI system prompt."
+      />
+      <KnowledgeBaseContent health={health} isOffline={isOffline} />
+    </Stack>
   );
 }
 
@@ -51,7 +40,6 @@ export default function KnowledgeBasePage({ user, onSignOut }) {
  */
 function KnowledgeBaseContent({
   health,
-  onRefreshHealth,
   isOffline: propIsOffline,
 }) {
   const isOffline = propIsOffline ?? Boolean(health?.error);
@@ -92,48 +80,47 @@ function KnowledgeBaseContent({
   return (
     <>
       {/* 1. Status Cards */}
-      <KnowledgeBaseStats status={kb.status} indexing={kb.indexing} />
+      <KnowledgeBaseSummary status={kb.status} indexing={kb.indexing} loading={loading} />
 
       {/* 2. Management Navigation Bar */}
-      <div className="dashboard-content-layout">
-        <nav className="dashboard-nav" aria-label="Admin panels">
-          <button
-            type="button"
-            className={`btn ${isPanelActive(ADMIN_PANELS.DOCUMENTS) ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={(e) => openDrawer(ADMIN_PANELS.DOCUMENTS, e)}
-            aria-expanded={isPanelActive(ADMIN_PANELS.DOCUMENTS)}
-            aria-controls="admin-drawer"
-          >
-            {UI_LABELS.ADMIN_DASHBOARD.NAV_DOCUMENTS}
-          </button>
-          <button
-            type="button"
-            className={`btn ${isPanelActive(ADMIN_PANELS.CHUNKS) ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={(e) => openDrawer(ADMIN_PANELS.CHUNKS, e)}
-            aria-expanded={isPanelActive(ADMIN_PANELS.CHUNKS)}
-            aria-controls="admin-drawer"
-          >
-            {UI_LABELS.ADMIN_DASHBOARD.NAV_CHUNKS}
-          </button>
-          <button
-            type="button"
-            className={`btn ${isPanelActive(ADMIN_PANELS.PROMPT) ? 'btn-primary' : 'btn-secondary'}`}
-            onClick={(e) => openDrawer(ADMIN_PANELS.PROMPT, e)}
-            aria-expanded={isPanelActive(ADMIN_PANELS.PROMPT)}
-            aria-controls="admin-drawer"
-          >
-            {UI_LABELS.ADMIN_DASHBOARD.NAV_PROMPT}
-          </button>
-        </nav>
-      </div>
+      <Inline gap="sm" wrap as="nav" aria-label="Admin panels">
+        <Button
+          type="button"
+          variant={isPanelActive(ADMIN_PANELS.DOCUMENTS) ? 'primary' : 'secondary'}
+          onClick={(e) => openDrawer(ADMIN_PANELS.DOCUMENTS, e)}
+          aria-expanded={isPanelActive(ADMIN_PANELS.DOCUMENTS)}
+          aria-controls="admin-drawer"
+        >
+          {UI_LABELS.ADMIN_DASHBOARD.NAV_DOCUMENTS}
+        </Button>
+        <Button
+          type="button"
+          variant={isPanelActive(ADMIN_PANELS.CHUNKS) ? 'primary' : 'secondary'}
+          onClick={(e) => openDrawer(ADMIN_PANELS.CHUNKS, e)}
+          aria-expanded={isPanelActive(ADMIN_PANELS.CHUNKS)}
+          aria-controls="admin-drawer"
+        >
+          {UI_LABELS.ADMIN_DASHBOARD.NAV_CHUNKS}
+        </Button>
+        <Button
+          type="button"
+          variant={isPanelActive(ADMIN_PANELS.PROMPT) ? 'primary' : 'secondary'}
+          onClick={(e) => openDrawer(ADMIN_PANELS.PROMPT, e)}
+          aria-expanded={isPanelActive(ADMIN_PANELS.PROMPT)}
+          aria-controls="admin-drawer"
+        >
+          {UI_LABELS.ADMIN_DASHBOARD.NAV_PROMPT}
+        </Button>
+      </Inline>
 
       {/* Slide-out Drawer */}
-      <Drawer
+      <OverlayDrawer
         id="admin-drawer"
         isOpen={drawer.isDrawerOpen}
         onClose={drawer.closeDrawer}
         title={getDrawerTitle()}
         drawerRef={drawer.drawerRef}
+        triggerRef={drawer.triggerRef}
       >
         {/* Documents Management & Inline Editor */}
         {activePanel === ADMIN_PANELS.DOCUMENTS && (
@@ -143,6 +130,7 @@ function KnowledgeBaseContent({
               onChange={docs.setEditingDoc}
               onSave={docs.handleSaveDocument}
               onCancel={docs.cancelEdit}
+              saving={docs.saving}
             />
             <DocumentTable
               documents={docs.documents}
@@ -154,6 +142,7 @@ function KnowledgeBaseContent({
               onReindex={kb.handleTriggerIndexing}
               indexing={kb.indexing}
               loading={loading}
+              uploading={docs.uploading}
             />
           </>
         )}
@@ -182,7 +171,7 @@ function KnowledgeBaseContent({
         {activePanel === ADMIN_PANELS.PROMPT && (
           <SystemPromptEditor isOffline={isOffline} />
         )}
-      </Drawer>
+      </OverlayDrawer>
     </>
   );
 }

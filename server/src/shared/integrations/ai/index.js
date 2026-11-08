@@ -109,5 +109,10 @@ export async function extractReceiptImage(image, options = {}) {
 }
 
 export { geminiProvider };
-export { getAIClient, setAIClientForTests, executeWithRetry } from './providers/geminiProvider.js';
+export {
+  getAIClient,
+  getAIClient as getGeminiClient,
+  setAIClientForTests,
+  executeWithRetry,
+} from './providers/geminiProvider.js';
 export { validateStructuredOutput } from '../../guardrails/index.js';

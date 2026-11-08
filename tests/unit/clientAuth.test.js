@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
   getUserRole,
+  getUserDisplayIdentity,
   getPostAuthPath,
   formatAuthError,
   extractRetryDuration,
@@ -40,6 +41,38 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(getUserRole(null), 'user');
       assert.equal(getUserRole(undefined), 'user');
     });
+
+    it('derives display identity with name, initials, admin status, and role label', () => {
+      const adminUser = {
+        email: 'admin@example.com',
+        app_metadata: { role: 'admin' },
+        user_metadata: { display_name: 'System Admin' },
+      };
+      assert.deepEqual(getUserDisplayIdentity(adminUser), {
+        displayName: 'System Admin',
+        userInitial: 'SA',
+        isAdmin: true,
+        roleLabel: 'Administrator',
+      });
+
+      const regularUser = {
+        email: 'alex.smith@example.com',
+        app_metadata: { role: 'user' },
+      };
+      assert.deepEqual(getUserDisplayIdentity(regularUser), {
+        displayName: 'alex.smith',
+        userInitial: 'A',
+        isAdmin: false,
+        roleLabel: 'Personal workspace',
+      });
+
+      assert.deepEqual(getUserDisplayIdentity(null), {
+        displayName: 'User',
+        userInitial: 'U',
+        isAdmin: false,
+        roleLabel: 'Personal workspace',
+      });
+    });
   });
 
   describe('2. Post-Authentication Destination Mapping', () => {
@@ -66,15 +99,18 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(getPostAuthPath('user', '/analytics'), '/home');
       assert.equal(getPostAuthPath('user', '/admin/analytics'), '/home');
       assert.equal(getPostAuthPath('user', '/admin/knowledge-base'), '/home');
-      assert.equal(getPostAuthPath('user', '/admin.html'), '/home');
     });
 
     it('normalizes legacy and canonical path destinations', () => {
       assert.equal(safeNextPath('/expense.html'), '/expense');
-      assert.equal(safeNextPath('/admin.html'), '/admin/knowledge-base');
       assert.equal(safeNextPath('/admin/knowledge-base'), '/admin/knowledge-base');
       assert.equal(safeNextPath('/admin/analytics'), '/admin/analytics');
+      assert.equal(safeNextPath('/home'), '/home');
+      assert.equal(safeNextPath('/expense'), '/expense');
       assert.equal(safeNextPath('/invalid-path'), '/home');
+      assert.equal(safeNextPath('//evil.example.com'), '/home');
+      assert.equal(safeNextPath('https://evil.example.com/admin'), '/home');
+      assert.equal(safeNextPath('/admin'), '/home', 'bare /admin is not an app route');
     });
 
     it('redirects to home instead of looping when requestedNext is / or /auth', () => {

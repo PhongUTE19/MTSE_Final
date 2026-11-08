@@ -1,7 +1,7 @@
 import { UnauthorizedError, AppError } from '../../shared/errors/index.js';
 import { HTTP_STATUS } from '../../constants/index.js';
 import { createSupabaseAuthClient, getSupabaseClient } from '../../shared/integrations/supabase.js';
-import { userRoleSchema } from './auth.schemas.js';
+import { userRoleSchema } from './auth.schema.js';
 
 let tokenVerifier = null;
 

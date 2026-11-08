@@ -10,10 +10,14 @@ import {
 } from '../../shared/services/supabaseAuth';
 import { APP_ROUTES } from '../../shared/constants';
 import { validateEmail, validateStringLength } from '../../shared/utils/validation';
-import { GoogleMark } from '../../shared/components/Icons';
-import PasswordField from './PasswordField';
-import { AUTH_LABELS, AUTH_MODES } from './authConstants';
-import './auth.css';
+import Button from '../../primitives/buttons/Button.jsx';
+import Text from '../../primitives/typography/Text.jsx';
+import { Card, CardHeader, CardTitle } from '../../primitives/cards/index.js';
+import { Stack } from '../../primitives/layout/index.js';
+import AuthLayout from './AuthLayout';
+import AuthShowcase from './AuthShowcase.jsx';
+import AuthForm from './AuthForm.jsx';
+import { AUTH_LABELS, AUTH_MODE_ACTIONS, AUTH_MODES } from './authConstants';
 
 function validate(form, mode) {
   const errors = {};
@@ -52,8 +56,9 @@ export default function AuthPage() {
   const [loading, setLoading] = useState(false);
   const nextParam = new URLSearchParams(window.location.search).get('next');
   const nextPath = safeNextPath(nextParam);
-  const isSignUp = mode === 'signup';
-  const isForgot = mode === 'forgot';
+  const isSignUp = mode === AUTH_MODES.SIGNUP;
+  const isForgot = mode === AUTH_MODES.FORGOT;
+  const modeActions = AUTH_MODE_ACTIONS[mode];
 
   const updateField = (event) => {
     const { name, value } = event.target;
@@ -116,15 +121,12 @@ export default function AuthPage() {
         if (signUpError) {
           setNotice(formatAuthError(signUpError, AUTH_MODES.SIGNUP));
         } else if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-          // Account already exists in Supabase Auth (obfuscated identity response)
           setNotice(AUTH_LABELS.NOTICES.ACCOUNT_EXISTS);
         } else if (data?.session) {
-          // Reliable role resolution from trusted app_metadata
           const role = getUserRole(data.session);
           const destination = getPostAuthPath(role, nextParam);
           window.location.replace(appUrl(destination));
         } else {
-          // Email confirmation is required; do not treat user as authenticated
           setNotice(AUTH_LABELS.NOTICES.CONFIRM_EMAIL);
         }
       } else {
@@ -172,161 +174,49 @@ export default function AuthPage() {
   const kicker = AUTH_LABELS.KICKERS[mode] || AUTH_LABELS.KICKERS[AUTH_MODES.SIGNIN];
 
   return (
-    <main className="auth-page">
-      <section className="auth-showcase" aria-label="Spendwise introduction">
-        <div className="auth-showcase__brand">
-          <span className="auth-logo" aria-hidden="true">S</span>
-          <span>spendwise</span>
-        </div>
-        <div className="auth-showcase__content">
-          <p className="auth-showcase__eyebrow">PERSONAL FINANCE, SIMPLIFIED</p>
-          <h1>Make every money decision feel clearer.</h1>
-          <p>One calm workspace for your spending, receipts, and the habits behind them.</p>
-          <div className="auth-showcase__metrics">
-            <div>
-              <strong>One view</strong>
-              <span>for every transaction</span>
-            </div>
-            <div>
-              <strong>Thoughtful</strong>
-              <span>receipt review</span>
-            </div>
-          </div>
-        </div>
-        <p className="auth-showcase__footer">Built for deliberate financial habits.</p>
-      </section>
+    <AuthLayout showcase={<AuthShowcase />} ariaLabelledby="auth-title">
+      <Card variant="glass" padding="xl" maxWidth="md">
+        <Stack gap="lg">
+          <CardHeader as="header">
+            <Stack gap="xs">
+              <Text variant="kicker">{kicker}</Text>
+              <CardTitle as="h1" id="auth-title">{title}</CardTitle>
+              <Text variant="secondary">{description}</Text>
+            </Stack>
+          </CardHeader>
 
-      <section className="auth-content" aria-labelledby="auth-title">
-        <div className="auth-mobile-brand">
-          <span className="auth-logo" aria-hidden="true">S</span>
-          <span>spendwise</span>
-        </div>
-        <div className="auth-card">
-          <div className="auth-card__header">
-            <p className="auth-kicker">{kicker}</p>
-            <h1 id="auth-title">{title}</h1>
-            <p>{description}</p>
-          </div>
+          <AuthForm
+            mode={mode}
+            form={form}
+            errors={errors}
+            notice={notice}
+            loading={loading}
+            submitLabel={modeActions.submitLabel}
+            onFieldChange={updateField}
+            onSubmit={handleSubmit}
+            onSwitchMode={switchMode}
+            onGoogleSignIn={signInWithGoogle}
+          />
 
-          <form className="auth-form" onSubmit={handleSubmit} noValidate>
-            {notice && (
-              <div className="auth-alert auth-alert--info" role="status">
-                {notice}
-              </div>
-            )}
-
-            {isSignUp && (
-              <div className="auth-field">
-                <label htmlFor="name">Display name</label>
-                <input
-                  id="name"
-                  name="name"
-                  value={form.name}
-                  onChange={updateField}
-                  autoComplete="name"
-                  aria-invalid={Boolean(errors.name)}
-                  aria-describedby={errors.name ? 'name-error' : undefined}
-                  required
-                />
-                {errors.name && <p className="auth-field-error" id="name-error">{errors.name}</p>}
-              </div>
-            )}
-
-            <div className="auth-field">
-              <label htmlFor="email">Email address</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                value={form.email}
-                onChange={updateField}
-                autoComplete="email"
-                inputMode="email"
-                aria-invalid={Boolean(errors.email)}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                required
-              />
-              {errors.email && <p className="auth-field-error" id="email-error">{errors.email}</p>}
-            </div>
-
-            {!isForgot && (
-              <PasswordField
-                id="password"
-                label="Password"
-                value={form.password}
-                onChange={updateField}
-                error={errors.password}
-                autoComplete={isSignUp ? 'new-password' : 'current-password'}
-              />
-            )}
-
-            {isSignUp && (
-              <PasswordField
-                id="confirmPassword"
-                label="Confirm password"
-                value={form.confirmPassword}
-                onChange={updateField}
-                error={errors.confirmPassword}
-              />
-            )}
-
-            {!isSignUp && !isForgot && (
-              <button
-                className="auth-text-link auth-forgot-password"
-                type="button"
-                onClick={() => switchMode(AUTH_MODES.FORGOT)}
-              >
-                {AUTH_LABELS.BUTTONS.FORGOT_PASSWORD}
-              </button>
-            )}
-
-            <button className="auth-primary-button" type="submit" disabled={loading}>
-              {loading
-                ? AUTH_LABELS.BUTTONS.SUBMIT_LOADING
-                : isForgot
-                  ? AUTH_LABELS.BUTTONS.SUBMIT_FORGOT
-                  : isSignUp
-                    ? AUTH_LABELS.BUTTONS.SUBMIT_SIGNUP
-                    : AUTH_LABELS.BUTTONS.SUBMIT_SIGNIN}
-            </button>
-          </form>
-
-          {!isForgot && (
-            <>
-              <div className="auth-divider">
-                <span>or</span>
-              </div>
-              <button className="auth-google-button" type="button" disabled={loading} onClick={signInWithGoogle}>
-                <GoogleMark />
-                {AUTH_LABELS.BUTTONS.GOOGLE_SIGNIN}
-              </button>
-            </>
-          )}
-
-          <p className="auth-switch">
-            {isForgot
-              ? AUTH_LABELS.SWITCH_PROMPTS.FORGOT
-              : isSignUp
-                ? AUTH_LABELS.SWITCH_PROMPTS.SIGNUP
-                : AUTH_LABELS.SWITCH_PROMPTS.SIGNIN}
+          <Text variant="secondary" align="center">
+            {modeActions.switchPrompt}
             {' '}
-            <button
+            <Button
               type="button"
-              onClick={() => switchMode(isForgot || isSignUp ? AUTH_MODES.SIGNIN : AUTH_MODES.SIGNUP)}
+              variant="ghost"
+              onClick={() => switchMode(modeActions.switchTo)}
             >
-              {isForgot || isSignUp
-                ? AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNIN
-                : AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNUP}
-            </button>
-          </p>
+              {modeActions.switchLabel}
+            </Button>
+          </Text>
 
           {isSignUp && (
-            <p className="auth-legal">
+            <Text variant="caption" align="center">
               {AUTH_LABELS.NOTICES.TERMS_NOTICE}
-            </p>
+            </Text>
           )}
-        </div>
-      </section>
-    </main>
+        </Stack>
+      </Card>
+    </AuthLayout>
   );
 }

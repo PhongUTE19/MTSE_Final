@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { hashPrompt } from '../analytics/usageTracker.js';
+import { hashPrompt } from '../aiUsage/usageTracker.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -89,7 +89,7 @@ export function getRagPrompt(promptType, options = {}) {
   let baseVersion = requestedVersion;
 
   if (typeof options.override === 'string' && options.override.trim()) {
-    rawTemplate = options.override.trim();
+    rawTemplate = options.override.replace(/\r\n/g, '\n').trim();
     isOverride = true;
   } else {
     const filePrefix = PROMPT_FILE_PREFIX[promptId] || 'grounded';
@@ -97,12 +97,12 @@ export function getRagPrompt(promptType, options = {}) {
 
     try {
       if (fs.existsSync(filePath)) {
-        rawTemplate = fs.readFileSync(filePath, 'utf-8').trim();
+        rawTemplate = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').trim();
       } else {
         const defaultPath = path.join(promptsDirectory, `${filePrefix}-${RAG_PROMPT_VERSION}.md`);
         if (fs.existsSync(defaultPath)) {
           console.warn(`[RagPrompt] Prompt "${promptId}" version "${requestedVersion}" not found. Falling back to default "${RAG_PROMPT_VERSION}".`);
-          rawTemplate = fs.readFileSync(defaultPath, 'utf-8').trim();
+          rawTemplate = fs.readFileSync(defaultPath, 'utf-8').replace(/\r\n/g, '\n').trim();
           baseVersion = RAG_PROMPT_VERSION;
         } else {
           rawTemplate = BUILTIN_FALLBACKS[promptId] || '';
@@ -113,6 +113,8 @@ export function getRagPrompt(promptType, options = {}) {
       rawTemplate = BUILTIN_FALLBACKS[promptId] || '';
     }
   }
+
+  rawTemplate = rawTemplate.replace(/\r\n/g, '\n');
 
   const variables = options.variables || {};
   const renderedText = renderRagPrompt(rawTemplate, variables);

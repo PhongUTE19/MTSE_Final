@@ -1,8 +1,3 @@
-export const USER_ROLES = Object.freeze({
-  USER: 'user',
-  ADMIN: 'admin',
-});
-
 export const STATUS_KEYS = Object.freeze({
   OK: 'ok',
   ERROR: 'error',
@@ -20,17 +15,17 @@ export const PAGINATION = Object.freeze({
 
 export const API_ENDPOINTS = Object.freeze({
   HEALTH: '/api/health',
-  USER_CHAT: '/api/user/chat',
-  ADMIN_STATUS: '/api/admin/status',
-  ADMIN_DOCUMENTS: '/api/admin/documents',
-  ADMIN_CHUNKS: '/api/admin/chunks',
-  ADMIN_INDEX: '/api/admin/index',
-  ADMIN_PROMPT: '/api/admin/prompt',
-  ADMIN_PROMPT_RESET: '/api/admin/prompt/reset',
-  ADMIN_ANALYTICS_OVERVIEW: '/api/admin/analytics/overview',
-  ADMIN_ANALYTICS_TIMESERIES: '/api/admin/analytics/timeseries',
-  ADMIN_ANALYTICS_BREAKDOWN: '/api/admin/analytics/breakdown',
-  ADMIN_ANALYTICS_HISTORY: '/api/admin/analytics/history',
+  CHAT_ASSISTANT: '/api/chat-assistant',
+  ADMIN_KNOWLEDGE_STATUS: '/api/admin/knowledge-base/status',
+  ADMIN_DOCUMENTS: '/api/admin/document',
+  ADMIN_KNOWLEDGE_CHUNKS: '/api/admin/knowledge-base/chunks',
+  ADMIN_KNOWLEDGE_INDEX: '/api/admin/knowledge-base/index',
+  ADMIN_SYSTEM_PROMPT: '/api/admin/system-prompt',
+  ADMIN_SYSTEM_PROMPT_RESET: '/api/admin/system-prompt/reset',
+  ADMIN_AI_USAGE_OVERVIEW: '/api/admin/ai-usage/overview',
+  ADMIN_AI_USAGE_TIMESERIES: '/api/admin/ai-usage/timeseries',
+  ADMIN_AI_USAGE_BREAKDOWN: '/api/admin/ai-usage/breakdown',
+  ADMIN_AI_USAGE_HISTORY: '/api/admin/ai-usage/history',
 });
 
 export const HTTP_METHODS = Object.freeze({
@@ -44,7 +39,6 @@ export const ADMIN_PANELS = Object.freeze({
   DOCUMENTS: 'documents',
   CHUNKS: 'chunks',
   PROMPT: 'prompt',
-  ANALYTICS: 'analytics',
 });
 
 export const ADMIN_TABS = Object.freeze({

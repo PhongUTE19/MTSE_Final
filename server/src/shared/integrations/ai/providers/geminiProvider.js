@@ -2,11 +2,11 @@ import sharp from 'sharp';
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../../../../config.js';
 import { SERVER_MESSAGES, RETRY_CONFIG, SERVER_CONFIG_DEFAULTS, GUARDRAIL_CONFIG } from '../../../../constants/index.js';
-import { recordUsage, hashPrompt } from '../../../../features/analytics/index.js';
+import { recordUsage, hashPrompt } from '../../../../features/aiUsage/index.js';
 import { validateChatResponse, withTimeout, validateStructuredOutput, AIResponseValidationError } from '../../../guardrails/index.js';
-import { RECEIPT_CATEGORIES, receiptExtractionSchema } from '../../../../features/expenses/receipt.schemas.js';
-import { enforceReceiptGuardrails } from '../../../../features/expenses/receiptGuardrails.js';
-import { getReceiptPrompt, RECEIPT_PROMPT_ID, RECEIPT_PROMPT_VERSION } from '../../../../features/expenses/receiptPrompt.js';
+import { RECEIPT_CATEGORIES, receiptExtractionSchema } from '../../../../features/receipt/receipt.schema.js';
+import { enforceReceiptGuardrails } from '../../../../features/receipt/receiptGuardrails.js';
+import { getReceiptPrompt, RECEIPT_PROMPT_ID, RECEIPT_PROMPT_VERSION } from '../../../../features/receipt/receiptPrompt.js';
 
 let aiInstance = null;
 
@@ -205,7 +205,7 @@ export async function embedText(text, options = {}) {
 export async function generateAnswer(prompt, options = {}) {
   const ai = getAIClient();
   const feature = options.feature || 'chat';
-  const model = options.model || config.geminiReceiptModel;
+  const model = options.model || config.geminiModel;
   const promptId = options.promptId || null;
   const promptVersion = options.promptVersion || null;
   const promptHash = hashPrompt(prompt);
@@ -300,7 +300,7 @@ export async function generateAnswer(prompt, options = {}) {
 export async function generateAnswerStream(prompt, options = {}) {
   const ai = getAIClient();
   const feature = options.feature || 'chat';
-  const model = options.model || config.geminiReceiptModel;
+  const model = options.model || config.geminiModel;
   const promptId = options.promptId || null;
   const promptVersion = options.promptVersion || null;
   const promptHash = hashPrompt(prompt);

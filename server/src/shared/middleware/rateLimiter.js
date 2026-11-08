@@ -76,7 +76,7 @@ export const chatRateLimiter = createLimiter({
  * Configurable via RATE_LIMIT_EXPENSE_AGENT_MAX (default: 30 req / min).
  * Kept separate from chatRateLimiter to prevent cross-feature quota exhaustion.
  */
-export const expenseAgentRateLimiter = createLimiter({
+export const expenseAssistantRateLimiter = createLimiter({
   windowMs: config?.rateLimits?.expenseAgentWindowMs ?? RATE_LIMIT_CONFIG.EXPENSE_AGENT.WINDOW_MS,
   max: config?.rateLimits?.expenseAgentMax ?? RATE_LIMIT_CONFIG.EXPENSE_AGENT.MAX,
   message: RATE_LIMIT_CONFIG.EXPENSE_AGENT.MESSAGE,

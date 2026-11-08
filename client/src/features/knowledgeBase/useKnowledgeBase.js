@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { fetchAdminStatus, triggerIndexing } from './knowledgeBaseApi';
+import { fetchKnowledgeStatus, triggerIndexing } from './knowledgeBaseApi';
 import { APP_MESSAGES } from '../../shared/constants';
 
 /**
@@ -17,7 +17,7 @@ export function useKnowledgeBase({ onRefresh, onError, onSuccess, clearFeedback 
 
   const loadStatus = useCallback(async () => {
     try {
-      const statusData = await fetchAdminStatus();
+      const statusData = await fetchKnowledgeStatus();
       setStatus(statusData);
       return statusData;
     } catch (err) {

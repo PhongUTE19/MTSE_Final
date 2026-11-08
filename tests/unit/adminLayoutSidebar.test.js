@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { getUserRole, getPostAuthPath } from '../../client/src/shared/services/supabaseAuth.js';
+import { getUserRole, getUserDisplayIdentity, getPostAuthPath } from '../../client/src/shared/services/supabaseAuth.js';
 import { ADMIN_TABS, APP_ROUTES } from '../../client/src/shared/constants/index.js';
 import {
   getSidebarNavigation,
@@ -26,18 +26,21 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       user_metadata: { display_name: 'System Admin' },
     };
 
-    it('renders Workspace navigation (Transactions, Receipts, Categories) for ordinary users and hides Administration', () => {
+    it('renders Workspace navigation (Transactions, Receipts) for ordinary users and hides Administration', () => {
       const nav = getSidebarNavigation(regularUser);
 
       assert.equal(getUserRole(regularUser), 'user');
-      assert.equal(nav.workspace.length, 3);
+      assert.deepEqual(
+        nav.workspace.map((i) => i.key),
+        ['transactions', 'receipt']
+      );
       assert.deepEqual(
         nav.workspace.map((i) => i.label),
-        ['Transactions', 'Receipts', 'Categories']
+        ['Transactions', 'Receipts']
       );
       assert.deepEqual(
         nav.workspace.map((i) => i.view),
-        ['transactions', 'receipt', 'categories']
+        ['transactions', 'receipt']
       );
       assert.equal(nav.admin, null, 'Ordinary users must never see Administration section');
     });
@@ -46,17 +49,17 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       const nav = getSidebarNavigation(adminUser);
 
       assert.equal(getUserRole(adminUser), 'admin');
-      assert.equal(nav.workspace.length, 3);
       assert.deepEqual(
         nav.workspace.map((i) => i.label),
-        ['Transactions', 'Receipts', 'Categories']
+        ['Transactions', 'Receipts']
       );
-
-      assert.ok(nav.admin);
-      assert.equal(nav.admin.length, ADMIN_NAV_ITEMS.length);
       assert.deepEqual(
         nav.admin.map((i) => i.label),
-        ADMIN_NAV_ITEMS.map((i) => i.label)
+        ['Knowledge Base', 'AI Usage']
+      );
+      assert.deepEqual(
+        nav.admin.map((i) => i.path),
+        [APP_ROUTES.ADMIN_KNOWLEDGE, APP_ROUTES.ADMIN_ANALYTICS]
       );
     });
 
@@ -70,39 +73,59 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       assert.equal(userNav.admin, null);
     });
 
-    it('correctly highlights active route for Workspace and Administration items', () => {
-      const [txItem, receiptItem, catItem] = WORKSPACE_NAV_ITEMS;
-      const aiItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'analytics') || {
-        key: 'analytics',
-        label: 'AI Usage',
-        path: APP_ROUTES.ADMIN_ANALYTICS,
-      };
-      const kbItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'knowledge') || {
-        key: 'knowledge',
-        label: 'Knowledge Base',
-        path: APP_ROUTES.ADMIN_KNOWLEDGE,
-      };
+    it('derives matching user display identity for sidebar profile and role badge', () => {
+      const adminId = getUserDisplayIdentity(adminUser);
+      assert.equal(adminId.displayName, 'System Admin');
+      assert.equal(adminId.userInitial, 'SA');
+      assert.equal(adminId.isAdmin, true);
+      assert.equal(adminId.roleLabel, 'Administrator');
 
-      // On /expense: active view highlights the matching workspace item
+      const regularId = getUserDisplayIdentity(regularUser);
+      assert.equal(regularId.displayName, 'Regular User');
+      assert.equal(regularId.userInitial, 'RU');
+      assert.equal(regularId.isAdmin, false);
+      assert.equal(regularId.roleLabel, 'Personal workspace');
+    });
+
+    it('highlights the active route for Workspace and Administration items', () => {
+      const [txItem, receiptItem] = WORKSPACE_NAV_ITEMS;
+      const kbItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'knowledge');
+      const aiItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'analytics');
+
+      // /expense: the active view selects the matching workspace item
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.EXPENSE, 'transactions'), true);
+      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.EXPENSE), true, 'defaults to transactions');
       assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.EXPENSE, 'transactions'), false);
       assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.EXPENSE, 'receipt'), true);
-      assert.equal(isWorkspaceItemActive(catItem, APP_ROUTES.EXPENSE, 'categories'), true);
-      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.EXPENSE, 'transactions'), false);
-      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.EXPENSE, 'transactions'), false);
+      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.EXPENSE), false);
+      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.EXPENSE), false);
 
-      // On /admin/knowledge-base: Knowledge Base is active, workspace items are inactive
-      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_KNOWLEDGE, 'knowledge'), true);
-      assert.equal(isAdminItemActive(kbItem, '/admin'), true);
-      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_KNOWLEDGE, 'knowledge'), false);
+      // /home: neither workspace item is highlighted
+      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.HOME, 'home'), false);
+      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.HOME), false);
+      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.HOME), false);
+
+      // /admin/knowledge-base
+      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_KNOWLEDGE), true);
+      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_KNOWLEDGE), false);
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_KNOWLEDGE, 'knowledge'), false);
       assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.ADMIN_KNOWLEDGE, 'knowledge'), false);
 
-      // On /admin/analytics: AI Usage is active, workspace items are inactive
-      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_ANALYTICS, 'analytics'), true);
-      assert.equal(isAdminItemActive(aiItem, '/analytics'), true);
-      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_ANALYTICS, 'analytics'), false);
+      // /admin/analytics
+      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_ANALYTICS), true);
+      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_ANALYTICS), false);
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_ANALYTICS, 'analytics'), false);
+
+      // Legacy /admin, /analytics and /workspace are not routes and highlight nothing
+      for (const legacyPath of ['/admin', '/analytics', '/workspace']) {
+        assert.equal(isAdminItemActive(kbItem, legacyPath), false);
+        assert.equal(isAdminItemActive(aiItem, legacyPath), false);
+        assert.equal(isWorkspaceItemActive(txItem, legacyPath), false);
+      }
+
+      // Missing items never throw or highlight
+      assert.equal(isWorkspaceItemActive(undefined, APP_ROUTES.EXPENSE), false);
+      assert.equal(isAdminItemActive(undefined, APP_ROUTES.ADMIN_KNOWLEDGE), false);
     });
   });
 

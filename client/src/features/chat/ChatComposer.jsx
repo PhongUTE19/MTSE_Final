@@ -1,8 +1,18 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
+import Button from '../../primitives/buttons/Button.jsx';
+import TextArea from '../../primitives/inputs/TextArea.jsx';
 
 /**
- * Generic message composer for the Chat interface.
- * Handles multiline expansion, Enter-to-send shortcut, and optional attachment actions.
+ * Composite message composer for the Chat interface.
+ * Encapsulates message input state, multiline textarea expansion, Enter-to-send shortcut,
+ * whitespace validation, async submission handling, and attachment slot integration.
+ *
+ * @param {object} props
+ * @param {(text: string) => Promise<any>|void} props.onSendMessage - Callback invoked with trimmed message
+ * @param {boolean} [props.busy=false] - Whether the assistant or composer is in a busy/loading state
+ * @param {string} [props.placeholder='Ask a question...'] - Textarea placeholder and accessible name
+ * @param {string} [props.sendLabel='Send'] - Label and tooltip for the submit button
+ * @param {(context: { busy: boolean }) => React.ReactNode} [props.renderAttachmentAction] - Slot for attachment button
  */
 export default function ChatComposer({
   onSendMessage,
@@ -12,49 +22,85 @@ export default function ChatComposer({
   renderAttachmentAction,
 }) {
   const [message, setMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const textareaRef = useRef(null);
+
+  const isMessageValid = Boolean(message.trim());
+  const isDisabled = busy || isSubmitting;
 
   function handleKeyDown(event) {
     if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault();
-      event.currentTarget.form?.requestSubmit();
+      handleSubmit(event);
     }
   }
 
-  function handleSubmit(event) {
-    event.preventDefault();
+  async function handleSubmit(event) {
+    event?.preventDefault();
     const trimmed = message.trim();
-    if (!trimmed || busy) return;
-    onSendMessage(trimmed);
-    setMessage('');
+    if (!trimmed || isDisabled) return;
+
+    try {
+      setIsSubmitting(true);
+      const result = onSendMessage?.(trimmed);
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+      setMessage('');
+      if (textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+      }
+    } catch {
+      // Keep message draft intact on failure so user does not lose input
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  function handleChange(event) {
+    setMessage(event.target.value);
   }
 
   return (
-    <form className="ai-chat-input" onSubmit={handleSubmit}>
-      {renderAttachmentAction ? (
-        <div className="ai-plus">
-          {renderAttachmentAction({ busy })}
+    <form
+      className="border-t border-border p-2.5 px-3 flex flex-col gap-2 bg-surface shrink-0 max-tablet:p-2 max-tablet:px-2.5"
+      onSubmit={handleSubmit}
+      aria-label="Message composer"
+    >
+      <div className="w-full">
+        <TextArea
+          ref={textareaRef}
+          value={message}
+          onChange={handleChange}
+          onKeyDown={handleKeyDown}
+          placeholder={placeholder}
+          disabled={isDisabled}
+          rows={1}
+          size="sm"
+          resize="none"
+          maxHeight="composer"
+          maxLength={1000}
+          aria-label={placeholder}
+          aria-disabled={isDisabled}
+        />
+      </div>
+
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          {renderAttachmentAction ? renderAttachmentAction({ busy: isDisabled }) : null}
         </div>
-      ) : null}
 
-      <textarea
-        value={message}
-        onChange={(event) => setMessage(event.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        disabled={busy}
-        rows={1}
-        aria-label={placeholder}
-      />
-
-      <button
-        className="primary-button"
-        type="submit"
-        disabled={busy || !message.trim()}
-      >
-        {sendLabel}
-      </button>
+        <Button
+          variant="primary"
+          type="submit"
+          disabled={isDisabled || !isMessageValid}
+          loading={isSubmitting}
+          aria-label={sendLabel}
+          title={sendLabel}
+        >
+          {sendLabel}
+        </Button>
+      </div>
     </form>
   );
 }
-
-export const AssistantComposer = ChatComposer;

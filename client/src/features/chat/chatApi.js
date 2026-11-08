@@ -1,7 +1,8 @@
+import { API_ENDPOINTS } from '../../shared/constants';
 import { apiJsonRequest } from '../../shared/services/apiClient.js';
 
 /**
- * Sends a message to the central chat orchestrator endpoint.
+ * Sends a message to the central chat assistant orchestrator endpoint.
  *
  * @param {string} message - User query text
  * @param {Array<{role: string, text: string}>} [history=[]] - Recent conversation history
@@ -17,11 +18,9 @@ import { apiJsonRequest } from '../../shared/services/apiClient.js';
  */
 export function sendChatMessage(message, history = []) {
   return apiJsonRequest(
-    '/api/user/chat',
+    API_ENDPOINTS.CHAT_ASSISTANT,
     'POST',
     { message, history },
     'Failed to communicate with the Assistant.'
   );
 }
-
-export const sendAssistantMessage = sendChatMessage;

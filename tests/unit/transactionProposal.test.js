@@ -1,10 +1,14 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   cancelTransactionProposal,
   clearTransactionProposalsForTests,
   confirmTransactionProposal,
   createTransactionProposalForUser,
+  getProposalCountForTests,
   runExpenseAssistantForUser,
   setProposalClockForTests,
 } from '../../server/src/features/expenseAgent/expenseAgent.service.js';
@@ -217,5 +221,109 @@ describe('create_transaction proposal confirmation', () => {
       });
       assert.equal(output.toolResult.proposal.transaction.amount, 500000);
     }
+  });
+
+  it('prunes expired proposals opportunistically whenever a new proposal is created', async () => {
+    let mockTime = 1_000_000;
+    setProposalClockForTests(() => mockTime);
+
+    // Create proposal 1 at t=1,000,000 (expires at 1,000,000 + 10 min = 1,600,000)
+    const result1 = await proposal();
+    const id1 = result1.toolResult.proposal.id;
+    assert.equal(getProposalCountForTests(), 1);
+
+    // Advance mock clock past 10 minutes (e.g. 11 minutes later)
+    mockTime += 11 * 60 * 1000;
+
+    // Create proposal 2 at t=1,660,000; should sweep proposal 1 from memory
+    const result2 = await proposal();
+    const id2 = result2.toolResult.proposal.id;
+    assert.equal(getProposalCountForTests(), 1);
+
+    // Proposal 1 must no longer exist in memory (confirm returns 404 Not Found)
+    await assert.rejects(
+      () =>
+        confirmTransactionProposal(userA, id1, transaction, {
+          createTransaction: async () => ({}),
+        }),
+      { statusCode: 404 }
+    );
+
+    // Proposal 2 remains valid and confirmable
+    const saved = await confirmTransactionProposal(userA, id2, transaction, {
+      createTransaction: async (_u, val) => ({ id: 'tx-2', ...val }),
+    });
+    assert.equal(saved.id, 'tx-2');
+    assert.equal(getProposalCountForTests(), 0);
+  });
+
+  describe('Chat Drawer Tailwind Migration & Computed-Style Equivalence (FE-TASK-04 / FE-REF-11)', () => {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const rootDir = path.resolve(__dirname, '../..');
+
+    const expenseCssPath = path.join(rootDir, 'client/src/features/expense/expense.css');
+    const chatCssPath = path.join(rootDir, 'client/src/shared/styles/components/chat.css');
+    const drawerCssPath = path.join(rootDir, 'client/src/shared/styles/components/drawer.css');
+
+    const chatbotSource = fs.readFileSync(path.join(rootDir, 'client/src/features/chat/Chatbot.jsx'), 'utf8');
+    const formattedTextSource = fs.readFileSync(path.join(rootDir, 'client/src/features/chat/FormattedMessageText.jsx'), 'utf8');
+    const pushDrawerSource = fs.readFileSync(path.join(rootDir, 'client/src/composites/overlays/PushDrawer.jsx'), 'utf8');
+    const workspaceLayoutSource = fs.readFileSync(path.join(rootDir, 'client/src/layouts/WorkspaceLayout.jsx'), 'utf8');
+    const tailwindConfig = fs.readFileSync(path.join(rootDir, 'client/tailwind.config.js'), 'utf8');
+
+    it('confirms legacy expense.css, chat.css, and drawer.css are completely eliminated', () => {
+      assert.equal(fs.existsSync(expenseCssPath), false, 'expense.css must be deleted');
+      assert.equal(fs.existsSync(chatCssPath), false, 'chat.css must be deleted');
+      assert.equal(fs.existsSync(drawerCssPath), false, 'drawer.css must be deleted');
+    });
+
+    it('confirms dead selectors are completely eliminated from Chatbot.jsx', () => {
+      const deadSelectors = [
+        'agent-composer',
+        'agent-answer',
+        'ai-examples',
+        'agent-pagination',
+        'agent-result-heading',
+        'agent-transaction-list',
+        'agent-category-list',
+        'agent-proposal-fields',
+        'agent-result-card',
+        'agent-summary-grid',
+        'agent-proposal',
+        'chat-card',
+        'chat-fab',
+      ];
+      for (const sel of deadSelectors) {
+        assert.equal(
+          chatbotSource.includes(sel),
+          false,
+          `Chatbot.jsx must not contain dead selector ${sel}`
+        );
+      }
+    });
+
+    it('confirms FormattedMessageText and tailwind.config.js preserve stream-in animation and code block utilities', () => {
+      assert.ok(formattedTextSource.includes('animate-stream-in'));
+      assert.ok(tailwindConfig.includes("'stream-fade-in'"));
+      assert.ok(formattedTextSource.includes('font-mono'));
+      assert.ok(formattedTextSource.includes('bg-surface-muted'));
+    });
+
+    it('confirms Chatbot, PushDrawer, and WorkspaceLayout define active assistant and push-drawer Tailwind utilities', () => {
+      assert.ok(pushDrawerSource.includes('w-push-drawer'));
+      assert.ok(pushDrawerSource.includes('w-push-drawer-max'));
+      assert.ok(pushDrawerSource.includes('h-dvh'));
+      assert.ok(workspaceLayoutSource.includes('pr-push-drawer'));
+      assert.ok(tailwindConfig.includes("'push-drawer': '410px'"));
+      assert.ok(tailwindConfig.includes("'push-drawer-max': 'min(760px, 100vw)'"));
+    });
+
+    it('confirms tailwind.config.js and chat components define responsive breakpoints for assistant views', () => {
+      assert.ok(tailwindConfig.includes("tablet: '840px'"));
+      assert.ok(tailwindConfig.includes("mobile: '540px'"));
+      assert.ok(tailwindConfig.includes("xs: '420px'"));
+      assert.ok(chatbotSource.includes('max-tablet:'));
+    });
   });
 });

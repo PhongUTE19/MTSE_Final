@@ -1,24 +1,64 @@
 /* ==========================================================================
-   Global Stylesheet Entry Point
-   Imports tokens, resets, base typography, layout, and modular components.
+   Global Stylesheet Entry Point & Design Tokens
    ========================================================================== */
 
-@import './shared/styles/tokens.css';
-@import './shared/styles/reset.css';
-@import './shared/styles/base.css';
-@import './shared/styles/layout.css';
+/**
+ * ARCHITECTURE NOTE — DESIGN TOKEN SOURCE OF TRUTH:
+ * `client/tailwind.config.js` is the canonical source of truth for all Tailwind
+ * utility token scales (screens, colors, spacing, typography, sizing, borders,
+ * shadows, z-index, animations).
+ *
+ * The CSS custom properties below in `:root` are maintained strictly for runtime
+ * styling requirements:
+ * 1. Global baseline stylesheet defaults consumed by `@layer base`:
+ *    - `var(--font-family-sans)`
+ *    - `var(--color-bg-page)`
+ *    - `var(--color-text-primary)`
+ *    - `var(--line-height-normal)`
+ * 2. Runtime SVG rendering in `AnalyticsCharts.jsx`:
+ *    - `var(--color-slate-200)`
+ *    - `var(--color-slate-500)`
+ */
 
-/* Modular Component Stylesheets */
-@import './shared/styles/components/common.css';
-@import './shared/styles/components/buttons.css';
-@import './shared/styles/components/badges.css';
-@import './shared/styles/components/forms.css';
-@import './shared/styles/components/alerts.css';
-@import './shared/styles/components/toast.css';
-@import './shared/styles/components/panels.css';
-@import './shared/styles/components/cards.css';
-@import './shared/styles/components/stats.css';
-@import './shared/styles/components/tables.css';
-@import './shared/styles/components/drawer.css';
-@import './shared/styles/components/chat.css';
-@import './shared/styles/components/confirmDialog.css';
+/* --------------------------------------------------------------------------
+   Runtime CSS Custom Properties (:root)
+   -------------------------------------------------------------------------- */
+:root {
+  /* Runtime SVG Palette (AnalyticsCharts.jsx) */
+  --color-slate-200: #e2e8f0;
+  --color-slate-500: #64748b;
+
+  /* Global Base Stylesheet Tokens (@layer base) */
+  --font-family-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --color-bg-page: linear-gradient(135deg, #ffffff 0%, #fafbfe 56%, #eef2f8 100%);
+  --color-text-primary: #0f172a;
+  --line-height-normal: 1.5;
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+
+  html,
+  body,
+  #root {
+    min-height: 100%;
+    margin: 0;
+  }
+
+  body {
+    font-family: var(--font-family-sans);
+    background: var(--color-bg-page);
+    color: var(--color-text-primary);
+    line-height: var(--line-height-normal);
+  }
+}

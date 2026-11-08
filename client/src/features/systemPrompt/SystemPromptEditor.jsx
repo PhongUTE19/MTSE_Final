@@ -1,8 +1,16 @@
 import React, { useState } from 'react';
 import { useSystemPrompt } from './useSystemPrompt';
-import { useToast } from '../../shared/contexts/ToastContext';
+import { useToast } from '../../app/providers/index.js';
 import { UI_LABELS, VALIDATION_LIMITS } from '../../shared/constants';
 import { validateSystemPrompt } from '../../shared/utils';
+import Button from '../../primitives/buttons/Button.jsx';
+import TextArea from '../../primitives/inputs/TextArea.jsx';
+import { Inline, Stack } from '../../primitives/layout/index.js';
+import Spinner from '../../primitives/feedback/Spinner.jsx';
+import EmptyState from '../../composites/dataDisplay/EmptyState.jsx';
+import ErrorText from '../../primitives/labels/ErrorText.jsx';
+import Label from '../../primitives/labels/Label.jsx';
+import Text from '../../primitives/typography/Text.jsx';
 
 export default function SystemPromptEditor({ isOffline = false }) {
   const { toast } = useToast();
@@ -51,77 +59,75 @@ export default function SystemPromptEditor({ isOffline = false }) {
   const maxChars = VALIDATION_LIMITS.SYSTEM_PROMPT.MAX_LENGTH;
 
   return (
-    <div>
+    <Stack gap="md">
       {loading ? (
-        <div className="empty-state">
-          <span className="spinner"></span> {UI_LABELS.SYSTEM_PROMPT_EDITOR.LOADING}
-        </div>
+        <EmptyState>
+          <Spinner /> {UI_LABELS.SYSTEM_PROMPT_EDITOR.LOADING}
+        </EmptyState>
       ) : (
         <form onSubmit={onSubmit} noValidate>
-          <div className="form-group">
-            <div className="split-layout form-group-header">
-              <label htmlFor="system-prompt-textarea">
-                {UI_LABELS.SYSTEM_PROMPT_EDITOR.ACTIVE_PROMPT_LABEL}
-              </label>
-              <span
-                className={`char-count ${charCount < minChars || charCount > maxChars ? 'char-count--invalid' : ''}`}
-              >
-                {charCount} / {maxChars} characters (min {minChars})
-              </span>
-            </div>
-            <textarea
-              id="system-prompt-textarea"
-              className="form-textarea"
-              rows={10}
-              value={prompt}
-              onChange={handleChange}
-              placeholder={UI_LABELS.SYSTEM_PROMPT_EDITOR.TEXTAREA_PLACEHOLDER}
-              disabled={saving}
-              aria-invalid={Boolean(error)}
-              aria-describedby={error ? 'system-prompt-error' : undefined}
-              required
-            />
-            {error && (
-              <div id="system-prompt-error" className="form-error" role="alert">
-                {error}
-              </div>
-            )}
-          </div>
-
-          <div className="row-layout">
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving || !isDirty || !prompt.trim()}
-            >
-              {saving ? (
-                <>
-                  <span className="spinner"></span> {UI_LABELS.SYSTEM_PROMPT_EDITOR.SAVING_BTN}
-                </>
-              ) : (
-                UI_LABELS.SYSTEM_PROMPT_EDITOR.SAVE_BTN
+          <Stack gap="md">
+            <Stack gap="xs">
+              <Inline justify="between" align="center" fullWidth>
+                <Label htmlFor="system-prompt-textarea">
+                  {UI_LABELS.SYSTEM_PROMPT_EDITOR.ACTIVE_PROMPT_LABEL}
+                </Label>
+                <Text
+                  as="span"
+                  variant="mono"
+                  color={charCount < minChars || charCount > maxChars ? 'danger' : 'muted'}
+                >
+                  {charCount} / {maxChars} characters (min {minChars})
+                </Text>
+              </Inline>
+              <TextArea
+                id="system-prompt-textarea"
+                rows={10}
+                value={prompt}
+                onChange={handleChange}
+                placeholder={UI_LABELS.SYSTEM_PROMPT_EDITOR.TEXTAREA_PLACEHOLDER}
+                disabled={saving}
+                aria-invalid={Boolean(error)}
+                aria-describedby={error ? 'system-prompt-error' : undefined}
+                required
+              />
+              {error && (
+                <ErrorText id="system-prompt-error">
+                  {error}
+                </ErrorText>
               )}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleDiscard}
-              disabled={saving || !isDirty}
-            >
-              {UI_LABELS.SYSTEM_PROMPT_EDITOR.DISCARD_BTN}
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleResetToDefault}
-              disabled={saving}
-              title="Reset prompt back to system default configuration"
-            >
-              {UI_LABELS.SYSTEM_PROMPT_EDITOR.RESET_DEFAULT_BTN}
-            </button>
-          </div>
+            </Stack>
+
+            <Inline gap="sm" wrap>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={saving || !isDirty || !prompt.trim()}
+                loading={saving}
+              >
+                {UI_LABELS.SYSTEM_PROMPT_EDITOR.SAVE_BTN}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleDiscard}
+                disabled={saving || !isDirty}
+              >
+                {UI_LABELS.SYSTEM_PROMPT_EDITOR.DISCARD_BTN}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleResetToDefault}
+                disabled={saving}
+                title="Reset prompt back to system default configuration"
+              >
+                {UI_LABELS.SYSTEM_PROMPT_EDITOR.RESET_DEFAULT_BTN}
+              </Button>
+            </Inline>
+          </Stack>
         </form>
       )}
-    </div>
+    </Stack>
   );
 }

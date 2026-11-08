@@ -62,7 +62,11 @@ export async function apiRequest(url, options = {}, fallbackError) {
         message = `Request failed with status ${res.status}`;
       }
     }
-    throw new Error(message);
+    const error = new Error(message);
+    error.status = res.status;
+    error.statusCode = res.status;
+    error.data = data;
+    throw error;
   }
 
   return data;

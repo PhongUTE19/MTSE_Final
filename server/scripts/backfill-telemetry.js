@@ -7,8 +7,8 @@
  */
 
 import { getSupabaseClient } from '../src/shared/integrations/supabase.js';
-import { MODEL_PRICING_REGISTRY, normalizeModelName } from '../src/features/analytics/pricingConfig.js';
-import { estimateTokensForRequest, calculateEstimatedBackfillCost } from '../src/features/analytics/tokenEstimator.js';
+import { MODEL_PRICING_REGISTRY, normalizeModelName } from '../src/features/aiUsage/pricingConfig.js';
+import { estimateTokensForRequest, calculateEstimatedBackfillCost } from '../src/features/aiUsage/tokenEstimator.js';
 
 const isDryRun = !process.argv.includes('--apply');
 

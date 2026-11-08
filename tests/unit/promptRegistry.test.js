@@ -168,6 +168,23 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
       assert.equal(p1.version, p2.version);
     });
 
+    it('produces identical prompt versions and hash digests regardless of CRLF or LF line endings', () => {
+      const templateLf = 'Line 1\nLine 2\nLine 3';
+      const templateCrlf = 'Line 1\r\nLine 2\r\nLine 3';
+
+      const resLf = getExpenseAgentPrompt('search', { override: templateLf });
+      const resCrlf = getExpenseAgentPrompt('search', { override: templateCrlf });
+
+      assert.equal(resLf.text, resCrlf.text);
+      assert.equal(resLf.version, resCrlf.version);
+
+      const ragLf = getRagPrompt('grounded', { override: templateLf });
+      const ragCrlf = getRagPrompt('grounded', { override: templateCrlf });
+
+      assert.equal(ragLf.text, ragCrlf.text);
+      assert.equal(ragLf.version, ragCrlf.version);
+    });
+
     it('distinguishes source-controlled default from runtime override', () => {
       const defaultPrompt = getExpenseAgentPrompt('search', { today: '2026-10-26' });
       assert.equal(defaultPrompt.isOverride, false);

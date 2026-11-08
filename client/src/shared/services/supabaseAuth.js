@@ -24,12 +24,19 @@ export function appUrl(pathname) {
   return new URL(pathname, origin).toString();
 }
 
+const EXPENSE_ROUTE_DESTINATIONS = new Set([
+  APP_ROUTES.EXPENSE,
+  APP_ROUTES.EXPENSE_RECEIPTS,
+  APP_ROUTES.EXPENSE_TRANSACTIONS,
+  APP_ROUTES.EXPENSE_CATEGORIES,
+]);
+
 export function safeNextPath(value) {
   if (!value || value === APP_ROUTES.HOME || value === APP_ROUTES.AUTH) return APP_ROUTES.HOME;
   const clean = value.replace(/\.html$/, '');
-  if (clean === APP_ROUTES.ADMIN_KNOWLEDGE) return APP_ROUTES.ADMIN_KNOWLEDGE;
-  if (clean === APP_ROUTES.ADMIN_ANALYTICS) return APP_ROUTES.ADMIN_ANALYTICS;
-  if (clean === APP_ROUTES.EXPENSE) return APP_ROUTES.EXPENSE;
+  if (clean === APP_ROUTES.ADMIN_KNOWLEDGE_BASE) return APP_ROUTES.ADMIN_KNOWLEDGE_BASE;
+  if (clean === APP_ROUTES.ADMIN_AI_USAGE) return APP_ROUTES.ADMIN_AI_USAGE;
+  if (EXPENSE_ROUTE_DESTINATIONS.has(clean)) return clean;
   return ALLOWED_AUTH_DESTINATIONS.has(clean) ? clean : APP_ROUTES.HOME;
 }
 
@@ -46,6 +53,34 @@ export function getUserRole(sessionOrUser) {
 }
 
 /**
+ * Derives presentation identity for sidebar and header display.
+ * Pure helper ensuring identical display name, initial, and role label across views.
+ *
+ * @param {object} sessionOrUser
+ * @returns {{ displayName: string, userInitial: string, isAdmin: boolean, roleLabel: string }}
+ */
+export function getUserDisplayIdentity(sessionOrUser) {
+  const user = sessionOrUser?.user || sessionOrUser;
+  const isAdmin = getUserRole(user) === 'admin';
+  const roleLabel = isAdmin ? 'Administrator' : 'Personal workspace';
+
+  const rawName = user?.user_metadata?.display_name || user?.email?.split('@')[0] || '';
+  const displayName = rawName || (isAdmin ? 'Administrator' : 'User');
+
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  const userInitial = parts.length > 0
+    ? parts.slice(0, 2).map((part) => part[0].toUpperCase()).join('')
+    : (isAdmin ? 'A' : 'U');
+
+  return {
+    displayName,
+    userInitial,
+    isAdmin,
+    roleLabel,
+  };
+}
+
+/**
  * Computes post-authentication navigation path based on trusted user role.
  * Both Users and Admins are directed to the shared home dashboard (/) by default.
  * If a valid authorized sub-route was requested, it is preserved; unauthorized role routes redirect to /.
@@ -57,14 +92,14 @@ export function getUserRole(sessionOrUser) {
 export function getPostAuthPath(role, requestedNext) {
   const isAdmin = role === 'admin';
   if (isAdmin) {
-    if (requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE) {
-      return APP_ROUTES.ADMIN_KNOWLEDGE;
+    if (requestedNext === APP_ROUTES.ADMIN_KNOWLEDGE_BASE) {
+      return APP_ROUTES.ADMIN_KNOWLEDGE_BASE;
     }
-    if (requestedNext === APP_ROUTES.ADMIN_ANALYTICS) {
-      return APP_ROUTES.ADMIN_ANALYTICS;
+    if (requestedNext === APP_ROUTES.ADMIN_AI_USAGE) {
+      return APP_ROUTES.ADMIN_AI_USAGE;
     }
-    if (requestedNext === APP_ROUTES.EXPENSE) {
-      return APP_ROUTES.EXPENSE;
+    if (EXPENSE_ROUTE_DESTINATIONS.has(requestedNext)) {
+      return requestedNext;
     }
     return APP_ROUTES.HOME;
   }
@@ -77,7 +112,7 @@ export function getPostAuthPath(role, requestedNext) {
     requestedNext !== APP_ROUTES.AUTH
   ) {
     const clean = requestedNext.replace(/\.html$/, '');
-    if (clean === APP_ROUTES.EXPENSE) return clean;
+    if (EXPENSE_ROUTE_DESTINATIONS.has(clean)) return clean;
   }
   return APP_ROUTES.HOME;
 }

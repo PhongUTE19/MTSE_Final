@@ -1,7 +1,7 @@
-export { default as knowledgeBaseRouter } from './knowledgeBase.routes.js';
+export { default as knowledgeBaseRouter } from './knowledgeBase.route.js';
 export * from './knowledgeBase.controller.js';
 export * from './knowledgeBase.service.js';
-export * from './knowledgeBase.schemas.js';
+export * from './knowledgeBase.schema.js';
 export * from './chunker.js';
 export * from './retriever.js';
 export * from './vectorStore.js';

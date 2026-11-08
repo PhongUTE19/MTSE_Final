@@ -63,8 +63,6 @@ export async function getKnowledgeStatus() {
   };
 }
 
-export const getAdminStatus = getKnowledgeStatus;
-
 /**
  * Returns parsed chunks with pagination and keyword filtering.
  * 

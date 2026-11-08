@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import {
   AppError,
@@ -190,6 +193,80 @@ describe('Shared Duplications Refactor Suite', () => {
     it('supports omitting the leading ? prefix when prefix: false is passed', () => {
       const qs = toQueryString({ sort: 'asc' }, { prefix: false });
       assert.equal(qs, 'sort=asc');
+    });
+  });
+
+  describe('4. Frontend CSS Hygiene & Badge/Stat Definitions (FE-TASK-02)', () => {
+    const __filename = fileURLToPath(import.meta.url);
+    const __dirname = path.dirname(__filename);
+    const rootDir = path.resolve(__dirname, '../..');
+
+    it('ensures knowledgeBase.css is removed and KnowledgeBasePage does not import it', () => {
+      const kbCssPath = path.join(rootDir, 'client/src/features/knowledgeBase/knowledgeBase.css');
+      assert.equal(fs.existsSync(kbCssPath), false, 'knowledgeBase.css must be deleted');
+
+      const kbPagePath = path.join(rootDir, 'client/src/features/knowledgeBase/KnowledgeBasePage.jsx');
+      const kbPageContent = fs.readFileSync(kbPagePath, 'utf8');
+      assert.equal(
+        kbPageContent.includes("import './knowledgeBase.css'"),
+        false,
+        'KnowledgeBasePage.jsx must not import knowledgeBase.css'
+      );
+    });
+
+    it('ensures home.css is deleted and HomePage composes Base Card and Stack directly', () => {
+      const homeCssPath = path.join(rootDir, 'client/src/features/home/home.css');
+      assert.equal(fs.existsSync(homeCssPath), false, 'home.css must be deleted');
+
+      const homePagePath = path.join(rootDir, 'client/src/features/home/HomePage.jsx');
+      const homePageContent = fs.readFileSync(homePagePath, 'utf8');
+      assert.equal(
+        homePageContent.includes("import './home.css'"),
+        false,
+        'HomePage.jsx must not import home.css'
+      );
+      assert.match(homePageContent, /<Card as="section" variant="glass"/);
+      assert.match(homePageContent, /<Stack gap="xl">/);
+    });
+
+    it('defines subtle variant in Badge primitive and deletes badges.css', () => {
+      const badgesCssPath = path.join(rootDir, 'client/src/shared/styles/components/badges.css');
+      assert.equal(fs.existsSync(badgesCssPath), false, 'badges.css must be deleted');
+
+      const badgePath = path.join(rootDir, 'client/src/primitives/labels/Badge.jsx');
+      const badgeContent = fs.readFileSync(badgePath, 'utf8');
+      assert.match(badgeContent, /subtle:\s*'bg-surface-subtle/);
+    });
+
+    it('ensures stats.css is deleted as KnowledgeBaseSummary uses Base Badge primitive', () => {
+      const statsCssPath = path.join(rootDir, 'client/src/shared/styles/components/stats.css');
+      assert.equal(fs.existsSync(statsCssPath), false, 'stats.css must be deleted');
+    });
+
+    it('ensures analytics.css is deleted and AnalyticsPage composes Tailwind tokens', () => {
+      const analyticsCssPath = path.join(rootDir, 'client/src/features/analytics/analytics.css');
+      assert.equal(fs.existsSync(analyticsCssPath), false, 'analytics.css must be deleted');
+
+      const pagePath = path.join(rootDir, 'client/src/features/analytics/AnalyticsPage.jsx');
+      const pageContent = fs.readFileSync(pagePath, 'utf8');
+      assert.equal(
+        pageContent.includes("import './analytics.css'"),
+        false,
+        'AnalyticsPage.jsx must not import analytics.css'
+      );
+      assert.equal(
+        pageContent.includes("style={{ marginBottom: '16px' }}"),
+        false,
+        'Inline marginBottom style must be replaced in AnalyticsPage'
+      );
+
+      const kpiPath = path.join(rootDir, 'client/src/features/analytics/AnalyticsKpiCards.jsx');
+      const kpiContent = fs.readFileSync(kpiPath, 'utf8');
+      assert.equal(
+        kpiContent.includes("style={{ marginTop: '4px' }}"),
+        false,
+        'Inline marginTop style must be replaced in AnalyticsKpiCards'
+      );
     });
   });
 });

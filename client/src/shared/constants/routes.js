@@ -8,8 +8,12 @@ export const APP_ROUTES = Object.freeze({
   AUTH_CALLBACK: '/auth/callback',
   RESET_PASSWORD: '/reset-password',
   EXPENSE: '/expense',
-  ADMIN_ANALYTICS: '/admin/analytics',
-  ADMIN_KNOWLEDGE: '/admin/knowledge-base',
+  EXPENSE_RECEIPTS: '/expense/receipts',
+  EXPENSE_TRANSACTIONS: '/expense/transactions',
+  EXPENSE_CATEGORIES: '/expense/categories',
+  ADMIN: '/admin',
+  ADMIN_AI_USAGE: '/admin/ai-usage',
+  ADMIN_KNOWLEDGE_BASE: '/admin/knowledge-base',
 });
 
 /**
@@ -19,7 +23,10 @@ export const ALLOWED_AUTH_DESTINATIONS = Object.freeze(
   new Set([
     APP_ROUTES.HOME,
     APP_ROUTES.EXPENSE,
-    APP_ROUTES.ADMIN_ANALYTICS,
-    APP_ROUTES.ADMIN_KNOWLEDGE,
+    APP_ROUTES.EXPENSE_RECEIPTS,
+    APP_ROUTES.EXPENSE_TRANSACTIONS,
+    APP_ROUTES.EXPENSE_CATEGORIES,
+    APP_ROUTES.ADMIN_AI_USAGE,
+    APP_ROUTES.ADMIN_KNOWLEDGE_BASE,
   ])
 );

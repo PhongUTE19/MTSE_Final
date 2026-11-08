@@ -1,8 +1,12 @@
-import { useState } from 'react';
+import React from 'react';
+import PasswordInput from '../../primitives/inputs/PasswordInput.jsx';
+import Label from '../../primitives/labels/Label.jsx';
+import ErrorText from '../../primitives/labels/ErrorText.jsx';
+import { Stack } from '../../primitives/layout/index.js';
 
 /**
  * Reusable password input with show/hide toggle, validation error message,
- * and accessibility support.
+ * and accessibility support. Composes Base Stack, Label, PasswordInput, and ErrorText directly.
  */
 export function PasswordField({
   id,
@@ -15,37 +19,27 @@ export function PasswordField({
   autoComplete = 'new-password',
   required = true,
 }) {
-  const [visible, setVisible] = useState(false);
-
   return (
-    <div className="auth-field">
-      <label htmlFor={id}>{label}</label>
-      <div className="auth-password-control">
-        <input
-          id={id}
-          name={name}
-          type={visible ? 'text' : 'password'}
-          value={value}
-          onChange={onChange}
-          autoComplete={autoComplete}
-          disabled={disabled}
-          required={required}
-          aria-invalid={Boolean(error)}
-          aria-describedby={error ? `${id}-error` : undefined}
-        />
-        <button
-          className="auth-password-toggle"
-          type="button"
-          disabled={disabled}
-          onClick={() => setVisible((current) => !current)}
-          aria-label={`${visible ? 'Hide' : 'Show'} ${label.toLowerCase()}`}
-          aria-pressed={visible}
-        >
-          {visible ? 'Hide' : 'Show'}
-        </button>
-      </div>
-      {error ? <p className="auth-field-error" id={`${id}-error`}>{error}</p> : null}
-    </div>
+    <Stack gap="xs">
+      <Label htmlFor={id}>{label}</Label>
+      <PasswordInput
+        id={id}
+        name={name}
+        value={value}
+        onChange={onChange}
+        autoComplete={autoComplete}
+        disabled={disabled}
+        required={required}
+        invalid={Boolean(error)}
+        label={label}
+        aria-describedby={error ? `${id}-error` : undefined}
+      />
+      {error ? (
+        <ErrorText id={`${id}-error`} role="alert">
+          {error}
+        </ErrorText>
+      ) : null}
+    </Stack>
   );
 }
 

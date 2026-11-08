@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { APP_ROUTES } from '../../shared/constants';
 import { AUTH_LABELS } from './authConstants';
 import {
@@ -11,7 +10,12 @@ import {
   isSupabaseConfigured,
   supabase,
 } from '../../shared/services/supabaseAuth';
-import './auth.css';
+import Text from '../../primitives/typography/Text.jsx';
+import Link from '../../primitives/typography/Link.jsx';
+import Card from '../../primitives/cards/Card.jsx';
+import CardTitle from '../../primitives/cards/CardTitle.jsx';
+import Stack from '../../primitives/layout/Stack.jsx';
+import AuthLayout from './AuthLayout';
 
 export default function AuthCallbackPage() {
   const [message, setMessage] = useState('Completing your secure sign-in…');
@@ -39,15 +43,19 @@ export default function AuthCallbackPage() {
   }, []);
 
   return (
-    <main className="auth-content auth-standalone">
-      <section className="auth-card" aria-live="polite">
-        <p className="auth-kicker">SPENDWISE</p>
-        <h1>Finishing up</h1>
-        <p>{message}</p>
-        <Link className="auth-text-link" to={APP_ROUTES.AUTH}>
-          Return to sign in
-        </Link>
-      </section>
-    </main>
+    <AuthLayout>
+      <Card as="section" variant="glass" padding="xl" maxWidth="md" aria-live="polite">
+        <Stack gap="md">
+          <Text variant="kicker">SPENDWISE</Text>
+          <CardTitle as="h1" size="xl">Finishing up</CardTitle>
+          <Text variant="secondary">{message}</Text>
+          <Text variant="secondary" align="center">
+            <Link to={APP_ROUTES.AUTH}>
+              Return to sign in
+            </Link>
+          </Text>
+        </Stack>
+      </Card>
+    </AuthLayout>
   );
 }

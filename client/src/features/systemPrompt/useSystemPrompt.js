@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { fetchSystemPrompt, updateSystemPrompt, resetSystemPrompt } from './systemPromptApi';
 import { UI_LABELS, APP_MESSAGES } from '../../shared/constants';
-import { useConfirm } from '../../shared/hooks';
+import { useConfirm } from '../../app/providers/index.js';
 
 /**
  * Custom hook to manage system prompt loading, updating, dirty checking, and resetting.

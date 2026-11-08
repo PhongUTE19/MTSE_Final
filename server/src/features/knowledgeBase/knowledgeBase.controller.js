@@ -1,5 +1,5 @@
 import * as knowledgeService from './knowledgeBase.service.js';
-import { paginationQuerySchema } from './knowledgeBase.schemas.js';
+import { paginationQuerySchema } from './knowledgeBase.schema.js';
 import { getValidatedData } from '../../shared/middleware/index.js';
 
 
@@ -8,7 +8,7 @@ import { getValidatedData } from '../../shared/middleware/index.js';
  */
 export async function getStatus(req, res, next) {
   try {
-    const status = await knowledgeService.getAdminStatus();
+    const status = await knowledgeService.getKnowledgeStatus();
     res.json(status);
   } catch (error) {
     next(error);

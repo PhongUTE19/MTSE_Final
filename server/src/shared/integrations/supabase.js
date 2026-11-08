@@ -64,7 +64,3 @@ export function createSupabaseAuthClient() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
-
-export function isSupabaseAuthConfigured() {
-  return Boolean(config.supabaseUrl && config.supabaseAnonKey);
-}

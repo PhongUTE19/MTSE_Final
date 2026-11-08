@@ -62,3 +62,27 @@ export const AUTH_LABELS = Object.freeze({
     PASSWORD_MISMATCH: 'Passwords do not match.',
   },
 });
+
+/**
+ * Per-mode submit label and the prompt / target that switches to the opposite mode.
+ */
+export const AUTH_MODE_ACTIONS = Object.freeze({
+  [AUTH_MODES.SIGNIN]: {
+    submitLabel: AUTH_LABELS.BUTTONS.SUBMIT_SIGNIN,
+    switchPrompt: AUTH_LABELS.SWITCH_PROMPTS.SIGNIN,
+    switchLabel: AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNUP,
+    switchTo: AUTH_MODES.SIGNUP,
+  },
+  [AUTH_MODES.SIGNUP]: {
+    submitLabel: AUTH_LABELS.BUTTONS.SUBMIT_SIGNUP,
+    switchPrompt: AUTH_LABELS.SWITCH_PROMPTS.SIGNUP,
+    switchLabel: AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNIN,
+    switchTo: AUTH_MODES.SIGNIN,
+  },
+  [AUTH_MODES.FORGOT]: {
+    submitLabel: AUTH_LABELS.BUTTONS.SUBMIT_FORGOT,
+    switchPrompt: AUTH_LABELS.SWITCH_PROMPTS.FORGOT,
+    switchLabel: AUTH_LABELS.BUTTONS.SWITCH_TO_SIGNIN,
+    switchTo: AUTH_MODES.SIGNIN,
+  },
+});

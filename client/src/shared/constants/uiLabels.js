@@ -1,9 +1,3 @@
-export const SAMPLE_QUESTIONS = Object.freeze([
-  'What are the key policies outlined in the documentation?',
-  'How do I get started with the system?',
-  'Where can I find more information about available services?',
-]);
-
 export const UI_UNITS = Object.freeze({
   KB: 'KB',
 });
@@ -20,8 +14,8 @@ export const UI_LABELS = Object.freeze({
   },
   HEALTH: {
     CHECKING: 'Checking server status...',
-    OFFLINE: 'Server: Offline / Disconnected',
-    ONLINE_PREFIX: 'Server: Online',
+    OFFLINE: 'Offline',
+    ONLINE_PREFIX: 'Online',
   },
   COMMON: {
     RETRY: 'Retry',
@@ -89,7 +83,7 @@ export const UI_LABELS = Object.freeze({
   ADMIN_DASHBOARD: {
     TITLE: 'Knowledge Base Management',
     DESCRIPTION: 'Manage Markdown documents, review indexed chunks, and sync with Qdrant Cloud.',
-    REINDEX_BTN: 'Re-index Knowledge Base',
+    REINDEX_BTN: 'Re-index Knowledge',
     INDEXING_BTN: 'Indexing...',
     DEFAULT_DOC_CONTENT: '## New Section Title\n\nEnter section details here...\n',
     DELETE_CONFIRMATION: (filename) => `Are you sure you want to delete "${filename}"? This action cannot be undone.`,
@@ -139,7 +133,7 @@ export const UI_LABELS = Object.freeze({
   },
   DOCUMENT_TABLE: {
     TITLE: 'Documents',
-    UPLOAD_BTN: 'Upload .md File',
+    UPLOAD_BTN: 'Upload File',
     UPLOAD_TITLE: 'Upload Markdown file from your computer',
     ADD_DOC_BTN: 'Add Document',
     EMPTY_STATE: 'No documents found in knowledge directory.',

@@ -291,3 +291,120 @@ it('extractReceiptImage records telemetry and surfaces operational error without
     setAIClientForTests(null);
   }
 });
+
+it('rejects malformed Gemini JSON in extractReceiptImage and never invokes confirm_receipt_transaction', async () => {
+  const { extractReceiptImage, setAIClientForTests } = await import('../../server/src/shared/integrations/ai/providers/geminiProvider.js');
+  const { AIResponseValidationError } = await import('../../server/src/shared/guardrails/index.js');
+
+  setAIClientForTests({
+    models: {
+      generateContent: async () => ({ text: '{"documentType": "receipt", "totalAmount": ' }),
+    },
+  });
+
+  const userRpcCalls = [];
+  const serverRpcCalls = [];
+  const receipt = { id: 'receipt-bad-json', storage_path: 'user-1/receipt-bad-json/original', processing_lease_id: 'lease-bad' };
+
+  setReceiptDependenciesForTests({
+    clientFactory: {
+      user: () => ({
+        rpc: async (name) => {
+          userRpcCalls.push(name);
+          if (name === 'create_receipt_upload' || name === 'start_receipt_processing') {
+            return { data: receipt, error: null };
+          }
+          throw new Error(`Unexpected user RPC ${name}`);
+        },
+      }),
+      server: () => ({
+        rpc: async (name) => {
+          serverRpcCalls.push(name);
+          return { data: receipt, error: null };
+        },
+        storage: {
+          from: () => ({
+            upload: async () => ({ error: null }),
+          }),
+        },
+      }),
+    },
+    extractor: (image, opts) => extractReceiptImage(image, opts),
+  });
+
+  try {
+    await assert.rejects(
+      () => extractReceiptImage({ buffer: Buffer.from('test'), mimeType: 'image/png' }, { timeoutMs: 500 }),
+      (err) => err instanceof AIResponseValidationError && /malformed json/i.test(err.message)
+    );
+
+    await assert.rejects(
+      () =>
+        uploadReceipt(
+          { id: 'user-1', token: 'token' },
+          { buffer: Buffer.from('test'), mimeType: 'image/png' },
+          { filename: 'receipt.png', mimeType: 'image/png', size: 4, sha256: 'e'.repeat(64) }
+        ),
+      /Receipt extraction could not be completed/
+    );
+
+    assert.equal(userRpcCalls.includes('confirm_receipt_transaction'), false);
+    assert.equal(serverRpcCalls.includes('server_complete_receipt_extraction'), false);
+    assert.deepEqual(serverRpcCalls, ['server_mark_receipt_failed']);
+  } finally {
+    setAIClientForTests(null);
+  }
+});
+
+it('prevents duplicate transactions when confirmReceipt is called multiple times on the same receipt ID', async () => {
+  const finalTransaction = {
+    type: 'expense',
+    amount: 45000,
+    date: '2026-10-24',
+    category: 'Food & dining',
+    merchant: 'Highlands Coffee',
+    note: '',
+    items: [],
+  };
+
+  let receiptStatus = 'review_required';
+  const insertedTransactions = [];
+
+  setReceiptDependenciesForTests({
+    clientFactory: {
+      user: () => ({
+        rpc: async (name, args) => {
+          assert.equal(name, 'confirm_receipt_transaction');
+          if (receiptStatus !== 'review_required') {
+            return {
+              data: null,
+              error: { code: 'P0001', message: 'receipt is already confirmed or not ready' },
+            };
+          }
+          receiptStatus = 'confirmed';
+          const createdTx = { id: `tx-${insertedTransactions.length + 1}`, ...args.p_final_transaction };
+          insertedTransactions.push(createdTx);
+          return {
+            data: {
+              receipt: { id: args.p_receipt_id, status: 'confirmed', transaction_id: createdTx.id },
+              transaction: createdTx,
+            },
+            error: null,
+          };
+        },
+      }),
+      server: () => ({}),
+    },
+  });
+
+  const user = { id: 'user-1', token: 'token' };
+  const firstConfirm = await confirmReceipt(user, 'receipt-dup-1', finalTransaction);
+  assert.equal(firstConfirm.receipt.status, 'confirmed');
+  assert.equal(insertedTransactions.length, 1);
+
+  await assert.rejects(
+    () => confirmReceipt(user, 'receipt-dup-1', finalTransaction),
+    (err) => err.statusCode === 500
+  );
+  assert.equal(insertedTransactions.length, 1, 'Duplicate confirmation must never insert a second transaction');
+});
