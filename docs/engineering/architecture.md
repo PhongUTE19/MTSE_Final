@@ -54,7 +54,7 @@ flowchart TD
 3. **Immutable Applied RPC Contracts:** Applied PostgreSQL migrations in `supabase/migrations/` and RPC signatures (`create_receipt_upload`, `start_receipt_processing`, `server_complete_receipt_extraction`, `server_mark_receipt_failed`, `retry_receipt_processing`, `confirm_receipt_transaction`, `begin_receipt_delete`, `finalize_receipt_delete`, `authorize_receipt_preview`) remain immutable and secure.
 4. **Stable REST API Contracts:** All public endpoints maintain backwards-compatible JSON response envelopes and standard HTTP status semantics.
 5. **Private Storage & Time-Bound Previews:** Receipts are uploaded to a private Supabase Storage bucket with public access revoked. Previews require short-lived, signed URLs generated via PostgreSQL RPC authorization.
-6. **Unified Transaction Drafts & Append-Only Extraction Audits:** Candidate transactions originating from AI (multimodal receipt extraction and conversational assistant proposals) are staged in `public.transaction_drafts` with immutable `original_data` and editable `reviewed_data` before committing to `public.expense_transactions`. Every OCR extraction attempt (success or failure) is immutably recorded in `public.receipt_extractions` with `ai_model` and `prompt_version` provenance.
+6. **Client-Side IndexedDB Drafts & Atomic Confirmation:** Unconfirmed candidate transactions (from stateless receipt OCR `POST /api/receipt/upload` and stateless assistant proposals) are staged locally per user in IndexedDB (`client/src/features/transactionDraft/draftStorage.js`). Confirmation commits atomically to `public.expense_transactions` (and `public.receipts` via `confirm_staged_receipt_transaction` for receipts). Legacy `public.transaction_drafts`, `public.receipt_extractions`, and `/api/transaction-draft` are retired in `202611170011_retire_legacy_drafts_and_extractions.sql` (static SQL reviewed; unexecuted against live DB).
 7. **Safe Rejection & Receipt Retention:** Rejecting a transaction draft sets its status to `'rejected'`; it never deletes the source receipt record in `public.receipts` or the uploaded receipt image in Supabase Storage. Confirmation is atomic and idempotent.
 
 ---
@@ -115,7 +115,7 @@ client/src/
 │   ├── home/                           # Landing showcase hero page (HomePage)
 │   ├── knowledgeBase/                  # Knowledge base query tester, stats, vector index overview (KnowledgeBasePage)
 │   ├── receipts/                       # Multimodal receipt scanning, OCR extraction review & retry (ScanReceiptView, useReceiptUpload, receiptsApi)
-│   ├── systemPrompt/                   # System prompt editor, version history, active prompt selector
+│   ├── systemPrompt/                   # Read-only Git-managed system prompt inspection
 │   └── transactionDrafts/              # Transaction draft client service & hook (transactionDraftsApi, useTransactionDrafts)
 │
 ├── layouts/                            # Layer 4: Structural layout shells
@@ -181,21 +181,16 @@ The SpendWise frontend is partitioned into six distinct layers with strict bound
   - **Domain Boundaries & Core Responsibilities:**
     - **Transaction (`features/transaction/`):** Financial transaction ledger domain. Owns `TransactionPage.jsx`, manual transaction entry dialog (`ManualEntry.jsx`), detailed modal inspection (`TransactionDetails.jsx`), transaction ledger table (`TransactionTable.jsx`), overview summary metrics (`TransactionSummaryCards.jsx`), and dedicated ledger HTTP client (`transactionApi.js`). The `/expense/*` workspace route shell lives in `layouts/ExpenseLayout.jsx`.
     - **Receipt (`features/receipt/`):** Multimodal document ingestion domain. Owns receipt image uploads, extraction retry queue, and interactive draft review (`ScanReceiptPage.jsx`), upload lifecycle hooks (`useReceiptUpload.js`), and dedicated document API client (`receiptApi.js`).
-    - **Transaction Draft (`features/transactionDraft/`):** Centralized client-side candidate transaction staging domain. Owns the API client (`transactionDraftApi.js`) and state management hook (`useTransactionDrafts.js`) for listing, fetching, patching, confirming, and rejecting transaction drafts. Backed by `/api/transaction-draft`.
-    - **Chat (`features/chat/`):** Domain-agnostic conversation interface and drawer presentation system. Owns `Chatbot`, `ChatComposer`, `ChatMessageItem`, `ChatHistoryTab`, `useChat`, and local conversation persistence (`chatHistory.js`). Contains zero expense-specific business logic.
+    - **Transaction Draft (`features/transactionDraft/`):** User-scoped browser-local IndexedDB draft store (`draftStorage.js`, `draftController.js`, `previewUrlManager.js`, `useTransactionDrafts.js`). Manages unconfirmed receipt and assistant drafts locally and confirms them directly to `POST /api/receipt/confirm` or `POST /api/transaction` (with deterministic UUID idempotency). Legacy `transactionDraftApi.js` and `/api/transaction-draft` are retired.
+    - **Chat (`features/chat/`):** Domain-agnostic conversation interface and drawer presentation system. Owns `Chatbot`, `ChatComposer`, `ChatMessageItem`, `ChatHistoryTab`, `useChat`, `chatController.js`, and `chatApi.js` (database-backed `/api/chat-history` persistence via `chat_conversations` and `chat_messages` with RLS in `202611170010_chat_history.sql`, plus lightweight user-scoped `localStorage` cache in `chatHistory.js`). Strictly separated from IndexedDB `TransactionDraft`s (`features/transactionDraft/`): historical `create_transaction` messages without a live local draft render read-only with explicit re-staging rather than auto-confirming. Contains zero expense-specific business logic.
     - **Expense Assistant (`features/expenseAssistant/`):** Domain-specific AI assistant implementation (Model A architecture). Composes generic `features/chat/` primitives (`Chatbot`, `useChat`) via inversion of control render slots (`renderToolResult`, `renderBeforeComposer`, `renderAttachmentAction`) to provide financial assistance, structured tool rendering (`ExpenseToolResult`), Human-in-the-Loop transaction draft reviews (`TransactionDraftReview`), in-drawer receipt extraction (`useReceiptUpload` + `TransactionDraftReview`), and workspace synchronization (`notifyTransactionsChanged`). Consumes canonical agent endpoints from `expenseAssistantApi.js` and draft actions injected from `app/App.jsx`.
 
 #### 3.3.1 Domain Model Responsibilities & Entity Relationships
 
-The financial bookkeeping and AI ingestion workflow is governed by four clearly delineated entities:
+SpendWise separates **browser-local unconfirmed staging** (`TransactionDraft` in IndexedDB) from **authoritative PostgreSQL persistence** (`expense_transactions`, `receipts`, `chat_conversations`, `chat_messages`, and `ai_usage_analytics`):
 
 ```mermaid
 erDiagram
-    RECEIPTS ||--o{ RECEIPT_EXTRACTIONS : "has audit attempts"
-    RECEIPTS ||--o| EXPENSE_TRANSACTIONS : "confirmed 1:1 link"
-    RECEIPT_EXTRACTIONS ||--o| TRANSACTION_DRAFTS : "generates staging draft"
-    TRANSACTION_DRAFTS ||--o| EXPENSE_TRANSACTIONS : "atomic claim commits"
-
     EXPENSE_TRANSACTIONS {
         uuid id PK
         uuid user_id FK
@@ -206,6 +201,7 @@ erDiagram
         text merchant
         text note
         jsonb items
+        uuid client_request_id "idempotency key"
         timestamptz created_at
     }
 
@@ -215,103 +211,100 @@ erDiagram
         text status "uploaded|processing|review_required|confirmed|failed|deleting"
         uuid transaction_id FK "1:1 unique link when confirmed"
         text storage_path "private Supabase storage"
+        text sha256 "file digest"
+        jsonb extraction "normalized extraction snapshot"
         jsonb warnings
-        text error_code
-        int attempts
-        timestamptz created_at
-    }
-
-    RECEIPT_EXTRACTIONS {
-        uuid id PK
-        uuid receipt_id FK
-        uuid user_id FK
-        int attempt "attempt number >= 1"
-        text status "succeeded | failed"
-        jsonb result "immutable extraction payload"
-        jsonb warnings "extraction warnings"
-        text error_code
-        text ai_model "e.g. gemini-2.5-flash"
-        text prompt_version "e.g. receipt-v3"
-        timestamptz created_at
-    }
-
-    TRANSACTION_DRAFTS {
-        uuid id PK
-        uuid user_id FK
-        text source_type "receipt_extraction | assistant_proposal"
-        uuid receipt_id FK "nullable"
-        uuid receipt_extraction_id FK "nullable unique"
-        text source_ref "conversation ID / message ref"
-        jsonb original_data "immutable normalized proposal"
-        jsonb reviewed_data "user edits (nullable until patched)"
-        text status "pending_review | confirmed | rejected"
-        uuid transaction_id FK "unique link upon confirmation"
-        timestamptz created_at
+        text ai_model
+        text prompt_version
         timestamptz confirmed_at
-        timestamptz rejected_at
+        timestamptz created_at
     }
+
+    CHAT_CONVERSATIONS {
+        uuid id PK
+        uuid user_id FK
+        text title "1..120 chars"
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    CHAT_MESSAGES {
+        uuid id PK
+        uuid conversation_id FK
+        uuid user_id FK
+        text role "user | assistant"
+        text content "non-empty when status=completed"
+        text status "streaming | completed | aborted | failed"
+        uuid reply_to FK "user message id for assistant attempt"
+        uuid request_id "unique per (user_id, request_id)"
+        text tool_name
+        jsonb tool_result
+        jsonb sources
+        text error_message
+        timestamptz completed_at
+        timestamptz created_at
+    }
+
+    AI_USAGE_ANALYTICS {
+        uuid id PK
+        text endpoint
+        text model
+        text usage_source "provider_reported | derived | unavailable | unknown"
+        int input_tokens
+        int output_tokens
+        int total_tokens
+        numeric estimated_cost_usd
+        timestamptz created_at
+    }
+
+    RECEIPTS ||--o| EXPENSE_TRANSACTIONS : "confirmed 1:1 link"
+    CHAT_CONVERSATIONS ||--o{ CHAT_MESSAGES : "owns messages"
 ```
 
 1. **Transaction (`public.expense_transactions`):**
-   - The authoritative, committed financial ledger.
-   - Enforces the **Single-Currency VND Ledger Invariant** (`amount > 0` in VND) and strict UTC calendar date validation.
-   - Rows are created either directly by the user via `ManualEntry` or through atomic confirmation of a `TransactionDraft`.
-   - Links back to `public.receipts` 1:1 via `transaction_id`.
+   - The authoritative, committed financial ledger enforcing the **Single-Currency VND Ledger Invariant** (`amount > 0` in VND) and UTC calendar date validation.
+   - Created directly via `ManualEntry` / confirmed assistant proposal (`POST /api/transaction` with `client_request_id` idempotency) or atomically with a receipt (`POST /api/receipt/confirm` $\rightarrow$ `confirm_staged_receipt_transaction` RPC).
 2. **Receipt (`public.receipts`):**
-   - Represents an uploaded physical/digital receipt document.
-   - Owns storage path references in the private Supabase Storage `receipts` bucket, extraction lease tokens (`processing_lease_id`), and lifecycle status (`uploaded`, `processing`, `review_required`, `confirmed`, `failed`, `deleting`).
-   - **Receipt Lifecycle & Retention Invariant:** When a candidate draft is rejected or dismissed by the user, **the receipt is never deleted**. Its row in `public.receipts` and its image file in private storage are retained for record-keeping and audit trails. Hard deletion occurs only during internal cleanup of security-rejected uploads (`NOT_A_RECEIPT`, `PROMPT_INJECTION_REJECTED`).
-3. **Receipt Extraction (`public.receipt_extractions`):**
-   - Append-only, immutable audit record created for every OCR extraction attempt (whether successful or failed).
-   - Enforced by a database `BEFORE UPDATE` trigger that raises an exception if modification is attempted.
-   - Captures `ai_model`, `prompt_version`, raw `result`, `warnings`, and `error_code`, providing complete observability into model performance over time.
-4. **Transaction Draft (`public.transaction_drafts`):**
-   - Centralized staging model for all candidate transactions before they hit the committed ledger.
-   - Supports two source types: `'receipt_extraction'` (originating from multimodal OCR) and `'assistant_proposal'` (originating from tool-calling conversational AI).
-   - `original_data` preserves the exact normalized fields proposed by the AI and is never overwritten.
-   - `reviewed_data` holds user-adjusted values (amount, merchant, date, category, note).
-   - Valid statuses: `'pending_review'`, `'confirmed'`, `'rejected'`. No auto-expiration state exists; pending assistant drafts remain accessible across sessions until explicitly confirmed or rejected.
+   - Represents a **confirmed** receipt document linked 1:1 to `expense_transactions` via `transaction_id`, referencing private Supabase Storage (`<user_id>/<draft_id>/original`).
+   - Legacy `public.transaction_drafts` and `public.receipt_extractions` were retired in `202611170011_retire_legacy_drafts_and_extractions.sql`.
+3. **Browser-Local Transaction Draft (`client/src/features/transactionDraft/draftStorage.js`):**
+   - Unconfirmed candidate transactions (from stateless `POST /api/receipt/upload` OCR or assistant `propose_transaction` tool calls) are staged locally per `userId` in browser IndexedDB (`spendwise_transaction_drafts`).
+   - Temporary receipt image `Blob`s live only in IndexedDB until explicit confirmation; unconfirmed drafts are never persisted in PostgreSQL and do not synchronize across devices.
+4. **Chat Conversations & Messages (`public.chat_conversations`, `public.chat_messages`):**
+   - Server-authoritative chat history (`202611170010`, `202611170012`, `202611170013`) protected by RLS (`auth.uid() = user_id`) and ownership triggers.
+   - Tracks `streaming`, `completed`, `aborted`, and `failed` assistant attempts with `(user_id, request_id)` idempotency.
 
 #### 3.3.2 Manual Entry vs. Scan Receipt Separation
 
-* **Manual Entry (`features/expense/ManualEntry.jsx`):**
-  - Dedicated non-AI form presented as a modal dialog or standalone card.
-  - Designed for direct, intentional bookkeeping when no physical receipt is scanned.
-  - Directly invokes `expenseApi.create` (`POST /api/transactions`), validating required fields, positive VND amounts, and UTC calendar dates.
-  - Implements complete modal accessibility: focus trapping, Escape dismissal (guarded against active saving), and focus restoration.
-* **Scan Receipt (`features/receipts/ScanReceiptView.jsx`):**
-  - Multimodal document ingestion interface that replaces legacy `ReceiptsView`.
-  - Coordinates file upload to private Supabase Storage, background OCR processing via Gemini, retry triggers for failed uploads (`POST /api/receipts/:id/retry`), and list presentation of pending drafts.
-  - Renders `TransactionDraftReview` with receipt image previews, itemized line items, foreign currency warnings, and atomic confirm/reject controls.
+* **Manual Entry (`features/transaction/ManualEntry.jsx`):**
+  - Dedicated non-AI modal dialog for direct bookkeeping (`POST /api/transaction`), validating required fields, positive VND amounts, and UTC calendar dates.
+* **Scan Receipt (`features/receipt/ScanReceiptPage.jsx`):**
+  - Multimodal document ingestion interface coordinating stateless OCR (`POST /api/receipt/upload`), browser-local IndexedDB draft staging (`useTransactionDrafts`), and `TransactionDraftReview` with receipt image Blob previews, itemized line items, foreign currency warnings, and explicit confirmation (`POST /api/receipt/confirm`) or local rejection.
 
 #### 3.3.3 Chat vs. Expense Assistant Dependency Boundary
 
 SpendWise maintains a strict decoupling between conversational UI and personal finance domain logic:
 * **Generic Chat (`features/chat/`):**
-  - 100% domain-agnostic slot-based chat UI (`Chatbot.jsx`, `ChatComposer.jsx`, `ChatMessageItem.jsx`, `useChat.js`).
-  - Contains zero imports from `expense`, `receipts`, or `transactionDrafts`.
+  - 100% domain-agnostic slot-based chat UI (`Chatbot.jsx`, `ChatComposer.jsx`, `ChatMessageItem.jsx`, `useChat.js`, `sseParser.js`, `chatApi.js`).
+  - Contains zero imports from `transaction`, `receipt`, or `transactionDraft`.
   - Exposes controlled inversion-of-control slots: `avatarIcon`, `quickActions`, `renderToolResult`, `renderBeforeComposer`, and `renderAttachmentAction`.
 * **Expense Assistant (`features/expenseAssistant/`):**
-  - Domain composition component (`ExpenseAssistant.jsx`) that wraps `Chatbot` and `useChat`.
-  - Dispatches financial queries to `POST /api/expense-assistant` via `expenseAssistantApi.js`.
-  - Renders custom financial tool results (`ExpenseToolResult.jsx`) and embeds the shared `TransactionDraftReview` component for transaction proposals.
-  - Receives receipt upload methods (`useReceiptUpload`, `receiptsApi`) and transaction draft handlers (`onConfirmDraft`, `onRejectDraft`, `onSaveDraft`) via props from `app/App.jsx`.
-  - **Zero Cross-Feature Imports:** Neither `chat` imports `expense`, nor `expense` imports internal `receipts` components directly. All cross-domain collaboration is wired at the top-level orchestration layer (`app/App.jsx`).
+  - Domain composition component (`ExpenseAssistant.jsx`) wrapping `Chatbot` and `useChat`.
+  - Wired in `app/App.jsx` to canonical `POST /api/chat-assistant` (`sendChatMessage`) and `POST /api/chat-assistant/stream` (`sendChatMessageStream`).
+  - Renders custom financial tool results (`ExpenseToolResult.jsx`) and embeds `TransactionDraftReview` for `propose_transaction` proposals.
+  - Receives receipt upload methods (`useReceiptUpload`, `receiptApi`) and transaction draft handlers (`onConfirmDraft`, `onRejectDraft`, `onSaveDraft`) via props from `app/App.jsx`.
+  - **Zero Cross-Feature Imports:** All cross-domain collaboration is wired at `app/App.jsx`.
 
 #### 3.3.4 Shared Confirmation & Rejection Workflow
 
-All candidate transactions—regardless of whether they originated from a scanned receipt or a chat prompt—are confirmed and rejected through a single unified workflow backed by `server/src/features/transactionDrafts/`:
-* **Atomic Claim & Idempotent Confirmation (`POST /api/transaction-drafts/:id/confirm`):**
-  1. The client sends final reviewed fields (or accepts the draft as-is).
-  2. The server executes an atomic claim query (`UPDATE public.transaction_drafts SET status='confirmed', confirmed_at=now() WHERE id=$1 AND user_id=$2 AND status='pending_review' RETURNING *`).
-  3. If the draft was already claimed/confirmed concurrently (e.g. rapid double-clicks or duplicate network retries), the service detects that `status === 'confirmed'` and idempotently returns the existing linked `transaction` with HTTP 200 OK.
-  4. For `source_type === 'receipt_extraction'`, confirmation invokes the existing `confirm_receipt_transaction` RPC to link `receipts.transaction_id` and update receipt status to `confirmed`.
-  5. For `source_type === 'assistant_proposal'`, confirmation inserts directly into `public.expense_transactions`.
-  6. The created transaction ID is linked to `transaction_drafts.transaction_id`.
-* **Safe Rejection (`POST /api/transaction-drafts/:id/reject`):**
-  1. Sets `transaction_drafts.status = 'rejected'` and records `rejected_at = now()`.
-  2. For receipt-backed drafts, the associated record in `public.receipts` and the uploaded image in Supabase Storage are **retained untouched**, ensuring audit compliance.
-  3. Re-rejecting an already rejected draft is idempotent and returns the rejected draft. Rejecting an already confirmed draft returns HTTP 400 Bad Request.
+* **Receipt-Backed Drafts (`POST /api/receipt/confirm`):**
+  1. Client submits reviewed fields and the local `receiptBlob` (`FormData`) with `draftId`.
+  2. Server uploads the image to private Supabase Storage (`<user_id>/<draft_id>/original`) and invokes `confirm_staged_receipt_transaction` RPC (`202611170009`), which acquires a transaction-scoped advisory lock on `(user_id, draft_id)` and atomically inserts `public.expense_transactions` and `public.receipts` (`status = 'confirmed'`). Re-confirming the same payload returns `{ idempotent: true }` without creating duplicates.
+* **Assistant Proposal Drafts (`POST /api/transaction`):**
+  1. `propose_transaction` never writes to the DB; it returns a proposal payload that the frontend stages in IndexedDB.
+  2. Explicit confirmation commits via `POST /api/transaction` with `client_request_id` idempotency. Historical `propose_transaction` messages reloaded from DB without a local IndexedDB draft render read-only with explicit re-staging.
+* **Safe Rejection:**
+  - Rejecting a local `TransactionDraft` discards/marks only the browser-local draft; already-confirmed `public.receipts` rows and Storage objects are never deleted on draft rejection.
 
 ### 3.4 Layer 4: Layouts (`client/src/layouts/`)
 - **Responsibility:** Page-level structural layouts and shells that frame views.
@@ -460,112 +453,97 @@ SpendWise strictly enforces a **Tailwind-only** styling policy for all ordinary 
 ```mermaid
 sequenceDiagram
     actor User
-    participant View as ScanReceiptView / TransactionDraftReview
+    participant View as ScanReceiptPage / TransactionDraftReview
     participant Hook as useReceiptUpload / useTransactionDrafts
-    participant API as apiClient.js (HTTP)
-    participant Server as Express Server (receipt.service & transactionDrafts.service)
-    participant Gemini as Gemini AI (OCR & Extraction)
-    participant DB as Supabase PostgreSQL
+    participant IDB as IndexedDB (draftStorage.js)
+    participant Server as Express Server (receipt.service)
+    participant Gemini as Gemini AI (Vision OCR)
+    participant DB as Supabase Storage & PostgreSQL
 
     User->>View: Select receipt image (JPEG/PNG/WebP <= 5MB)
-    View->>Hook: handleFileSelect(file)
-    Hook->>API: POST /api/receipts/upload (FormData)
-    API->>Server: Forward upload payload
-    Server->>DB: RPC create_receipt_upload (status='uploaded')
-    Server->>DB: Upload image to private 'receipts' bucket
-    Server->>DB: RPC start_receipt_processing (lease acquired)
+    View->>Hook: uploadReceipt(file)
+    Hook->>Server: POST /api/receipt/upload (FormData, stateless)
     Server->>Gemini: Multimodal extraction with receipt-v3.md prompt
-    Gemini-->>Server: JSON extraction (merchant, date, amount, items, currency)
-    Server->>DB: RPC server_complete_receipt_extraction (status='review_required')
-    Server->>DB: INSERT into receipt_extractions (status='succeeded', ai_model, prompt_version)
-    Server->>Server: createDraft({ sourceType: 'receipt_extraction', receiptId, receiptExtractionId, data })
-    Server->>DB: INSERT into transaction_drafts (status='pending_review')
-    Server-->>API: 201 Created { receipt, draft }
-    API-->>View: Render TransactionDraftReview component
+    Gemini-->>Server: Structured JSON (merchant, date, amount, items, currency)
+    Server-->>Hook: 200 OK { extraction, warnings, ai_model, prompt_version }
+    Hook->>IDB: Stage local draft (draftId, userId, fields, receiptBlob)
+    IDB-->>View: Render TransactionDraftReview + Blob preview
     Note over View, User: If currency != 'VND', display warning banner.<br/>User reviews, corrects fields, and submits.
     User->>View: Click Confirm and save transaction
-    View->>API: POST /api/transaction-drafts/:id/confirm { reviewedFields }
-    API->>Server: transactionDrafts.service: confirmDraft
-    Server->>DB: Atomic claim (UPDATE transaction_drafts SET status='confirmed' WHERE status='pending_review')
-    Server->>DB: RPC confirm_receipt_transaction (creates expense_transaction & links receipt)
-    Server->>DB: UPDATE transaction_drafts SET transaction_id = tx.id
-    Server-->>API: 200 OK { draft, transaction }
-    API-->>View: Show success toast and update workspace ledger
-    Note over View, User: If user clicks Discard/Reject:<br/>POST /api/transaction-drafts/:id/reject<br/>Draft marked 'rejected'; receipt and storage file are retained untouched.
+    View->>Server: POST /api/receipt/confirm (FormData: draftId, fields, receiptBlob)
+    Server->>DB: Upload image to private 'receipts' bucket (<uid>/<draftId>/original)
+    Server->>DB: RPC confirm_staged_receipt_transaction (advisory lock + insert tx & receipt)
+    Server-->>View: 200 OK { receipt, transaction, idempotent }
+    View->>IDB: Remove confirmed local draft
+    Note over View, User: If user clicks Reject:<br/>Local IndexedDB draft is removed/rejected; no DB receipt was created.
 ```
 
-### 6.4 AI Expense Agent & Proposal Flow
+### 6.4 Unified AI Assistant, SSE Streaming & Server-Authoritative Persistence Flow
 
 ```mermaid
 sequenceDiagram
     actor User
     participant Chat as Chatbot / ExpenseAssistant
-    participant API as apiClient.js
-    participant Server as Express Server (expenseAssistant.service & transactionDrafts.service)
-    participant Gemini as Gemini Function Calling
-    participant DB as Supabase DB
+    participant IDB as IndexedDB (draftStorage.js)
+    participant Server as chatAssistant (Orchestrator, Policy, Tools)
+    participant Gemini as Gemini Provider (Tool Loop + Stream)
+    participant DB as Supabase PostgreSQL (chat_conversations / chat_messages)
 
-    User->>Chat: "Spent 45000 VND on lunch at Pho 24"
-    Chat->>API: POST /api/expense-assistant { message, conversationId }
-    API->>Server: runExpenseAssistantForUser(...)
-    Server->>Gemini: Run agent loop with function declarations
-    Gemini-->>Server: Function call: create_transaction({ amount: 45000, category: 'Food', ... })
-    Server->>Server: createDraft({ sourceType: 'assistant_proposal', sourceRef: conversationId, data })
-    Server->>DB: INSERT into transaction_drafts (status='pending_review')
-    Server-->>API: Return tool result { draftId, draft }
-    API-->>Chat: ExpenseToolResult renders TransactionDraftReview
-    Note over Chat, User: User reviews proposed fields directly in chat card.<br/>No in-memory Map; draft is persisted in DB.
-    User->>Chat: Click "Confirm and save transaction"
-    Chat->>API: POST /api/transaction-drafts/:id/confirm { reviewedFields }
-    API->>Server: confirmDraft(draftId)
-    Server->>DB: Atomic claim (UPDATE transaction_drafts SET status='confirmed' WHERE status='pending_review')
-    Server->>DB: INSERT into expense_transactions (user-scoped RLS client)
-    Server->>DB: UPDATE transaction_drafts SET transaction_id = tx.id
-    Server-->>API: 200 OK { draft, transaction }
-    API-->>Chat: Update card state & notify workspace ledger
+    User->>Chat: Send message (with optional AbortController)
+    Chat->>Server: POST /api/chat-assistant/stream { conversationId, message, requestId }
+    Server->>DB: RPC begin_chat_stream_turn (own conv + user msg + 'streaming' attempt)
+    Server->>DB: Load server-authoritative history (completed non-empty turns only)
+    Server->>Server: assistantPolicy (prompt-injection check + scope + tool allowlist)
+    Server->>Server: emit SSE 'meta' { conversationId, userMessageId, assistantMessageId, requestId }
+    loop Bounded Tool Loop (MAX_ROUNDS=4, MAX_TOOL_CALLS=6)
+        Server->>Gemini: generateToolTurnStream(..., signal)
+        alt Tool Call(s)
+            Server->>Server: Execute allowed tools (search_knowledge_base, search_transactions, get_spending_summary, propose_transaction)
+            opt propose_transaction
+                Server-->>Chat: emit SSE 'proposal' (uncommitted proposal payload)
+                Chat->>IDB: Stage browser-local TransactionDraft
+            end
+        else Final Text Tokens
+            Gemini-->>Server: Text delta chunks
+            Server-->>Chat: emit SSE 'delta' { text }
+            Server->>DB: Periodic partial-content checkpoint (status='streaming')
+        end
+    end
+    Server->>Server: assistantResponse (citation validation [S#] + sanitization)
+    Server->>DB: Finalize assistant row (status='completed', sources, tool_result)
+    Server-->>Chat: emit SSE 'sources' + 'done'
+    Note over Chat, Server: On client AbortController abort / res close:<br/>Provider AbortSignal fires; partial text is finalized as status='aborted'.<br/>On provider error: status='failed', emit SSE 'error'.
 ```
 
 ### 6.5 Workspace Shell & Expense Routing Architecture
 
 #### Workspace Route Shell Boundary
 The application structures authenticated views inside a persistent layout route (`WorkspaceRouteShell` in `App.jsx`):
-1. **Single Mount:** `WorkspaceRouteShell` is mounted once and wraps all authenticated workspace subroutes (`/home`, `/expense/*`, `/admin/analytics`, `/admin/knowledge-base`).
+1. **Single Mount:** `WorkspaceRouteShell` is mounted once and wraps all authenticated workspace subroutes (`/home`, `/expense/*`, `/admin/ai-usage`, `/admin/knowledge-base`).
 2. **Layout & Overlay Coordination:** It renders `AuthenticatedRouteGuard`, which obtains the authenticated `user` session and `onSignOut` handler and passes them to `WorkspaceLayout` alongside `WorkspaceExpenseAssistant` attached via the `overlays` prop.
-3. **Workspace Context:** `WorkspaceLayout` encapsulates `WorkspaceProvider` to provide `user`, `onSignOut`, system health polling (`useHealth()`), and reactive notification counters (`transactionsVersion`, `notifyTransactionsChanged`, `receiptsVersion`, `notifyReceiptsChanged`). Because `WorkspaceSidebar` accesses `useWorkspace()`, `<WorkspaceSidebar />` is rendered with zero props, and child feature pages never receive or forward `sidebarProps` or `onSignOut`.
+3. **Workspace Context:** `WorkspaceLayout` encapsulates `WorkspaceProvider` to provide `user`, `onSignOut`, system health polling (`useHealth()`), and reactive notification counters (`transactionsVersion`, `notifyTransactionsChanged`, `receiptsVersion`, `notifyReceiptsChanged`).
 4. **Overlay Persistence:** Mounting `WorkspaceExpenseAssistant` at the shell level allows the assistant drawer to remain open across navigation without tearing down conversation or proposal state.
 
 #### Nested Expense Route Structure
 The expense domain employs dedicated nested routing under `/expense/*`:
-- `/expense` (Index): `ExpenseIndexRedirect` automatically routes users to `/expense/transactions` (or respects legacy navigation state `location.state.view`).
-- `/expense/transactions`: `TransactionView.jsx` coordinates transaction listing, search/filter controls, overview summary metrics (`ExpenseSummaryCards`), manual transaction entry dialog (`ManualEntry.jsx`), and detailed modal inspection with receipt preview (`TransactionDetails.jsx`).
-- `/expense/receipts`: `WorkspaceScanReceipt` / `ScanReceiptView.jsx` coordinates receipt uploads, pending status extraction, failed receipt retry queues, and interactive draft review/confirmation using `TransactionDraftReview`. Navigation label in `sidebarConfig.js` is **"Scan Receipt"**.
-- `/expense/categories`: `CategoriesView.jsx` displays expense categorization rules.
-- **Layout Outlet & Dual Error Handling:** `ExpensePage.jsx` functions as the persistent header and layout frame for the `/expense/*` subroutes, hosting `PageHeader`, route navigation buttons/tabs, and a dismissible page-level `<Alert variant="error">` banner (`setError` supplied via `<Outlet context={{ ...parentContext, setError }} />`) for persistent inline error visibility alongside ephemeral toast notifications (`useToast()`) dispatched by views.
+- `/expense` (Index): `ExpenseIndexRedirect` routes users to `/expense/transactions` (or respects `location.state.view`).
+- `/expense/transactions`: `TransactionPage.jsx` coordinates transaction listing, search/filter controls, overview summary metrics (`TransactionSummaryCards`), manual transaction entry dialog (`ManualEntry.jsx`), and detailed modal inspection with receipt preview (`TransactionDetails.jsx`).
+- `/expense/receipts`: `WorkspaceScanReceipt` / `ScanReceiptPage.jsx` coordinates stateless receipt uploads, browser-local IndexedDB drafts, and interactive draft review/confirmation using `TransactionDraftReview`. Navigation label in `sidebarConfig.js` is **"Scan Receipt"**.
+- `/expense/categories`: `CategoriesPage.jsx` displays expense categorization rules.
+- **Layout Outlet:** `ExpenseLayout.jsx` provides the persistent header and layout frame for `/expense/*` subroutes.
 
-### 6.6 Backend Architecture: Transaction Drafts & Receipt Extraction History
+### 6.6 Canonical API Surface & Phase 2 Persistence Boundaries
 
-To eliminate in-memory proposal volatility, guarantee OCR auditability, and unify confirmation logic, a dedicated backend domain `server/src/features/transactionDrafts/` serves as the single source of truth for candidate transactions.
+All protected endpoints require Supabase JWT authentication (`authenticate` middleware) and enforce role authorization (`authorize('user')` or `authorize('admin')`):
 
-#### REST API Endpoints (`/api/transaction-drafts`)
-
-All endpoints require Supabase JWT authentication (`authenticate` middleware) and operate under user-scoped Row-Level Security:
-
-| Method | Path | Request Body / Query | Success Response | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/transaction-drafts` | Query: `?status=pending_review` | `200 OK [draft, ...]` | List transaction drafts for current user |
-| `GET` | `/api/transaction-drafts/:id` | Params: `id: uuid` | `200 OK draft` | Retrieve single draft by ID |
-| `PATCH` | `/api/transaction-drafts/:id` | Body: `{ reviewedData }` | `200 OK draft` | Update user-reviewed fields for a pending draft |
-| `POST` | `/api/transaction-drafts/:id/confirm` | Body: `{ ...reviewedFields }` | `200 OK { draft, transaction }` | Atomically claim, validate, commit to ledger, and link |
-| `POST` | `/api/transaction-drafts/:id/reject` | Params: `id: uuid` | `200 OK { draft }` | Mark draft rejected; retains receipt and storage file |
-
-#### Deprecated & Retired Endpoints
-* `POST /api/receipts/:id/confirm`: **Retired**. Client confirmation is handled via `POST /api/transaction-drafts/:id/confirm`.
-* `DELETE /api/receipts/:id` (user discard): **Retired**. Replaced by `POST /api/transaction-drafts/:id/reject`, preserving receipt records and uploaded files in storage.
-* `POST /api/expense-agent/proposals/:id/confirm`: **Retired**. In-memory proposals replaced by persistent drafts.
-* `DELETE /api/expense-agent/proposals/:id`: **Retired**. Replaced by draft rejection endpoint.
-
-#### Enriched Endpoints
-* `GET /api/transactions/:id`: Enriched to include linked receipt metadata `{ receipt: { id, status } }`. Allows `TransactionDetails.jsx` to render receipt inspection and fetch authorized signed preview URLs (`GET /api/receipts/:id/preview`).
+| Surface | Canonical Endpoints | Persistence & Security Boundary |
+| :--- | :--- | :--- |
+| **Unified AI Assistant** | `POST /api/chat-assistant`, `POST /api/chat-assistant/stream` | `user`-only; server-authoritative history; SSE streaming (`meta`, `delta`, `proposal`, `sources`, `done`, `error`); `/api/expense-assistant` retained as JSON compatibility facade |
+| **Chat History** | `GET/POST/PATCH/DELETE /api/chat-history/*` | `user`-only; `chat_conversations` & `chat_messages` with RLS (`auth.uid() = user_id`) |
+| **Transactions** | `GET/POST/DELETE /api/transaction*`, `GET /api/transactions/summary` | `user`-only; `expense_transactions` with RLS; `POST /api/transaction` idempotent via `client_request_id` |
+| **Receipts** | `POST /api/receipt/upload`, `POST /api/receipt/confirm`, `GET /api/receipt`, `GET /api/receipt/:id/preview` | `user`-only; `/upload` is stateless OCR; `/confirm` uploads to private Storage and executes `confirm_staged_receipt_transaction` RPC |
+| **Admin** | `GET /api/admin/ai-usage/*`, `GET/POST /api/admin/knowledge-base/*`, `GET /api/admin/document/*`, `GET /api/admin/system-prompt` | `admin`-only (`app_metadata.role = 'admin'`); system prompt and documents are read-only at runtime |
+| **Retired** | `/api/transaction-draft*`, `/api/receipts/:id/confirm`, `/api/expense-agent/proposals/*` | Removed in Phase 2 (`202611170011_retire_legacy_drafts_and_extractions.sql`) |
 
 ---
 
@@ -686,8 +664,8 @@ flowchart LR
 ```
 
 ### 9.2 Key Testing Invariants & Test Suite Consolidation
-1. **Consolidated, Lean Suite (`FE-FIX-12C`):** The automated test suite contains 653 passing tests across 187 suites in 53 test files (45 unit, 8 integration). Obsolete and implementation-detail refactor test files were removed or merged into canonical long-lived suites (`frontendStandardization.test.js` and `drawerAccessibility.test.js`), ensuring zero test duplication and rapid CI feedback (<15s).
-2. **Behavioral Testing over Source Regex:** Tests must interact with components through user events and assert on DOM output and accessibility attributes, rather than inspecting raw source files with filesystem regexes.
+1. **Consolidated, Offline Suite:** The automated test suite contains 719 passing tests across 209 suites (`node --test "tests/**/*.test.js"`), running offline with mocked external services. Obsolete and implementation-detail refactor test files were removed or merged into canonical long-lived suites (`frontendStandardization.test.js` and `drawerAccessibility.test.js`).
+2. **Behavioral Testing over Source Regex:** Tests interact with components through user events and assert on DOM output and accessibility attributes, rather than inspecting raw source files with filesystem regexes.
 3. **Simulated JSDOM Environment:** `tests/setup/jsdom-environment.js` configures browser globals (`window`, `document`, `navigator`, `localStorage`, `HTMLElement`, `CustomEvent`) allowing true React component rendering.
 4. **Zero Babel/Webpack Test Overhead:** Custom ESM loader `tests/setup/jsx-loader.js` compiles JSX syntax on the fly without heavy transpiler build steps.
 
@@ -699,10 +677,10 @@ All primary development, testing, and production build workflows are managed via
 
 | Command | Purpose | Output / Verification |
 | :--- | :--- | :--- |
-| `npm test` | Runs the full backend and frontend automated test suite (653 tests across 187 suites, 53 files). | All unit and integration test assertions pass. |
+| `npm test` | Runs the full backend and frontend automated test suite (719 tests across 209 suites). | All unit and integration test assertions pass. |
 | `npm --prefix client run build` | Executes Vite production bundle compilation. | Produces optimized assets in `client/dist/` with zero build errors. |
 | `npm --prefix client run dev` | Starts Vite local development server. | Spawns SPA dev server with HMR at `http://localhost:5173`. |
-| `npm run dev` | Runs backend Express server in development mode. | Spawns API server with Nodemon at `http://localhost:5000`. |
+| `npm run dev` | Runs Express server (`:3000`) and Vite client (`:5173`) concurrently. | Starts fullstack local development environment. |
 
 ---
 
@@ -740,21 +718,76 @@ Future contributors and automated agents must adhere to the following rules when
 
 ---
 
-## 12. Known Risks & Verification Status
+## 12. Known Limitations & Verification Status
 
-### 12.1 Stale Test References (Test Harness Non-Modification Invariant)
-Per repository instructions and coordinator rulings (`#8`, `#22`), test files (`tests/**/*.test.js`) are strictly preserved and were **intentionally not modified** during the transaction draft and confirmation refactoring. Consequently, legacy test suites that directly import deleted or relocated components (such as `ReceiptsView.jsx`, `TransactionForm.jsx`, `ReceiptReview.jsx`, or `TransactionProposalCard.jsx`) will fail until the test suites are formally updated in a dedicated test maintenance cycle. Updating these imports to test the new canonical components (`composites/transactions/TransactionDraftReview`, `features/expense/ManualEntry`, `features/receipts/ScanReceiptView`, and `features/transactionDrafts/`) is tracked in [`refactoring-plan.md`](./refactoring-plan.md).
+### 12.1 Verification Actually Performed (Offline)
+1. **Full Automated Test Suite:** `npm test` passed **719/719 tests across 209 suites** (`0` failed, `0` skipped) using mocked external services.
+2. **Frontend Production Build:** `npm --prefix client run build` executed cleanly with exit code `0` (`vite v6.4.4`, `269` modules transformed).
 
-### 12.2 Verification Actually Performed
-1. **Frontend Production Build:** `npm --prefix client run build` executed cleanly with exit code `0` (183 modules transformed in ~10.6s, zero bundling errors).
-2. **Backend Syntax Validation:** `node --check` passed across all server files in `server/src/features/transactionDrafts/`, `server/src/features/expenses/`, `server/src/features/expenseAgent/`, and `server/src/server.js`.
-3. **Targeted Backend Unit Tests:** `node --test tests/unit/expenses.test.js` passed with 6/6 assertions passing.
-
-### 12.3 Verification Deferred & Non-Executed Checks
-1. **No Runtime / Browser Testing:** No automated end-to-end browser tests (Playwright/Cypress) or manual interactive UI verification were performed in this headless development environment.
-2. **Local-Only Database Migration:** The schema migration `supabase/migrations/202611160008_transaction_drafts_and_extractions.sql` is authored as LOCAL-ONLY and has not been applied to remote staging or production Supabase environments.
+### 12.2 Known Limitations & Unapplied Remote Migrations
+1. **Local-Only Phase 2 Migrations:** Migrations `202611170009` through `202611170014` are marked `LOCAL ONLY` in `supabase/migrations/` and have not been applied to a live remote Supabase instance during offline verification.
+2. **`cachedTokens` Persistence Limitation:** `cachedTokens` is captured in-memory during provider usage normalization (`telemetry.js` / `usageTracker.js`), but `public.ai_usage_analytics` does not currently have a `cached_tokens` column, so `cachedTokens` is not persisted to PostgreSQL.
+3. **Browser-Local Draft Synchronization:** Unconfirmed `TransactionDraft`s (and temporary receipt `Blob`s) live in browser IndexedDB (`spendwise_transaction_drafts`) and do not synchronize across devices until confirmed.
+4. **No Live Cloud E2E in Offline Runs:** End-to-end tests against live Supabase Auth/DB, live Qdrant Cloud, and live Gemini API require valid credentials and are separate from offline `npm test`.
 
 ---
 
 > [!NOTE]
 > For historical audits, baseline reports, and pre-refactoring component inventories, see [`docs/engineering/audits/`](./audits/).
+
+---
+
+## 13. Provider-Agnostic AI, Operational Database & Vector Store Architecture
+
+SpendWise separates **application business logic** from **external SDKs and infrastructure providers** across three independent pillars:
+
+```mermaid
+flowchart LR
+    Features["Feature Services\n(chatAssistant, expenseAssistant, receipt, transaction, knowledgeBase)"]
+
+    subgraph AI["AI Integration (shared/integrations/ai/)"]
+        AIIdx["index.js + contracts.js\n(capabilities, embedText, generateAnswer,\ngenerateAnswerStream, extractReceiptImage,\ngenerateToolTurn, generateToolFollowup)"]
+        Gemini["providers/geminiProvider.js\n(@google/genai)"]
+    end
+
+    subgraph DB["Operational Persistence"]
+        Repos["Domain Repositories\n(transaction.repository, receipt.repository,\ntransactionDraft.repository, aiUsage.repository)"]
+        Supa["shared/integrations/supabase.js\n(@supabase/supabase-js)"]
+    end
+
+    subgraph Vec["Vector Integration (shared/integrations/vector/)"]
+        VecIdx["index.js\n(initVectorStore, upsertVectorPoints,\ngetVectorStoreCount, searchVectorPoints)"]
+        Qdrant["qdrantAdapter.js\n(@qdrant/js-client-rest)"]
+    end
+
+    Features --> AIIdx --> Gemini
+    Features --> Repos --> Supa
+    Features --> VecIdx --> Qdrant
+```
+
+### 13.1 AI Capability Contracts, Provider Adapter & Telemetry Provenance
+- **Contracts (`server/src/shared/integrations/ai/contracts.js`):** Explicit `AI_CAPABILITIES` (`textGeneration`, `streaming`, `toolCalling`, `structuredOutput`, `multimodal`, `embeddings`) and `assertCapability(provider, capability)` ensure callers fail fast when a selected model/provider lacks a required capability.
+- **Provider Interface (`server/src/shared/integrations/ai/index.js`):** Exposes `embedText`, `generateAnswer`, `generateAnswerStream`, `extractReceiptImage`, `generateToolTurn`, `generateToolTurnStream`, and `generateToolFollowup`, delegating to `geminiProvider.js` (`@google/genai`) with `AbortSignal` propagation and retry/timeout handling.
+- **Usage Telemetry & Provenance (`telemetry.js`, `aiUsage.repository.js`, `tokenEstimator.js`):**
+  - Preserves explicit `0` vs `null` token counts (never fabricating PRNG counts).
+  - Persists `usage_source` (`202611170014`) across four states: `'provider_reported'`, `'derived'` (`input + output` when provider omits `totalTokens`), `'unavailable'`, and `'unknown'` (for historical `NULL usage_source` rows with token counts that cannot be reliably reconstructed).
+  - Telemetry recording is failure-isolated so analytics queue/DB errors never fail user AI requests.
+  - **Known Limitation:** `cachedTokens` is normalized in memory but not persisted to `ai_usage_analytics`.
+
+### 13.2 Operational Database Boundaries & Supabase-Specific Services
+- **Domain Repositories:** `transaction.repository.js`, `receipt.repository.js`, `chatHistory.repository.js`, and `aiUsage.repository.js` isolate PostgreSQL queries from service business logic.
+- **Supabase-Specific Boundaries:**
+  - **Auth:** `client/src/shared/services/supabaseAuth.js` and `server/src/features/auth/auth.service.js` (GoTrue JWT verification & `app_metadata.role` lookup).
+  - **Storage:** `receipt.repository.js` (`receipts` private bucket upload, download, delete, signed URLs).
+  - **RLS & RPCs:** User-scoped PostgREST clients (`createUserScopedSupabaseClient(user.token)`) enforce `auth.uid() = user_id` and RPCs (`confirm_staged_receipt_transaction`, `begin_chat_stream_turn`, etc.).
+
+### 13.3 Vector Store Abstraction
+- **Vector Contract (`server/src/shared/integrations/vector/index.js`):** Exposes `initVectorStore`, `upsertVectorPoints`, `getVectorStoreCount`, and `searchVectorPoints`.
+- **Qdrant Adapter (`qdrantAdapter.js`) & Alias Switching (`vectorStore.js`):** Supports both **Qdrant Cloud** (`QDRANT_URL` + `QDRANT_API_KEY`) and **Local Qdrant** (`QDRANT_URL` without `QDRANT_API_KEY`) using `@qdrant/js-client-rest`, with zero-downtime shadow collection creation, verification, `switchActiveAlias`, and obsolete collection cleanup.
+
+### 13.4 Startup Validation & Provider Extension Guides
+- **Startup Validation:** `validateProviderConfig(config)` in `server/src/config.js` runs at startup in `server/src/server.js` and fails immediately on unsupported `AI_PROVIDER`, `EMBEDDING_PROVIDER`, `DB_PROVIDER`, or `VECTOR_PROVIDER` values.
+- **Adding a Gemini Model:** Set `GEMINI_MODEL`, `GEMINI_RECEIPT_MODEL`, or `EMBEDDING_MODEL` in `server/.env` (and add pricing entries in `aiUsage/pricingConfig.js` if needed).
+- **Adding an Ollama Adapter (Future):** Implement an adapter in `server/src/shared/integrations/ai/providers/ollamaProvider.js` declaring its supported `capabilities`, register it in `ai/index.js`, and add `'ollama'` to `SUPPORTED_AI_PROVIDERS` / `SUPPORTED_EMBEDDING_PROVIDERS` in `config.js`.
+- **Switching to Local Qdrant:** Point `QDRANT_URL` to the local Qdrant endpoint (e.g., `http://localhost:6333`), omit `QDRANT_API_KEY`, and re-run `npm run index`.
+- **Switching to Local PostgreSQL (Future):** Implement `pg` repository adapters for `transaction`, `receipt`, `chatHistory`, and `aiUsage`, replace Supabase RPCs with SQL transactions, and pair with replacement Auth and Storage providers.

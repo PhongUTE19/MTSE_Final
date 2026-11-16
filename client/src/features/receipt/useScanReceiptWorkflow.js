@@ -26,11 +26,15 @@ export function useScanReceiptWorkflow({
 
   const handleConfirmDraft = draftsHook?.confirmDraft || onConfirmDraft;
   const handleRejectDraft = draftsHook?.rejectDraft || onRejectDraft;
+  const handleCreateDraft = draftsHook?.createDraft;
   const handleReloadDrafts = draftsHook?.loadDrafts || draftsHook?.reloadDrafts || reloadDrafts;
+  const getPreviewUrl = draftsHook?.getPreviewUrl;
+  const releasePreviewUrl = draftsHook?.releasePreviewUrl;
 
   const [failedReceipts, setFailedReceipts] = useState([]);
   const [activeReview, setActiveReview] = useState(null);
   const [pendingAction, setPendingAction] = useState(null);
+  const stagedIdsRef = useRef(new Set());
 
   const loadFailedReceipts = useCallback(async () => {
     try {
@@ -78,19 +82,61 @@ export function useScanReceiptWorkflow({
         refreshState();
         return;
       }
-      const draftData = draft.reviewedData || draft.originalData || draft;
-      setActiveReview({
-        id: draft.id,
-        receiptId: inFlightReceipt.id,
-        fileName: inFlightReceipt.file?.name || (draftData.merchant ? `${draftData.merchant} Receipt` : 'Receipt'),
-        fileSize: inFlightReceipt.file?.size || null,
-        previewUrl: inFlightReceipt.previewUrl,
-        localPreview: inFlightReceipt.localPreview,
-        draft,
-      });
-      refreshState();
+
+      if (stagedIdsRef.current.has(draft.id)) return;
+      stagedIdsRef.current.add(draft.id);
+
+      let cancelled = false;
+      const stageLocalDraft = async () => {
+        let storedDraft = draft;
+        if (handleCreateDraft) {
+          try {
+            storedDraft = await handleCreateDraft({
+              id: draft.id,
+              sourceType: 'receipt_extraction',
+              originalData: draft.originalData || inFlightReceipt.extraction || {},
+              reviewedData: draft.reviewedData || draft.originalData || inFlightReceipt.extraction || {},
+              warnings: draft.warnings || inFlightReceipt.warnings || [],
+              receiptBlob: inFlightReceipt.file || null,
+              fileMeta: draft.fileMeta || {
+                filename: inFlightReceipt.file?.name || 'receipt.png',
+                mimeType: inFlightReceipt.file?.type || 'image/png',
+                size: inFlightReceipt.file?.size || null,
+              },
+              aiModel: draft.aiModel || null,
+              promptVersion: draft.promptVersion || null,
+            });
+          } catch (err) {
+            if (!cancelled) {
+              reportError(err?.message || 'Failed to save receipt draft locally.');
+            }
+          }
+        }
+
+        if (cancelled) return;
+        const draftData = storedDraft.reviewedData || storedDraft.originalData || draft;
+        const previewUrl =
+          getPreviewUrl?.(storedDraft, 'scan-review') || inFlightReceipt.previewUrl || null;
+        setActiveReview({
+          id: storedDraft.id,
+          receiptId: inFlightReceipt.id,
+          fileName:
+            inFlightReceipt.file?.name ||
+            storedDraft.fileMeta?.filename ||
+            (draftData.merchant ? `${draftData.merchant} Receipt` : 'Receipt'),
+          fileSize: inFlightReceipt.file?.size || storedDraft.fileMeta?.size || null,
+          previewUrl,
+          localPreview: Boolean(previewUrl),
+          draft: storedDraft,
+        });
+      };
+
+      stageLocalDraft();
+      return () => {
+        cancelled = true;
+      };
     }
-  }, [inFlightReceipt, activeReview, refreshState, reportError]);
+  }, [inFlightReceipt, activeReview, handleCreateDraft, getPreviewUrl, refreshState, reportError]);
 
   useEffect(() => {
     refreshState();
@@ -118,15 +164,15 @@ export function useScanReceiptWorkflow({
       setPendingAction({ id: draft.id, type: 'resume' });
       reportError('');
 
-      let previewUrl = null;
-      const receiptId = draft.receiptId;
-      if (receiptId) {
-        try {
-          const preview = await receiptApi.previewReceipt(receiptId);
-          previewUrl = preview?.url || null;
-        } catch {
-          // Preview is best effort
-        }
+      const hasValidBlob = typeof Blob === 'undefined'
+        ? Boolean(draft.receiptBlob)
+        : draft.receiptBlob instanceof Blob;
+      const previewUrl = hasValidBlob
+        ? getPreviewUrl?.(draft, 'scan-review') || null
+        : null;
+
+      if (!hasValidBlob) {
+        reportError('Receipt image preview is missing or corrupted. Please discard and re-upload.');
       }
 
       if (!isCurrentAction(actionId)) return;
@@ -134,10 +180,13 @@ export function useScanReceiptWorkflow({
       const draftData = draft.reviewedData || draft.originalData || {};
       setActiveReview({
         id: draft.id,
-        receiptId,
-        fileName: draftData.merchant ? `${draftData.merchant} Receipt` : 'Receipt',
+        receiptId: draft.id,
+        fileName:
+          draft.fileMeta?.filename ||
+          (draftData.merchant ? `${draftData.merchant} Receipt` : 'Receipt'),
+        fileSize: draft.fileMeta?.size || draft.receiptBlob?.size || null,
         previewUrl,
-        localPreview: false,
+        localPreview: Boolean(previewUrl),
         draft,
       });
     } catch (err) {
@@ -217,6 +266,7 @@ export function useScanReceiptWorkflow({
     if (handleConfirmDraft) {
       await handleConfirmDraft(draftId, finalValues);
     }
+    releasePreviewUrl?.(draftId, 'scan-review');
     notifyTransactionsChanged?.();
     await onTransactionSaved?.();
     toast.success('Receipt confirmed and transaction saved.');
@@ -234,6 +284,9 @@ export function useScanReceiptWorkflow({
       } catch (err) {
         console.warn('[ScanReceiptView] Failed to reject draft on discard:', err.message);
       }
+    }
+    if (draftId) {
+      releasePreviewUrl?.(draftId, 'scan-review');
     }
     toast.info('Receipt draft discarded.');
     setActiveReview(null);

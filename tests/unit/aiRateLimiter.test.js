@@ -5,7 +5,7 @@ import {
   createLimiter,
   resolveRateLimitKey,
   chatRateLimiter,
-  expenseAgentRateLimiter,
+  expenseAssistantRateLimiter,
   receiptOcrRateLimiter,
   apiRateLimiter,
   indexingRateLimiter,
@@ -14,9 +14,10 @@ import {
 import { RATE_LIMIT_CONFIG } from '../../server/src/constants/config.js';
 import { config } from '../../server/src/config.js';
 
-import chatRouter from '../../server/src/features/assistant/assistant.routes.js';
-import expenseAgentRouter from '../../server/src/features/expenseAgent/expenseAgent.routes.js';
-import expenseRouter from '../../server/src/features/expenses/expenses.routes.js';
+import chatRouter from '../../server/src/features/chatAssistant/chatAssistant.route.js';
+import expenseAssistantRouter from '../../server/src/features/expenseAssistant/expenseAssistant.route.js';
+import receiptRouter from '../../server/src/features/receipt/receipt.route.js';
+import transactionRouter from '../../server/src/features/transaction/transaction.route.js';
 
 /**
  * Creates a mock Express request and response pair for simulating middleware calls.
@@ -287,56 +288,49 @@ describe('AI Rate Limiting & Quota Protection Suite', () => {
       return layer ? layer.route.stack.map((s) => s.handle) : [];
     }
 
-    it('chatRouter protects /chat and /chat/stream with chatRateLimiter and optionalAuthenticate', () => {
-      const chatHandlers = getRouteHandlers(chatRouter, '/chat', 'POST');
+    it('chatRouter protects / and /stream with chatRateLimiter and user authorization', () => {
+      const chatHandlers = getRouteHandlers(chatRouter, '/', 'POST');
       assert.ok(chatHandlers.length >= 2, 'Must have at least rate limiter and controller');
-      assert.ok(chatHandlers.includes(chatRateLimiter), 'chatRateLimiter must protect /chat');
+      assert.ok(chatHandlers.includes(chatRateLimiter), 'chatRateLimiter must protect /');
 
-      const streamHandlers = getRouteHandlers(chatRouter, '/chat/stream', 'POST');
-      assert.ok(streamHandlers.includes(chatRateLimiter), 'chatRateLimiter must protect /chat/stream');
+      const streamHandlers = getRouteHandlers(chatRouter, '/stream', 'POST');
+      assert.ok(streamHandlers.includes(chatRateLimiter), 'chatRateLimiter must protect /stream');
     });
 
-    it('expenseAgentRouter protects all 4 AI endpoints with expenseAgentRateLimiter', () => {
-      const aiRoutes = ['/search', '/summary', '/assistant', '/create-proposal'];
+    it('expenseAssistantRouter protects all 4 AI endpoints with expenseAssistantRateLimiter', () => {
+      const aiRoutes = ['/', '/search', '/summary', '/proposals'];
       for (const routePath of aiRoutes) {
-        const handlers = getRouteHandlers(expenseAgentRouter, routePath, 'POST');
+        const handlers = getRouteHandlers(expenseAssistantRouter, routePath, 'POST');
         assert.ok(
-          handlers.includes(expenseAgentRateLimiter),
-          `expenseAgentRateLimiter must protect ${routePath}`
+          handlers.includes(expenseAssistantRateLimiter),
+          `expenseAssistantRateLimiter must protect ${routePath}`
         );
       }
 
-      // Non-AI endpoints must NOT be constrained by expenseAgentRateLimiter
-      const confirmHandlers = getRouteHandlers(expenseAgentRouter, '/proposals/:id/confirm', 'POST');
+      // Non-AI endpoints must NOT be constrained by expenseAssistantRateLimiter
+      const createTxHandlers = getRouteHandlers(transactionRouter, '/transaction', 'POST');
       assert.equal(
-        confirmHandlers.includes(expenseAgentRateLimiter),
+        createTxHandlers.includes(expenseAssistantRateLimiter),
         false,
-        'Confirming proposal is a pure DB operation and must not be throttled by AI limiter'
-      );
-
-      const cancelHandlers = getRouteHandlers(expenseAgentRouter, '/proposals/:id', 'DELETE');
-      assert.equal(
-        cancelHandlers.includes(expenseAgentRateLimiter),
-        false,
-        'Cancelling proposal is a pure DB operation and must not be throttled by AI limiter'
+        'Creating a transaction is a pure DB operation and must not be throttled by AI limiter'
       );
     });
 
-    it('expenseRouter protects /receipts/upload and /receipts/:id/retry with receiptOcrRateLimiter', () => {
-      const uploadHandlers = getRouteHandlers(expenseRouter, '/receipts/upload', 'POST');
+    it('receiptRouter protects /upload and /:id/retry with receiptOcrRateLimiter', () => {
+      const uploadHandlers = getRouteHandlers(receiptRouter, '/upload', 'POST');
       assert.ok(
         uploadHandlers.includes(receiptOcrRateLimiter),
-        'receiptOcrRateLimiter must protect /receipts/upload'
+        'receiptOcrRateLimiter must protect /upload'
       );
 
       // Verify receiptOcrRateLimiter is placed BEFORE multer upload handler
       const ocrIndex = uploadHandlers.indexOf(receiptOcrRateLimiter);
       assert.equal(ocrIndex, 0, 'receiptOcrRateLimiter must run BEFORE multer file processing');
 
-      const retryHandlers = getRouteHandlers(expenseRouter, '/receipts/:id/retry', 'POST');
+      const retryHandlers = getRouteHandlers(receiptRouter, '/:id/retry', 'POST');
       assert.ok(
         retryHandlers.includes(receiptOcrRateLimiter),
-        'receiptOcrRateLimiter must protect /receipts/:id/retry'
+        'receiptOcrRateLimiter must protect /:id/retry'
       );
     });
   });

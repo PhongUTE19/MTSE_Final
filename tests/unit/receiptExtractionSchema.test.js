@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
-import { receiptExtractionSchema } from '../../server/src/features/expenses/receipt.schemas.js';
+import { receiptExtractionSchema } from '../../server/src/features/receipt/receipt.schema.js';
 
 const base = {
   documentType: 'receipt', transactionType: 'expense', merchant: 'Example shop',

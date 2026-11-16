@@ -1,12 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { orchestrateChat, orchestrateChatStream, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
+import { orchestrateChat, orchestrateChatStream, ChatAssistantServiceError as ChatServiceError } from '../../server/src/features/chatAssistant/chatAssistant.service.js';
 import {
   searchTransactionsForUser,
   getSpendingSummaryForUser,
   createTransactionProposalForUser,
   runExpenseAssistantForUser,
-} from '../../server/src/features/expenseAgent/expenseAgent.service.js';
+} from '../../server/src/features/expenseAssistant/expenseAssistant.service.js';
 import { AppError } from '../../server/src/shared/errors/index.js';
 
 describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
@@ -29,17 +29,16 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
       assert.equal(result.answer, 'You spent 120,000 VND today.');
       assert.equal(result.toolName, 'get_spending_summary');
       assert.deepEqual(result.toolResult, { total: 120000 });
-      assert.equal(result.proposal, null);
       assert.deepEqual(result.sources, []);
       assert.equal(result.retrieval, null);
     });
 
-    it('extracts proposal shortcut when create_transaction proposal is generated', async () => {
-      const mockProposal = { id: 'prop-123', transaction: { amount: 50000 } };
+    it('preserves create_transaction draft toolResult in normalized response', async () => {
+      const mockDraft = { amount: 50000 };
       const mockAgentRunner = async () => ({
         answer: 'Please confirm the transaction.',
         toolName: 'create_transaction',
-        toolResult: { proposal: mockProposal },
+        toolResult: { draftId: 'draft-123', draft: mockDraft },
       });
 
       const result = await orchestrateChat('Coffee 50k', {
@@ -49,8 +48,8 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
 
       assert.equal(result.strategy, 'agent');
       assert.equal(result.toolName, 'create_transaction');
-      assert.deepEqual(result.proposal, mockProposal);
-      assert.deepEqual(result.toolResult.proposal, mockProposal);
+      assert.equal(result.toolResult.draftId, 'draft-123');
+      assert.deepEqual(result.toolResult.draft, mockDraft);
     });
 
     it('rejects empty or whitespace query at orchestration boundary', async () => {
@@ -85,7 +84,6 @@ describe('Central Chat Orchestrator Strategy & Normalization Suite', () => {
       assert.equal(result.answer, 'Keep receipts for all tax-deductible expenses.');
       assert.equal(result.toolName, null);
       assert.equal(result.toolResult, null);
-      assert.equal(result.proposal, null);
       assert.equal(result.sources.length, 1);
       assert.equal(result.sources[0].title, 'Spending Policy');
       assert.equal(result.retrieval.bestScore, 0.9);

@@ -13,9 +13,9 @@ import {
   parseIntegerParam,
   zodIntegerParam,
 } from '../../server/src/shared/validation/pagination.js';
-import { transactionQuerySchema } from '../../server/src/features/expenses/expenses.schemas.js';
-import { analyticsHistorySchema } from '../../server/src/features/analytics/analytics.schemas.js';
-import { paginationQuerySchema } from '../../server/src/features/knowledgeBase/knowledgeBase.schemas.js';
+import { transactionQuerySchema } from '../../server/src/features/transaction/transaction.schema.js';
+import { analyticsHistorySchema } from '../../server/src/features/aiUsage/aiUsage.schema.js';
+import { paginationQuerySchema } from '../../server/src/features/knowledgeBase/knowledgeBase.schema.js';
 import { toQueryString } from '../../client/src/shared/utils/collectionUtils.js';
 
 describe('Shared Duplications Refactor Suite', () => {
@@ -247,25 +247,25 @@ describe('Shared Duplications Refactor Suite', () => {
       const analyticsCssPath = path.join(rootDir, 'client/src/features/analytics/analytics.css');
       assert.equal(fs.existsSync(analyticsCssPath), false, 'analytics.css must be deleted');
 
-      const pagePath = path.join(rootDir, 'client/src/features/analytics/AnalyticsPage.jsx');
+      const pagePath = path.join(rootDir, 'client/src/features/aiUsage/AIUsagePage.jsx');
       const pageContent = fs.readFileSync(pagePath, 'utf8');
       assert.equal(
         pageContent.includes("import './analytics.css'"),
         false,
-        'AnalyticsPage.jsx must not import analytics.css'
+        'AIUsagePage.jsx must not import analytics.css'
       );
       assert.equal(
         pageContent.includes("style={{ marginBottom: '16px' }}"),
         false,
-        'Inline marginBottom style must be replaced in AnalyticsPage'
+        'Inline marginBottom style must be replaced in AIUsagePage'
       );
 
-      const kpiPath = path.join(rootDir, 'client/src/features/analytics/AnalyticsKpiCards.jsx');
+      const kpiPath = path.join(rootDir, 'client/src/features/aiUsage/AIUsageSummary.jsx');
       const kpiContent = fs.readFileSync(kpiPath, 'utf8');
       assert.equal(
         kpiContent.includes("style={{ marginTop: '4px' }}"),
         false,
-        'Inline marginTop style must be replaced in AnalyticsKpiCards'
+        'Inline marginTop style must be replaced in AIUsageSummary'
       );
     });
   });

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createReceiptUploadController } from '../../client/src/features/receipts/useReceiptUpload.js';
+import { createReceiptUploadController } from '../../client/src/features/receipt/useReceiptUpload.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const readSource = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -91,7 +91,7 @@ describe('useReceiptUpload controller', () => {
         file,
         previewUrl: 'blob:1',
         localPreview: true,
-        draft: { merchant: 'm-id-receipt.png' },
+        draft: { id: 'id-receipt.png', originalData: { merchant: 'm-id-receipt.png' } },
       });
     });
 
@@ -270,8 +270,8 @@ describe('useReceiptUpload controller', () => {
   });
 
   describe('6. Consumers share the hook', () => {
-    const view = readSource('client/src/features/receipts/ReceiptsView.jsx');
-    const assistant = readSource('client/src/features/expense/assistant/ExpenseAssistant.jsx');
+    const view = readSource('client/src/features/receipt/useScanReceiptWorkflow.js');
+    const assistant = readSource('client/src/features/expenseAssistant/ExpenseAssistant.jsx');
 
     it('no longer duplicates upload plumbing in ReceiptsView or ExpenseAssistant', () => {
       for (const [name, source] of [['ReceiptsView', view], ['ExpenseAssistant', assistant]]) {

@@ -4,32 +4,27 @@ SpendWise is an intelligent personal finance management application designed for
 
 ---
 
-## 1. Implemented AI Capabilities (Milestone 1 Scope)
+## 1. Implemented AI Capabilities
 
-In accordance with approved Milestone 1 requirements, SpendWise implements three core AI capabilities:
+SpendWise implements a unified, guardrail-enforced AI architecture across three core capabilities:
 
-1. **Capability B (Tool-Using Agent)**:
-   * Conversational assistant (`server/src/features/expenseAssistant/expenseAssistant.service.js`) equipped with Google Gemini function-calling tools:
-     * `search_transactions`: Queries user transactions by date, merchant, or category.
-     * `get_spending_summary`: Computes exact spending totals and category breakdowns in PostgreSQL (zero LLM arithmetic).
-     * `create_transaction`: Generates transaction proposals.
-   * **Proposal-Confirmation Safety Gate**: Financial write operations require explicit human confirmation via an interactive UI proposal card before any mutation is committed to the database.
-2. **Capability C (Structured Output)**:
-   * Receipt extraction (`server/src/features/receipt/receipt.service.js`) enforces strict JSON schema adherence through Gemini's `responseJsonSchema`, validated by Zod schemas (`server/src/features/receipt/receipt.schemas.js`). Eliminates syntax errors and guarantees predictable field types (merchant, date, total, items, tax, category).
-3. **Capability D (Multimodal Input)**:
-   * Direct ingestion of receipt image files (JPEG, PNG, WebP up to 5 MB) into Google Gemini 3.5 Flash vision models. Extracts Vietnamese and English receipts in a single forward pass without brittle local OCR engines.
-
-> [!NOTE]
-> Retrieval-Augmented Generation (RAG) vector chunking (`data/knowledge/`) and Qdrant Cloud indexing exist as operational platform infrastructure for querying platform documentation, but RAG is not a committed Milestone 1 User Story deliverable. Autonomous unconfirmed writes and multi-agent coordination are explicitly out of scope for M1.
+1. **Unified Conversational AI Assistant (`POST /api/chat-assistant`, `POST /api/chat-assistant/stream`)**:
+   * Single bounded orchestrator (`server/src/features/chatAssistant/assistantOrchestrator.js`) supporting synchronous JSON and real-time Server-Sent Events (SSE) streaming with `AbortController` cancellation, server-authoritative chat history (`public.chat_conversations` / `public.chat_messages`), and deterministic policy enforcement (`assistantPolicy.js`).
+   * Combines personal finance tools (`search_transactions`, `get_spending_summary`), proposal-only transaction staging (`propose_transaction`), and SpendWise documentation retrieval (`search_knowledge_base` via Qdrant RAG with citation validation `[S#]`) in a single multi-step loop.
+   * Legacy `POST /api/expense-assistant` remains mounted as a backward-compatible JSON facade.
+   * **Proposal-Confirmation Safety Gate**: Financial write operations never execute inside AI tools; `propose_transaction` stages a local `TransactionDraft` in browser IndexedDB for explicit human confirmation (`POST /api/transaction`) before any ledger mutation.
+2. **Structured Output & Multimodal Receipt Extraction**:
+   * Stateless receipt OCR (`POST /api/receipt/upload` via `server/src/features/receipt/receipt.service.js`) ingests receipt images (JPEG, PNG, WebP up to 5 MB) into Google Gemini vision models with strict `responseJsonSchema` + Zod validation (`receipt.schema.js`).
+   * Extracted fields and the temporary image Blob stage locally in browser IndexedDB (`client/src/features/transactionDraft/draftStorage.js`). Explicit confirmation (`POST /api/receipt/confirm`) uploads the image to private Supabase Storage and atomically commits both `public.expense_transactions` and `public.receipts` via `confirm_staged_receipt_transaction` RPC.
 
 ---
 
 ## 2. Technology Stack & System Architecture
 
-* **Frontend**: React 18, Vite, React Router 6, Tailwind CSS, Design Tokens, and Semantic Component CSS (6-layer architecture).
-* **Backend**: Node.js 20+, Express 4/5 (Feature-first modular structure).
-* **AI Provider**: Google Gemini API via `@google/genai` SDK (`gemini-3.5-flash-lite`, `gemini-embedding-001`).
-* **Vector Store**: Qdrant Cloud (3072-dimension cosine index in `spendwise` collection).
+* **Frontend**: React 18, Vite, React Router 6, Tailwind CSS (`v3.4.19`), centralized design tokens (`client/tailwind.config.js`, `client/src/index.css`), and browser-local IndexedDB draft staging (6-layer architecture).
+* **Backend**: Node.js 20+, Express 4 (Feature-first modular structure).
+* **AI Provider**: Google Gemini API via `@google/genai` SDK (`gemini-3.5-flash-lite`, `gemini-embedding-001`) behind a provider-neutral integration boundary (`server/src/shared/integrations/ai/`).
+* **Vector Store**: Qdrant Cloud or local Qdrant (3072-dimension cosine index with zero-downtime shadow-collection alias switching via `QDRANT_COLLECTION_NAME` / `spendwise_active`).
 * **Database & Auth**: Supabase Cloud:
   * **Supabase Auth (GoTrue)**: User credential management and JWT issuance.
   * **PostgreSQL 15**: Relational tables with Row-Level Security (`auth.uid() = user_id`).
@@ -193,9 +188,10 @@ Accepted role values: `'admin'` or `'user'`.
 
 ### Step 4: Refresh the Session
 Sign out in the web client and sign back in. The new JWT token will contain `app_metadata.role = 'admin'`. The sidebar will now display administrative navigation links:
-* **AI Usage Analytics** (`/admin/analytics`)
+* **AI Usage Analytics** (`/admin/ai-usage`)
 * **Knowledge Base** (`/admin/knowledge-base`)
-* **System Prompt Editor** (`/admin/prompt`)
+
+*(Note: System prompts are immutable at runtime and managed in Git under `server/prompts/`; admins can inspect the active prompt read-only via `GET /api/admin/system-prompt`.)*
 
 ---
 
@@ -208,10 +204,10 @@ Sign out in the web client and sign back in. The new JWT token will contain `app
 
 ## 9. Testing & Quality Assurance
 
-SpendWise includes 833 offline unit and integration tests requiring zero third-party cloud API costs:
+SpendWise includes 719 offline unit and integration tests (across 209 suites) requiring zero third-party cloud API costs:
 
 ```bash
-# Run all automated tests (833 tests passing)
+# Run all automated tests (719 tests passing across 209 suites)
 npm test
 
 # Run unit tests only
@@ -232,7 +228,7 @@ The SpendWise documentation is strictly partitioned between canonical engineerin
 * [docs/engineering/refactoring-plan.md](docs/engineering/refactoring-plan.md): Single master refactoring plan and living engineering backlog (`TECH-01` through `TECH-05`).
 * [docs/engineering/progress.md](docs/engineering/progress.md): Chronological verification history and milestone matrix.
 * [docs/engineering/implementation-guidelines.md](docs/engineering/implementation-guidelines.md): Technical invariants, VND ledger rules, and bootstrap DDL.
-* [docs/engineering/adrs/](docs/engineering/adrs/): Significant engineering Architecture Decision Records (`adr-0001` through `adr-0004`).
+* [docs/engineering/adrs/](docs/engineering/adrs/): Significant engineering Architecture Decision Records (`adr-0001` through `adr-0006`).
 * [docs/engineering/audits/](docs/engineering/audits/): Dated historical audit snapshots (`2026-11-08`, `2026-11-14`).
 
 ### Academic & Course Deliverables (`docs/academic/`)

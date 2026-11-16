@@ -41,6 +41,11 @@ describe('AI Provider Abstraction Suite', () => {
   it('allows registering a custom AI provider implementation without changing business logic', async () => {
     const mockProvider = {
       name: 'mock-llm',
+      capabilities: {
+        textGeneration: true,
+        streaming: true,
+        embeddings: true,
+      },
       async generateAnswer(prompt) {
         return `Mock answer for: ${prompt}`;
       },
@@ -100,7 +105,7 @@ describe('AI Provider Abstraction Suite', () => {
       () => embedText('some text', { provider: 'text-only' }),
       (err) =>
         err instanceof Error &&
-        err.message.includes('AI provider "text-only" does not support embedText')
+        err.message.includes('AI provider "text-only" does not support capability "embeddings"')
     );
 
     await assert.rejects(
@@ -236,5 +241,80 @@ describe('AI Provider Abstraction Suite', () => {
       config.geminiReceiptModel = originalReceiptModel;
       setAIClientForTests(null);
     }
+  });
+
+  it('executeWithRetry halts immediately without retry on AbortError', async () => {
+    let attemptsCount = 0;
+    const abortedOperation = async () => {
+      attemptsCount++;
+      const err = new Error('The operation was aborted.');
+      err.name = 'AbortError';
+      throw err;
+    };
+
+    await assert.rejects(
+      () => executeWithRetry(abortedOperation, 3, 1, 5000),
+      (err) => {
+        assert.equal(err.name, 'AbortError');
+        assert.equal(err.executionMetadata?.totalAttempts, 1);
+        return true;
+      }
+    );
+    assert.equal(attemptsCount, 1);
+  });
+
+  it('executeWithRetry does not invoke operation when AbortSignal is already aborted', async () => {
+    let attemptsCount = 0;
+    const controller = new AbortController();
+    controller.abort();
+
+    await assert.rejects(
+      () =>
+        executeWithRetry(
+          async () => {
+            attemptsCount++;
+            return 'should not run';
+          },
+          3,
+          1,
+          5000,
+          undefined,
+          controller.signal
+        ),
+      (err) => {
+        assert.equal(err.name, 'AbortError');
+        assert.equal(err.executionMetadata?.totalAttempts, 0);
+        return true;
+      }
+    );
+    assert.equal(attemptsCount, 0);
+  });
+
+  it('executeWithRetry does not retry when AbortSignal aborts during execution', async () => {
+    let attemptsCount = 0;
+    const controller = new AbortController();
+
+    await assert.rejects(
+      () =>
+        executeWithRetry(
+          async () => {
+            attemptsCount++;
+            controller.abort();
+            const err = new Error('503 Service Unavailable');
+            err.status = 503;
+            throw err;
+          },
+          3,
+          1,
+          5000,
+          undefined,
+          controller.signal
+        ),
+      (err) => {
+        assert.equal(err.executionMetadata?.totalAttempts, 1);
+        return true;
+      }
+    );
+    assert.equal(attemptsCount, 1);
   });
 });

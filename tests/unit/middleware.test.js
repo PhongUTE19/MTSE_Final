@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { chatRequestSchema } from '../../server/src/features/assistant/assistant.schemas.js';
+import { chatAssistantRequestSchema as chatRequestSchema } from '../../server/src/features/chatAssistant/chatAssistant.schema.js';
 import {
   getValidatedData,
   validateRequest,
@@ -12,7 +12,7 @@ import {
   errorHandler,
   apiRateLimiter,
   chatRateLimiter,
-  expenseAgentRateLimiter,
+  expenseAssistantRateLimiter as expenseAgentRateLimiter,
   receiptOcrRateLimiter,
   indexingRateLimiter,
   createLimiter,

@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
+import { receiptSchema } from '../../server/src/features/receipt/receipt.schema.js';
 import {
-  receiptSchema,
   transactionQuerySchema,
   transactionSchema,
-} from '../../server/src/features/expenses/expenses.schemas.js';
-import { receiptConfirmSchema } from '../../server/src/features/expenses/receipt.schemas.js';
+  transactionSchema as receiptConfirmSchema,
+} from '../../server/src/features/transaction/transaction.schema.js';
 import {
   createTransaction,
   deleteTransaction,
@@ -13,7 +13,7 @@ import {
   listTransactions,
   updateTransaction,
   setExpenseClientFactoryForTests,
-} from '../../server/src/features/expenses/expenses.service.js';
+} from '../../server/src/features/transaction/transaction.service.js';
 
 const validTransaction = {
   type: 'expense',
@@ -126,9 +126,7 @@ describe('Expense tracker schema and service', () => {
       assert.throws(() => transactionQuerySchema.parse({ from: invalidDate }));
       assert.throws(() => transactionQuerySchema.parse({ to: invalidDate }));
       assert.throws(() =>
-        receiptConfirmSchema.parse({
-          finalTransaction: { ...validTransaction, date: invalidDate },
-        })
+        receiptConfirmSchema.parse({ ...validTransaction, date: invalidDate })
       );
     }
 
@@ -136,9 +134,7 @@ describe('Expense tracker schema and service', () => {
     assert.equal(transactionSchema.parse({ ...validTransaction, date: '2024-02-29' }).date, '2024-02-29');
     assert.equal(transactionQuerySchema.parse({ from: '2024-02-29', to: '2024-02-29' }).from, '2024-02-29');
     assert.equal(
-      receiptConfirmSchema.parse({
-        finalTransaction: { ...validTransaction, date: '2024-02-29' },
-      }).finalTransaction.date,
+      receiptConfirmSchema.parse({ ...validTransaction, date: '2024-02-29' }).date,
       '2024-02-29'
     );
   });

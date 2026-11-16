@@ -1,9 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import KnowledgeBaseSummary from './KnowledgeBaseSummary.jsx';
-import DocumentEditor from '../document/DocumentEditor';
+import DocumentViewer from '../document/DocumentViewer.jsx';
 import DocumentTable from '../document/DocumentTable';
 import ChunkReview from '../document/ChunkReview';
-import SystemPromptEditor from '../systemPrompt/SystemPromptEditor';
 import { PageHeader } from '../../layouts/WorkspaceLayout.jsx';
 import { useWorkspace } from '../../app/providers/index.js';
 import OverlayDrawer from '../../composites/overlays/OverlayDrawer.jsx';
@@ -26,7 +25,7 @@ export default function KnowledgeBasePage() {
       <PageHeader
         eyebrow="ADMINISTRATION"
         title="Knowledge Base"
-        description="Manage knowledge documents, inspect vector chunks, and configure the AI system prompt."
+        description="Inspect canonical knowledge base documents, review vector chunks, and trigger re-indexing."
       />
       <KnowledgeBaseContent health={health} isOffline={isOffline} />
     </Stack>
@@ -35,8 +34,7 @@ export default function KnowledgeBasePage() {
 
 /**
  * Knowledge Base management content.
- * Coordinates document editing, chunk review, system prompt configuration,
- * and vector sync status cards.
+ * Coordinates read-only document inspection, chunk review, and vector sync status cards.
  */
 function KnowledgeBaseContent({
   health,
@@ -69,8 +67,6 @@ function KnowledgeBaseContent({
     switch (activePanel) {
       case ADMIN_PANELS.CHUNKS:
         return UI_LABELS.CHUNK_REVIEW.TITLE;
-      case ADMIN_PANELS.PROMPT:
-        return UI_LABELS.SYSTEM_PROMPT_EDITOR.TITLE;
       case ADMIN_PANELS.DOCUMENTS:
       default:
         return UI_LABELS.DOCUMENT_TABLE.TITLE;
@@ -102,15 +98,6 @@ function KnowledgeBaseContent({
         >
           {UI_LABELS.ADMIN_DASHBOARD.NAV_CHUNKS}
         </Button>
-        <Button
-          type="button"
-          variant={isPanelActive(ADMIN_PANELS.PROMPT) ? 'primary' : 'secondary'}
-          onClick={(e) => openDrawer(ADMIN_PANELS.PROMPT, e)}
-          aria-expanded={isPanelActive(ADMIN_PANELS.PROMPT)}
-          aria-controls="admin-drawer"
-        >
-          {UI_LABELS.ADMIN_DASHBOARD.NAV_PROMPT}
-        </Button>
       </Inline>
 
       {/* Slide-out Drawer */}
@@ -122,27 +109,20 @@ function KnowledgeBaseContent({
         drawerRef={drawer.drawerRef}
         triggerRef={drawer.triggerRef}
       >
-        {/* Documents Management & Inline Editor */}
+        {/* Read-only Documents Inspection */}
         {activePanel === ADMIN_PANELS.DOCUMENTS && (
           <>
-            <DocumentEditor
-              editingDoc={docs.editingDoc}
-              onChange={docs.setEditingDoc}
-              onSave={docs.handleSaveDocument}
-              onCancel={docs.cancelEdit}
-              saving={docs.saving}
+            <DocumentViewer
+              viewingDoc={docs.viewingDoc}
+              onClose={docs.closeView}
             />
             <DocumentTable
               documents={docs.documents}
-              editorLoading={docs.editorLoading}
-              onNew={docs.handleNewDocument}
-              onEdit={docs.handleEditDocument}
-              onDelete={docs.handleDeleteDocument}
-              onUpload={docs.handleFileUpload}
+              viewerLoading={docs.viewerLoading}
+              onView={docs.handleViewDocument}
               onReindex={kb.handleTriggerIndexing}
               indexing={kb.indexing}
               loading={loading}
-              uploading={docs.uploading}
             />
           </>
         )}
@@ -165,11 +145,6 @@ function KnowledgeBaseContent({
             onPrevPage={chunksState.handlePrevPage}
             onNextPage={chunksState.handleNextPage}
           />
-        )}
-
-        {/* System Prompt Configuration */}
-        {activePanel === ADMIN_PANELS.PROMPT && (
-          <SystemPromptEditor isOffline={isOffline} />
         )}
       </OverlayDrawer>
     </>

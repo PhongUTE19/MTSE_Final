@@ -1,6 +1,6 @@
 import { config } from '../../config.js';
 import { embedText } from '../../shared/integrations/ai/index.js';
-import { getVectorStore } from './vectorStore.js';
+import { searchVectorPoints } from './vectorStore.js';
 import { RETRIEVAL_CONFIG } from '../../constants/index.js';
 
 
@@ -25,25 +25,16 @@ export async function retrieveRelevantChunks(
     ? param2
     : (typeof param3 === 'number' ? param3 : RETRIEVAL_CONFIG.DEFAULT_TOP_K);
 
-  const client = getVectorStore();
-  const exists = await client.collectionExists(config.qdrantCollection);
-  if (!exists) {
-    return [];
-  }
-
   // 1. Generate query embedding vector
   const queryEmbedding = await embedText(query.trim());
 
-  // 2. Query Qdrant for candidate points using cosine similarity
-  // Query candidate pool to inspect for relevant amendments or related sections
+  // 2. Query vector store for candidate points using cosine similarity
   const candidateLimit = Math.max(topK, RETRIEVAL_CONFIG.MIN_CANDIDATE_POOL);
-  const response = await client.query(config.qdrantCollection, {
-    query: queryEmbedding,
+  const points = await searchVectorPoints({
+    vector: queryEmbedding,
     limit: candidateLimit,
-    with_payload: true,
+    withPayload: true,
   });
-
-  const points = response?.points || [];
 
   // 3. Map to clean chunk results
   const candidates = points.map((p) => ({

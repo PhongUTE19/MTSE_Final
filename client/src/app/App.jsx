@@ -2,10 +2,11 @@ import React, { lazy, Suspense, useCallback } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 import { APP_ROUTES } from '../shared/constants';
+import { getUserRole } from '../shared/services/supabaseAuth';
 import { ConfirmProvider, ToastProvider, useToast, useWorkspace } from './providers/index.js';
 import WorkspaceLayout from '../layouts/WorkspaceLayout';
 import Spinner from '../primitives/feedback/Spinner.jsx';
-import { askExpenseAssistant } from '../features/expenseAssistant/expenseAssistantApi.js';
+import { sendChatMessage, sendChatMessageStream } from '../features/chat/chatApi.js';
 import { receiptApi } from '../features/receipt/receiptApi.js';
 import { useReceiptUpload } from '../features/receipt/useReceiptUpload.js';
 import { useTransactionDrafts } from '../features/transactionDraft/index.js';
@@ -13,6 +14,7 @@ import { useTransactionDrafts } from '../features/transactionDraft/index.js';
 // Lazy-loaded pages, guards, and overlays
 const AuthenticatedRouteGuard = lazy(() => import('./guards/AuthenticatedRouteGuard'));
 const AdminRouteGuard = lazy(() => import('./guards/AdminRouteGuard'));
+const RoleRouteGuard = lazy(() => import('./guards/RoleRouteGuard'));
 const AuthPage = lazy(() => import('../features/auth/AuthPage'));
 const AuthCallbackPage = lazy(() => import('../features/auth/AuthCallbackPage'));
 const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage'));
@@ -36,7 +38,7 @@ function RouteLoadingFallback() {
 
 function WorkspaceExpenseAssistant({ userId }) {
   const { notifyTransactionsChanged, notifyReceiptsChanged, setAssistantOpen } = useWorkspace();
-  const draftsHook = useTransactionDrafts({ autoFetch: false });
+  const draftsHook = useTransactionDrafts();
 
   const handleConfirmDraft = useCallback(
     async (id, data) => {
@@ -59,7 +61,11 @@ function WorkspaceExpenseAssistant({ userId }) {
   return (
     <ExpenseAssistant
       userId={userId}
-      onAsk={askExpenseAssistant}
+      onAsk={sendChatMessage}
+      onAskStream={sendChatMessageStream}
+      drafts={draftsHook.drafts}
+      draftsLoading={draftsHook.loading}
+      onCreateDraft={draftsHook.createDraft}
       onConfirmDraft={handleConfirmDraft}
       onRejectDraft={handleRejectDraft}
       onSaveDraft={draftsHook.saveDraft}
@@ -106,7 +112,7 @@ function WorkspaceScanReceipt() {
   );
 }
 
-function WorkspaceRouteShell() {
+export function WorkspaceRouteShell() {
   const { toast } = useToast();
   const handleHealthError = useCallback(
     (message) => {
@@ -123,9 +129,11 @@ function WorkspaceRouteShell() {
           onSignOut={auth.onSignOut}
           onHealthError={handleHealthError}
           overlays={
-            <Suspense fallback={null}>
-              <WorkspaceExpenseAssistant userId={auth.user.id} />
-            </Suspense>
+            getUserRole(auth.user) === 'user' ? (
+              <Suspense fallback={null}>
+                <WorkspaceExpenseAssistant userId={auth.user.id} />
+              </Suspense>
+            ) : null
           }
         />
       )}
@@ -168,8 +176,15 @@ export default function App() {
                 {/* Shared Home Dashboard accessible to both authenticated User and Admin */}
                 <Route path={APP_ROUTES.HOME} element={<HomePage />} />
 
-                {/* Dedicated Personal Finance nested routes */}
-                <Route path={APP_ROUTES.EXPENSE} element={<ExpenseLayout />}>
+                {/* Dedicated Personal Finance nested routes (User-only) */}
+                <Route
+                  path={APP_ROUTES.EXPENSE}
+                  element={
+                    <RoleRouteGuard allowedRole="user" loadingMessage="Checking workspace access…">
+                      <ExpenseLayout />
+                    </RoleRouteGuard>
+                  }
+                >
                   <Route index element={<ExpenseIndexRedirect />} />
                   <Route path="receipts" element={<WorkspaceScanReceipt />} />
                   <Route path="transactions" element={<TransactionPage onPreviewReceipt={receiptApi.previewReceipt} />} />

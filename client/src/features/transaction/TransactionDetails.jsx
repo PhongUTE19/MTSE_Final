@@ -131,7 +131,7 @@ export default function TransactionDetails({
                     <Text variant="caption" color="secondary">Amount</Text>
                     <Text size="2xl" weight="bold">
                       {isIncome ? '+' : '-'}
-                      {formatMoney(current?.amount || 0)} ₫
+                      {formatMoney(current?.amount || 0)}
                     </Text>
                   </Stack>
                   <Inline gap="xs" align="center">
@@ -164,7 +164,7 @@ export default function TransactionDetails({
                     {current.items.map((item, index) => (
                       <Inline key={index} justify="between" align="center">
                         <Text>{item.name}</Text>
-                        <Text weight="medium">{formatMoney(item.amount)} ₫</Text>
+                        <Text weight="medium">{formatMoney(item.amount)}</Text>
                       </Inline>
                     ))}
                   </Stack>

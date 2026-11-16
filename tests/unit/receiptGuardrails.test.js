@@ -4,8 +4,8 @@ import {
   enforceReceiptGuardrails,
   validateReceiptExtraction,
   ReceiptGuardrailError,
-} from '../../server/src/features/expenses/receiptGuardrails.js';
-import { getReceiptPrompt, RECEIPT_PROMPT_VERSION } from '../../server/src/features/expenses/receiptPrompt.js';
+} from '../../server/src/features/receipt/receiptGuardrails.js';
+import { getReceiptPrompt, RECEIPT_PROMPT_VERSION } from '../../server/src/features/receipt/receiptPrompt.js';
 
 const valid = { documentType: 'receipt', merchant: 'Cafe', note: null, items: [] };
 

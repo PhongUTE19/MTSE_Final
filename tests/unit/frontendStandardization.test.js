@@ -218,67 +218,83 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.ok(!fs.existsSync(detailItemPath), 'Redundant AnalyticsDetailItem.jsx file must be removed');
     });
 
-    it('verifies AnalyticsFilters composes Stack and Inline directly without redundant abstraction', () => {
+    it('verifies AIUsageFilters composes Stack and Inline directly without redundant abstraction', () => {
       const filtersSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsFilters.jsx'),
+        path.join(clientSrcDir, 'features/aiUsage/AIUsageFilters.jsx'),
         'utf8'
       );
-      assert.doesNotMatch(filtersSource, /AnalyticsFilterItem/, 'AnalyticsFilters must not import AnalyticsFilterItem');
-      assert.match(filtersSource, /<Stack gap="xs"/, 'AnalyticsFilters must compose Stack directly');
-      assert.match(filtersSource, /<Inline\b/, 'AnalyticsFilters must compose Inline');
+      assert.doesNotMatch(filtersSource, /AnalyticsFilterItem/, 'AIUsageFilters must not import AnalyticsFilterItem');
+      assert.match(filtersSource, /<Stack gap="xs"/, 'AIUsageFilters must compose Stack directly');
+      assert.match(filtersSource, /<Inline\b/, 'AIUsageFilters must compose Inline');
     });
 
-    it('verifies AnalyticsHistoryTable has local AnalyticsDetailItem with zero className escape hatch', () => {
-      const historySource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsHistoryTable.jsx'),
+    it('verifies AIUsageHistoryDetailRow has local DetailItem with zero className escape hatch', () => {
+      const historyDetailSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/aiUsage/AIUsageHistoryDetailRow.jsx'),
         'utf8'
       );
-      assert.match(historySource, /function AnalyticsDetailItem\(\{ label, children \}\)/, 'Must have local helper with strictly controlled props');
-      assert.doesNotMatch(historySource, /className = ''/, 'Local detail item must not expose className escape hatch');
-      assert.match(historySource, /<Card variant="outlined" padding="sm"/, 'History detail row must compose Card');
-      assert.match(historySource, /<Stack gap="2xs">/, 'History detail row must compose Stack');
-      assert.match(historySource, /<AnalyticsDetailItem\b/, 'History detail row must compose AnalyticsDetailItem');
+      assert.match(historyDetailSource, /function AnalyticsDetailItem\(\{ label, children \}\)/, 'Must have local helper with strictly controlled props');
+      assert.doesNotMatch(historyDetailSource, /className = ''/, 'Local detail item must not expose className escape hatch');
+      assert.match(historyDetailSource, /<Card variant="outlined" padding="sm"/, 'History detail row must compose Card');
+      assert.match(historyDetailSource, /<Stack gap="2xs">/, 'History detail row must compose Stack');
+      assert.match(historyDetailSource, /<AnalyticsDetailItem\b/, 'History detail row must compose AnalyticsDetailItem');
     });
   });
 
   describe('4. Standardized Layout and Container Composition Across Specified Files', () => {
-    it('verifies AnalyticsCharts and AnalyticsKpiCards compose Grid and Inline', () => {
+    it('verifies AIUsageCharts and AIUsageSummary compose Grid and Inline', () => {
       const chartsSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsCharts.jsx'),
+        path.join(clientSrcDir, 'features/aiUsage/AIUsageCharts.jsx'),
+        'utf8'
+      );
+      const chartCanvasSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/aiUsage/BarChartCanvas.jsx'),
         'utf8'
       );
       const kpiSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsKpiCards.jsx'),
+        path.join(clientSrcDir, 'features/aiUsage/AIUsageSummary.jsx'),
         'utf8'
       );
-      assert.match(chartsSource, /<Grid role="region" aria-label="Analytics charts">/, 'AnalyticsCharts must have grid container');
-      assert.match(chartsSource, /<Inline gap="md"/, 'AnalyticsCharts must compose Inline for legend');
-      assert.match(kpiSource, /<Grid\b/, 'AnalyticsKpiCards must compose Grid');
-      assert.doesNotMatch(kpiSource, /<div className="stats-grid"/, 'AnalyticsKpiCards must not wrap Grid in stats-grid');
-      assert.doesNotMatch(chartsSource, /<Grid[^>]*className=/, 'AnalyticsCharts must not pass className to Grid');
-      assert.doesNotMatch(kpiSource, /<Grid[^>]*className=/, 'AnalyticsKpiCards must not pass className to Grid');
+      assert.match(chartsSource, /<Grid as="section" columns=\{2\} gap="md" role="region" aria-label="AI usage charts">/, 'AIUsageCharts must have grid container');
+      assert.match(chartCanvasSource, /<Inline gap="md"/, 'BarChartCanvas must compose Inline for legend');
+      assert.match(kpiSource, /<Grid\b/, 'AIUsageSummary must compose Grid');
+      assert.doesNotMatch(kpiSource, /<div className="stats-grid"/, 'AIUsageSummary must not wrap Grid in stats-grid');
+      assert.doesNotMatch(chartsSource, /<Grid[^>]*className=/, 'AIUsageCharts must not pass className to Grid');
+      assert.doesNotMatch(kpiSource, /<Grid[^>]*className=/, 'AIUsageSummary must not pass className to Grid');
     });
 
-    it('verifies AuthPage and PasswordField compose Stack and Grid', () => {
+    it('verifies AuthPage, AuthShowcase, AuthForm, and PasswordField compose Stack and Grid', () => {
       const authSource = fs.readFileSync(
         path.join(clientSrcDir, 'features/auth/AuthPage.jsx'),
+        'utf8'
+      );
+      const showcaseSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/auth/AuthShowcase.jsx'),
+        'utf8'
+      );
+      const formSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/auth/AuthForm.jsx'),
         'utf8'
       );
       const passSource = fs.readFileSync(
         path.join(clientSrcDir, 'features/auth/PasswordField.jsx'),
         'utf8'
       );
-      assert.match(authSource, /<Grid columns=\{2\} gap="md">/, 'AuthPage must compose Grid');
-      assert.match(authSource, /<Stack gap="xs">/, 'AuthPage must compose Stack for fields');
+      assert.match(showcaseSource, /<Grid columns=\{2\} gap="md">/, 'AuthShowcase must compose Grid');
+      assert.match(formSource, /<Stack gap="xs">/, 'AuthForm must compose Stack for fields');
       assert.match(passSource, /<Stack gap="xs">/, 'PasswordField must compose Stack');
       assert.doesNotMatch(passSource, /<div className="auth-field"/, 'PasswordField must not wrap Stack in auth-field');
       assert.doesNotMatch(authSource, /<(Stack|Grid)[^>]*className=/, 'AuthPage must not pass className to Stack or Grid');
       assert.doesNotMatch(passSource, /<Stack[^>]*className=/, 'PasswordField must not pass className to Stack');
     });
 
-    it('verifies Chatbot and ChatHistoryTab compose Inline and Stack', () => {
+    it('verifies Chatbot, ChatConversation, and ChatHistoryTab compose Inline and Stack', () => {
       const chatbotSource = fs.readFileSync(
         path.join(clientSrcDir, 'features/chat/Chatbot.jsx'),
+        'utf8'
+      );
+      const conversationSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/chat/ChatConversation.jsx'),
         'utf8'
       );
       const historyTabSource = fs.readFileSync(
@@ -291,7 +307,7 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       );
       assert.match(chatbotSource, /<Inline gap="xs" align="center">/, 'Chatbot must compose Inline for header actions');
       assert.match(chatbotSource, /<Inline as="nav" gap="xs" role="tablist">/, 'Chatbot must compose Inline for tabs');
-      assert.match(chatbotSource, /<Inline gap="xs" wrap>/, 'Chatbot must compose Inline for quick actions');
+      assert.match(conversationSource, /<Inline gap="xs" wrap justify="center">/, 'ChatConversation must compose Inline for quick actions');
       assert.match(historyTabSource, /<Stack as="div" role="list" gap="xs">/, 'ChatHistoryTab must compose Stack');
       assert.match(historyItemSource, /<Inline justify="between" align="center">/, 'ChatHistoryItem must compose Inline for rows');
       assert.doesNotMatch(chatbotSource, /<(Inline|Stack|Button)[^>]*className=/, 'Chatbot must not pass className to Base Components');
@@ -299,48 +315,56 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.doesNotMatch(historyItemSource, /<(Inline|Stack|Button)[^>]*className=/, 'ChatHistoryItem must not pass className to Base Components');
     });
 
-    it('verifies Expense components compose Card, Grid, Stack, and Inline', () => {
+    it('verifies Transaction and ExpenseAssistant components compose Card, Grid, Stack, and Inline', () => {
       const summarySource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/ExpenseSummaryCards.jsx'),
+        path.join(clientSrcDir, 'features/transaction/TransactionSummary.jsx'),
         'utf8'
       );
       const txFieldsSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/TransactionFields.jsx'),
+        path.join(clientSrcDir, 'composites/transactions/TransactionFields.jsx'),
         'utf8'
       );
       const txFormSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/TransactionForm.jsx'),
+        path.join(clientSrcDir, 'features/transaction/ManualEntry.jsx'),
         'utf8'
       );
       const txTableSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/TransactionTable.jsx'),
+        path.join(clientSrcDir, 'features/transaction/TransactionTable.jsx'),
+        'utf8'
+      );
+      const txFiltersSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/transaction/TransactionFiltersBar.jsx'),
         'utf8'
       );
       const toolResultSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/assistant/ExpenseToolResult.jsx'),
+        path.join(clientSrcDir, 'features/expenseAssistant/ExpenseToolResult.jsx'),
+        'utf8'
+      );
+      const toolSummarySource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/expenseAssistant/ToolSpendingSummary.jsx'),
         'utf8'
       );
       const proposalSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/assistant/TransactionProposalCard.jsx'),
+        path.join(clientSrcDir, 'composites/transactions/TransactionDraftReview.jsx'),
         'utf8'
       );
-      const expensePageSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/ExpensePage.jsx'),
+      const txPageSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/transaction/TransactionPage.jsx'),
         'utf8'
       );
 
-      assert.match(summarySource, /<Grid [^>]*columns=\{3\} gap="sm"/, 'ExpenseSummaryCards must compose Grid');
-      assert.match(txFieldsSource, /<Stack gap="2xs" fullWidth>/, 'TransactionFields must compose Stack');
-      assert.match(txFormSource, /<Inline justify="between" align="start" fullWidth>/, 'TransactionForm must compose Inline for heading');
+      assert.match(summarySource, /<Grid [^>]*columns=\{3\} gap="md"/, 'TransactionSummary must compose Grid');
+      assert.match(txFieldsSource, /<Stack gap="2xs">/, 'TransactionFields must compose Stack');
+      assert.match(txFormSource, /<Inline justify="between" align="start" fullWidth>/, 'ManualEntry must compose Inline for heading');
       assert.match(txTableSource, /<Inline justify="between" align="center" fullWidth>/, 'TransactionTable must compose Inline for panel heading');
-      assert.match(txTableSource, /<Stack gap="2xs">/, 'TransactionTable must compose Stack for filter fields');
-      assert.match(toolResultSource, /<Inline justify="between" align="center" fullWidth>/, 'ExpenseToolResult must compose Inline');
-      assert.match(toolResultSource, /<Grid columns=\{3\} gap="sm">/, 'ExpenseToolResult must compose Grid');
-      assert.match(proposalSource, /<Stack gap="sm">/, 'TransactionProposalCard must compose Stack');
-      assert.match(expensePageSource, /<Inline justify="between" align="center"/, 'ExpensePage must compose Inline for error');
+      assert.match(txFiltersSource, /<Stack gap="2xs">/, 'TransactionFiltersBar must compose Stack for filter fields');
+      assert.match(toolSummarySource, /<Inline justify="between" align="center" fullWidth>/, 'ToolSpendingSummary must compose Inline');
+      assert.match(toolSummarySource, /<Grid columns=\{3\} gap="sm">/, 'ToolSpendingSummary must compose Grid');
+      assert.match(proposalSource, /<Stack gap="md">/, 'TransactionDraftReview must compose Stack');
+      assert.match(txPageSource, /<Stack gap="lg">/, 'TransactionPage must compose Stack');
 
-      [summarySource, txFieldsSource, txFormSource, txTableSource, toolResultSource, proposalSource, expensePageSource].forEach(src => {
-        assert.doesNotMatch(src, /<(Stack|Inline|Grid|Button)[^>]*className=/, 'Expense components must not pass className to Base Components');
+      [summarySource, txFieldsSource, txFormSource, txTableSource, txFiltersSource, toolResultSource, toolSummarySource, proposalSource, txPageSource].forEach(src => {
+        assert.doesNotMatch(src, /<(Stack|Inline|Grid|Button)[^>]*className=/, 'Transaction components must not pass className to Base Components');
       });
     });
 
@@ -354,11 +378,15 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
         'utf8'
       );
       const reviewSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/receipts/ReceiptReview.jsx'),
+        path.join(clientSrcDir, 'composites/transactions/TransactionDraftReview.jsx'),
         'utf8'
       );
       const receiptsViewSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/receipts/ReceiptsView.jsx'),
+        path.join(clientSrcDir, 'features/receipt/ScanReceiptPage.jsx'),
+        'utf8'
+      );
+      const receiptUploadCardSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/receipt/ReceiptUploadCard.jsx'),
         'utf8'
       );
       const sidebarSource = fs.readFileSync(
@@ -375,15 +403,15 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.match(homeSource, /<Inline justify="between" align="center" wrap/, 'HomePage must compose Inline');
       assert.match(kbStatsSource, /<Grid columns=\{4\} gap="md"/, 'KnowledgeBaseSummary must compose Grid');
       assert.doesNotMatch(kbStatsSource, /<div className="stats-grid"/, 'KnowledgeBaseSummary must not wrap Grid in stats-grid');
-      assert.match(reviewSource, /<Inline justify="between" align="start" fullWidth>/, 'ReceiptReview must compose Inline');
-      assert.match(reviewSource, /<Grid columns=\{2\} gap="md">/, 'ReceiptReview must compose Grid');
-      assert.match(receiptsViewSource, /<Inline gap="sm">/, 'ReceiptsView must compose Inline');
+      assert.match(reviewSource, /<Inline justify="between" align="start" fullWidth>/, 'TransactionDraftReview must compose Inline');
+      assert.match(reviewSource, /<Grid columns=\{2\} gap="md">/, 'TransactionDraftReview must compose Grid');
+      assert.match(receiptUploadCardSource, /<Card as="section" variant="outlined" padding="md"/, 'ReceiptUploadCard must compose Card');
       assert.match(sidebarSource, /<Inline gap="sm" align="center">/, 'AppSidebar must compose Inline for brand');
       assert.match(sidebarSource, /<Inline gap="sm" align="center">/, 'AppSidebar must compose Inline for user');
       assert.match(confirmDialogSource, /<Inline gap="sm" align="center">/, 'ConfirmDialog must compose Inline for title group');
       assert.match(confirmDialogSource, /<Inline gap="sm" justify="end">/, 'ConfirmDialog must compose Inline for actions');
 
-      [homeSource, kbStatsSource, reviewSource, receiptsViewSource, sidebarSource, confirmDialogSource].forEach(src => {
+      [homeSource, kbStatsSource, reviewSource, receiptsViewSource, receiptUploadCardSource, sidebarSource, confirmDialogSource].forEach(src => {
         assert.doesNotMatch(src, /<(Stack|Inline|Grid|Button)[^>]*className=/, 'Must not pass className to Base Components');
       });
     });
@@ -411,17 +439,19 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.match(compositeIndex, /Alert/, 'compositeComponents barrel must export Alert');
     });
 
-    it('verifies AuthPage and ResetPasswordPage adopt Alert and layout primitives', () => {
-      const authSource = fs.readFileSync(path.join(clientSrcDir, 'features/auth/AuthPage.jsx'), 'utf8');
+    it('verifies AuthPage, AuthForm, AuthShowcase, and ResetPasswordPage adopt Alert and layout primitives', () => {
+      const authPageSource = fs.readFileSync(path.join(clientSrcDir, 'features/auth/AuthPage.jsx'), 'utf8');
+      const formSource = fs.readFileSync(path.join(clientSrcDir, 'features/auth/AuthForm.jsx'), 'utf8');
+      const showcaseSource = fs.readFileSync(path.join(clientSrcDir, 'features/auth/AuthShowcase.jsx'), 'utf8');
       const resetSource = fs.readFileSync(path.join(clientSrcDir, 'features/auth/ResetPasswordPage.jsx'), 'utf8');
 
-      assert.match(authSource, /<Alert variant="info"/, 'AuthPage must use Alert for notices');
-      assert.doesNotMatch(authSource, /<div className="auth-alert/, 'AuthPage must not use div.auth-alert directly');
-      assert.match(authSource, /<Inline gap="sm" align="center">/, 'AuthPage brand must use Inline');
-      assert.match(authSource, /<Stack gap="md">/, 'AuthPage showcase content must use Stack');
-      assert.match(authSource, /<Stack gap="lg">/, 'AuthPage card must use Stack');
-      assert.match(authSource, /<(?:CardHeader|Header) as="header">\s*<Stack gap="xs">/, 'AuthPage card header must use Header and Stack');
-      assert.match(authSource, /<Inline justify="end">/, 'AuthPage forgot password must use Inline');
+      assert.match(formSource, /<Alert variant="info"/, 'AuthForm must use Alert for notices');
+      assert.doesNotMatch(formSource, /<div className="auth-alert/, 'AuthForm must not use div.auth-alert directly');
+      assert.match(showcaseSource, /<Inline gap="sm" align="center">/, 'AuthShowcase brand must use Inline');
+      assert.match(showcaseSource, /<Stack gap="md">/, 'AuthShowcase content must use Stack');
+      assert.match(formSource, /<Stack gap="md">/, 'AuthForm card must use Stack');
+      assert.match(authPageSource, /<(?:CardHeader|Header) as="header">\s*<Stack gap="xs">/, 'AuthPage card header must use Header and Stack');
+      assert.match(formSource, /<Inline justify="end">/, 'AuthForm forgot password must use Inline');
 
       assert.match(resetSource, /<Alert variant="error"/, 'ResetPasswordPage must use Alert for error');
       assert.match(resetSource, /<Alert variant="info"/, 'ResetPasswordPage must use Alert for message');
@@ -429,9 +459,9 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.match(resetSource, /<Stack as="section" gap="lg">/, 'ResetPasswordPage must compose Stack for auth-card');
     });
 
-    it('verifies AnalyticsHistoryTable and ChatHistoryTab use EmptyState directly without redundant classes', () => {
+    it('verifies AIUsageHistoryTable and ChatHistoryTab use EmptyState directly without redundant classes', () => {
       const historyTableSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsHistoryTable.jsx'),
+        path.join(clientSrcDir, 'features/aiUsage/AIUsageHistoryTable.jsx'),
         'utf8'
       );
       const chatHistorySource = fs.readFileSync(
@@ -439,38 +469,38 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
         'utf8'
       );
 
-      assert.doesNotMatch(historyTableSource, /analytics-empty-search/, 'AnalyticsHistoryTable must eliminate analytics-empty-search');
-      assert.match(historyTableSource, /<EmptyState\b[\s\S]*?message=\{[\s\S]*?actions=\{/, 'AnalyticsHistoryTable must pass message and actions directly to EmptyState');
+      assert.doesNotMatch(historyTableSource, /analytics-empty-search/, 'AIUsageHistoryTable must eliminate analytics-empty-search');
+      assert.match(historyTableSource, /<EmptyState\b[\s\S]*?message=\{[\s\S]*?actions=\{/, 'AIUsageHistoryTable must pass message and actions directly to EmptyState');
 
       assert.doesNotMatch(chatHistorySource, /ai-history--empty/, 'ChatHistoryTab must eliminate ai-history--empty');
       assert.match(chatHistorySource, /<EmptyState message=\{emptyLabel\} \/>/, 'ChatHistoryTab must compose EmptyState');
     });
 
-    it('verifies DocumentTable and TransactionProposalCard eliminate redundant wrapper elements', () => {
+    it('verifies DocumentTable and TransactionDraftReview eliminate redundant wrapper elements', () => {
       const docTableSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/documents/DocumentTable.jsx'),
+        path.join(clientSrcDir, 'features/document/DocumentTable.jsx'),
         'utf8'
       );
       const proposalSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/assistant/TransactionProposalCard.jsx'),
+        path.join(clientSrcDir, 'composites/transactions/TransactionDraftReview.jsx'),
         'utf8'
       );
 
       assert.doesNotMatch(docTableSource, /table-pagination-wrapper/, 'DocumentTable must eliminate table-pagination-wrapper');
       assert.match(docTableSource, /<Pagination\b/, 'Pagination must be a direct child in DocumentTable');
 
-      assert.doesNotMatch(proposalSource, /agent-proposal-container/, 'TransactionProposalCard must eliminate agent-proposal-container');
-      assert.match(proposalSource, /<Card as="section" variant="glass">/, 'TransactionProposalCard must render Card directly');
+      assert.doesNotMatch(proposalSource, /agent-proposal-container/, 'TransactionDraftReview must eliminate agent-proposal-container');
+      assert.match(proposalSource, /<Card as="section" variant="glass"/, 'TransactionDraftReview must render Card directly');
     });
 
-    it('verifies TransactionTable composes Grid and Inline for filter toolbars', () => {
-      const txTableSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/TransactionTable.jsx'),
+    it('verifies TransactionFiltersBar composes Inline for filter toolbars', () => {
+      const txFiltersSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/transaction/TransactionFiltersBar.jsx'),
         'utf8'
       );
 
-      assert.match(txTableSource, /<Inline\b/, 'TransactionTable must define filters container using Inline');
-      assert.match(txTableSource, /<Inline align="center">/, 'TransactionTable must compose Inline for filter-actions');
+      assert.match(txFiltersSource, /<Inline\b/, 'TransactionFiltersBar must define filters container using Inline');
+      assert.match(txFiltersSource, /<Inline align="center">/, 'TransactionFiltersBar must compose Inline for filter-actions');
     });
 
     it('verifies ConfirmDialog and EmptyState standardize headers and internal actions', () => {
@@ -495,9 +525,9 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       );
     });
 
-    it('verifies AnalyticsPage and KnowledgeBasePage compose Stack for dashboard containers', () => {
+    it('verifies AIUsagePage and KnowledgeBasePage compose Stack for dashboard containers', () => {
       const analyticsSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsPage.jsx'),
+        path.join(clientSrcDir, 'features/aiUsage/AIUsagePage.jsx'),
         'utf8'
       );
       const kbSource = fs.readFileSync(
@@ -546,9 +576,9 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.match(compositeIndex, /ConfirmDialog/, 'compositeComponents index must export ConfirmDialog');
     });
 
-    it('verifies TransactionForm and ConfirmDialog compose Backdrop', () => {
+    it('verifies ManualEntry and ConfirmDialog compose Backdrop', () => {
       const txFormSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/expense/TransactionForm.jsx'),
+        path.join(clientSrcDir, 'features/transaction/ManualEntry.jsx'),
         'utf8'
       );
       const confirmDialogSource = fs.readFileSync(
@@ -580,7 +610,7 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       );
       assert.match(
         paginationSource,
-        /<Inline gap="sm" align="center">/,
+        /<Inline gap="sm" align="center" wrap>/,
         'Pagination must compose Inline for pagination-info'
       );
     });
@@ -641,17 +671,17 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.match(cardTitleSource, /className:\s*_strippedClassName/, 'CardTitle must strip styling escape hatches');
     });
 
-    it('verifies CardTitle is consumed by AnalyticsCharts, ChunkCard, DocumentEditor, and ConfirmDialog', () => {
+    it('verifies CardTitle is consumed by AIUsageCharts, ChunkCard, DocumentEditor, and ConfirmDialog', () => {
       const analyticsChartsSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsCharts.jsx'),
+        path.join(clientSrcDir, 'features/aiUsage/AIUsageCharts.jsx'),
         'utf8'
       );
       const chunkCardSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/documents/ChunkCard.jsx'),
+        path.join(clientSrcDir, 'features/document/ChunkCard.jsx'),
         'utf8'
       );
-      const docEditorSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/documents/DocumentEditor.jsx'),
+      const docViewerSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/document/DocumentViewer.jsx'),
         'utf8'
       );
       const confirmDialogSource = fs.readFileSync(
@@ -665,8 +695,8 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.match(chunkCardSource, /<CardTitle as="h4">/, 'ChunkCard must compose CardTitle as h4');
       assert.doesNotMatch(chunkCardSource, /<h4 className="card-title">/, 'ChunkCard must not use native h4.card-title');
 
-      assert.match(docEditorSource, /<CardTitle as="h3">/, 'DocumentEditor must compose CardTitle as h3');
-      assert.doesNotMatch(docEditorSource, /<h3 className="card-title">/, 'DocumentEditor must not use native h3.card-title');
+      assert.match(docViewerSource, /<CardTitle as="h3">/, 'DocumentViewer must compose CardTitle as h3');
+      assert.doesNotMatch(docViewerSource, /<h3 className="card-title">/, 'DocumentViewer must not use native h3.card-title');
 
       assert.match(confirmDialogSource, /<CardTitle id="confirm-dialog-title" as="h3">/, 'ConfirmDialog must compose CardTitle');
       assert.doesNotMatch(confirmDialogSource, /<h3 id="confirm-dialog-title" className="confirm-dialog-title card-title">/, 'ConfirmDialog must not use native h3');
@@ -678,7 +708,7 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.doesNotMatch(errorTextSource, /@param\s+\{string\}\s+\[props\.className/, 'ErrorText must not declare props.className in JSDoc');
 
       const receiptReviewSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/receipts/ReceiptReview.jsx'),
+        path.join(clientSrcDir, 'composites/transactions/TransactionDraftReview.jsx'),
         'utf8'
       );
       assert.match(receiptReviewSource, /<ErrorText as="p">/, 'ReceiptReview must compose clean ErrorText without external className override');
@@ -696,13 +726,13 @@ describe('FRONTEND COMPONENT & LAYOUT STANDARDIZATION SUITE', () => {
       assert.doesNotMatch(appSource, /<Grid[^>]*className=/, 'RouteLoadingFallback must not pass className to Grid');
     });
 
-    it('verifies AnalyticsCharts BreakdownList composes Inline for bar rows', () => {
-      const analyticsChartsSource = fs.readFileSync(
-        path.join(clientSrcDir, 'features/analytics/AnalyticsCharts.jsx'),
+    it('verifies BreakdownList composes Inline for bar rows', () => {
+      const breakdownSource = fs.readFileSync(
+        path.join(clientSrcDir, 'features/aiUsage/BreakdownList.jsx'),
         'utf8'
       );
       assert.match(
-        analyticsChartsSource,
+        breakdownSource,
         /<Inline key=\{item\.name\} gap="sm" align="center" fullWidth>/,
         'BreakdownList must compose Inline for bar-row'
       );

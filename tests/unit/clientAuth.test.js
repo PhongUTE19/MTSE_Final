@@ -1,5 +1,11 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const readClientFile = (relPath) => fs.readFileSync(path.join(ROOT, 'client', 'src', relPath), 'utf8');
 
 import {
   getUserRole,
@@ -82,10 +88,11 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(getPostAuthPath('admin', ''), '/home');
     });
 
-    it('preserves canonical and legacy admin routes when explicitly requested by an admin', () => {
+    it('preserves canonical admin routes when explicitly requested by an admin and redirects expense routes to /home', () => {
       assert.equal(getPostAuthPath('admin', '/admin/knowledge-base'), '/admin/knowledge-base');
-      assert.equal(getPostAuthPath('admin', '/admin/analytics'), '/admin/analytics');
-      assert.equal(getPostAuthPath('admin', '/expense'), '/expense');
+      assert.equal(getPostAuthPath('admin', '/admin/ai-usage'), '/admin/ai-usage');
+      assert.equal(getPostAuthPath('admin', '/expense'), '/home');
+      assert.equal(getPostAuthPath('admin', '/expense/transactions'), '/home');
     });
 
     it('redirects non-admin users to / by default', () => {
@@ -104,7 +111,7 @@ describe('Client Authentication and Role Routing Suite', () => {
     it('normalizes legacy and canonical path destinations', () => {
       assert.equal(safeNextPath('/expense.html'), '/expense');
       assert.equal(safeNextPath('/admin/knowledge-base'), '/admin/knowledge-base');
-      assert.equal(safeNextPath('/admin/analytics'), '/admin/analytics');
+      assert.equal(safeNextPath('/admin/ai-usage'), '/admin/ai-usage');
       assert.equal(safeNextPath('/home'), '/home');
       assert.equal(safeNextPath('/expense'), '/expense');
       assert.equal(safeNextPath('/invalid-path'), '/home');
@@ -235,23 +242,28 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.deepEqual(redirects, ['/home']);
     });
 
-    it('expenseApi reuses consolidated apiClient and exposes all required methods', async () => {
-      const { expenseApi } = await import('../../client/src/features/expense/expenseApi.js');
-      assert.equal(typeof expenseApi.list, 'function');
-      assert.equal(typeof expenseApi.create, 'function');
-      assert.equal(typeof expenseApi.update, 'function');
-      assert.equal(typeof expenseApi.remove, 'function');
-      assert.equal(typeof expenseApi.upload, 'function');
-      assert.equal(typeof expenseApi.listReceipts, 'function');
-      assert.equal(typeof expenseApi.previewReceipt, 'function');
-      assert.equal(typeof expenseApi.retryReceipt, 'function');
-      assert.equal(typeof expenseApi.confirmReceipt, 'function');
-      assert.equal(typeof expenseApi.deleteReceipt, 'function');
-      assert.equal(typeof expenseApi.askExpenseAssistant, 'function');
-      assert.equal(typeof expenseApi.searchAgentTransactions, 'function');
-      assert.equal(typeof expenseApi.createAgentProposal, 'function');
-      assert.equal(typeof expenseApi.confirmAgentProposal, 'function');
-      assert.equal(typeof expenseApi.cancelAgentProposal, 'function');
+    it('feature API modules reuse consolidated apiClient and expose all required methods', async () => {
+      const { transactionApi } = await import('../../client/src/features/transaction/transactionApi.js');
+      const { receiptApi } = await import('../../client/src/features/receipt/receiptApi.js');
+      const { expenseAssistantApi } = await import('../../client/src/features/expenseAssistant/expenseAssistantApi.js');
+      const { draftStorage } = await import('../../client/src/features/transactionDraft/draftStorage.js');
+      assert.equal(typeof transactionApi.list, 'function');
+      assert.equal(typeof transactionApi.create, 'function');
+      assert.equal(typeof transactionApi.update, 'function');
+      assert.equal(typeof transactionApi.remove, 'function');
+      assert.equal(typeof receiptApi.upload, 'function');
+      assert.equal(typeof receiptApi.confirm, 'function');
+      assert.equal(typeof receiptApi.listReceipts, 'function');
+      assert.equal(typeof receiptApi.previewReceipt, 'function');
+      assert.equal(typeof receiptApi.retryReceipt, 'function');
+      assert.equal(typeof expenseAssistantApi.askExpenseAssistant, 'function');
+      assert.equal(typeof expenseAssistantApi.searchAgentTransactions, 'function');
+      assert.equal(typeof expenseAssistantApi.createAgentProposal, 'function');
+      assert.equal(typeof draftStorage.listDrafts, 'function');
+      assert.equal(typeof draftStorage.getDraft, 'function');
+      assert.equal(typeof draftStorage.updateDraft, 'function');
+      assert.equal(typeof draftStorage.createDraft, 'function');
+      assert.equal(typeof draftStorage.deleteDraft, 'function');
     });
 
     it('validates password length boundary of at least 8 characters without trimming', async () => {
@@ -266,6 +278,19 @@ describe('Client Authentication and Role Routing Suite', () => {
       assert.equal(validateEmail('').isValid, false);
       assert.equal(validateEmail('invalid').isValid, false);
       assert.equal(validateEmail('student@hcmute.edu.vn').isValid, true);
+    });
+
+    it('RoleRouteGuard and AuthenticatedRouteGuard prevent unauthorized access without premature loading redirects', () => {
+      const roleGuardSource = readClientFile('app/guards/RoleRouteGuard.jsx');
+      const adminGuardSource = readClientFile('app/guards/AdminRouteGuard.jsx');
+      const authGuardSource = readClientFile('app/guards/AuthenticatedRouteGuard.jsx');
+      const useSessionSource = readClientFile('shared/hooks/useSession.js');
+
+      assert.match(roleGuardSource, /if \(role !== allowedRole\)\s*\{\s*return <Navigate to=\{APP_ROUTES\.HOME\} replace \/>;\s*\}/);
+      assert.match(adminGuardSource, /<RoleRouteGuard allowedRole="admin"/);
+      assert.match(authGuardSource, /if \(!session\) \{\s*return \(/);
+      assert.match(useSessionSource, /const \[session, setSession\] = useState\(undefined\);/);
+      assert.match(useSessionSource, /loading: session === undefined/);
     });
   });
 });

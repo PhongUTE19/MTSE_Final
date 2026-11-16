@@ -4,7 +4,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { isProposalExpiredOrMissing } from '../../client/src/features/expense/assistant/proposalUtils.js';
 import { buildHistoryPayload } from '../../client/src/features/chat/chatHistory.js';
 import { pushOverlay, isTopmostOverlay, clearOverlayStack } from '../../client/src/shared/utils/overlayStack.js';
 
@@ -16,41 +15,19 @@ describe('FE-FIX-03: Chatbot Proposal Lifecycle and Conversation State Managemen
     clearOverlayStack();
   });
 
-  describe('1. Proposal Expiration and Missing Error Detection (proposalUtils.js)', () => {
-    it('detects 404 Not Found error as expired or missing', () => {
-      const err = new Error('Transaction proposal was not found.');
-      err.status = 404;
-      assert.equal(isProposalExpiredOrMissing(err), true);
+  describe('1. ToolProposalResult Draft Lifecycle States (ToolProposalResult.jsx)', () => {
+    const proposalResultSource = readSource('client/src/features/expenseAssistant/ToolProposalResult.jsx');
+
+    it('tracks confirmed, rejected, and pending_review states cleanly', () => {
+      assert.match(proposalResultSource, /result\?\.draft\?\.status \|\| result\?\.status \|\| 'pending_review'/);
+      assert.match(proposalResultSource, /if \(localStatus === 'confirmed'\)/);
+      assert.match(proposalResultSource, /if \(localStatus === 'rejected'\)/);
     });
 
-    it('detects 409 Conflict error as already processed / stale', () => {
-      const err = new Error('Transaction proposal has already been processed.');
-      err.status = 409;
-      assert.equal(isProposalExpiredOrMissing(err), true);
-    });
-
-    it('detects 400 Expired proposal error', () => {
-      const err = new Error('Transaction proposal has expired. Please create a new one.');
-      err.status = 400;
-      assert.equal(isProposalExpiredOrMissing(err), true);
-    });
-
-    it('detects expiration message even without numeric status code', () => {
-      assert.equal(isProposalExpiredOrMissing(new Error('This proposal has expired.')), true);
-      assert.equal(isProposalExpiredOrMissing(new Error('Transaction proposal was not found.')), true);
-      assert.equal(isProposalExpiredOrMissing(new Error('Transaction proposal has already been processed.')), true);
-    });
-
-    it('does NOT treat validation or generic errors as expired/missing', () => {
-      const valErr = new Error('Amount must be a positive number.');
-      valErr.status = 400;
-      assert.equal(isProposalExpiredOrMissing(valErr), false);
-
-      const netErr = new Error('Network error. Failed to fetch.');
-      netErr.status = 500;
-      assert.equal(isProposalExpiredOrMissing(netErr), false);
-
-      assert.equal(isProposalExpiredOrMissing(null), false);
+    it('surfaces confirm and reject errors via actionError and rethrows for TransactionDraftReview', () => {
+      assert.match(proposalResultSource, /setActionError\(err\?\.message \|\| 'Failed to confirm transaction\.'\)/);
+      assert.match(proposalResultSource, /setActionError\(err\?\.message \|\| 'Failed to discard proposal\.'\)/);
+      assert.match(proposalResultSource, /throw err;/);
     });
   });
 
@@ -100,85 +77,143 @@ describe('FE-FIX-03: Chatbot Proposal Lifecycle and Conversation State Managemen
     });
   });
 
-  describe('3. TransactionProposalCard Component Architecture & Loading States', () => {
-    const cardSource = readSource('client/src/features/expense/assistant/TransactionProposalCard.jsx');
+  describe('3. TransactionDraftReview Component Architecture & Loading States', () => {
+    const cardSource = readSource('client/src/composites/transactions/TransactionDraftReview.jsx');
 
-    it('supports separate isConfirming and isCancelling props', () => {
+    it('supports separate isConfirming and isRejecting props', () => {
       assert.match(cardSource, /isConfirming\s*=\s*false/);
-      assert.match(cardSource, /isCancelling\s*=\s*false/);
+      assert.match(cardSource, /isRejecting\s*=\s*false/);
     });
 
     it('differentiates saving vs discarding loading states', () => {
-      assert.match(cardSource, /const\s+isSaving\s*=\s*isConfirming\s*\|\|\s*\(busy\s*&&\s*!isCancelling\)/);
-      assert.match(cardSource, /const\s+isDiscarding\s*=\s*isCancelling/);
+      assert.match(cardSource, /const\s+isSaving\s*=\s*isConfirming\s*\|\|\s*internalAction\s*===\s*'saving'\s*\|\|\s*\(busy\s*&&\s*!isRejecting\)/);
+      assert.match(cardSource, /const\s+isDiscarding\s*=\s*isRejecting\s*\|\|\s*internalAction\s*===\s*'rejecting'/);
       assert.match(cardSource, /const\s+isAnyBusy\s*=\s*isSaving\s*\|\|\s*isDiscarding/);
     });
 
-    it('attaches isDiscarding loading state only to cancel button and isSaving to confirm button', () => {
+    it('attaches isDiscarding loading state only to reject button and isSaving to confirm button', () => {
       assert.match(cardSource, /loading=\{isDiscarding\}/);
       assert.match(cardSource, /loading=\{isSaving\}/);
       assert.match(cardSource, /disabled=\{isAnyBusy\}/);
     });
   });
 
-  describe('4. ExpenseAssistant State Isolation and Expiration Handling', () => {
-    const assistantSource = readSource('client/src/features/expense/assistant/ExpenseAssistant.jsx');
+  describe('4. ExpenseAssistant State Isolation and Draft Lifecycle Handling', () => {
+    const assistantSource = readSource('client/src/features/expenseAssistant/ExpenseAssistant.jsx');
 
-    it('imports and utilizes isProposalExpiredOrMissing', () => {
-      assert.match(assistantSource, /import\s*\{\s*isProposalExpiredOrMissing\s*\}\s*from\s*['"]\.\/proposalUtils(\.js)?['"]/);
+    it('delegates draft confirmation and rejection to onConfirmDraft and onRejectDraft', () => {
+      assert.match(assistantSource, /onConfirmDraft/);
+      assert.match(assistantSource, /onRejectDraft/);
     });
 
-    it('defines distinct isConfirmingProposal and isCancellingProposal state variables', () => {
-      assert.match(assistantSource, /const\s*\[isConfirmingProposal,\s*setIsConfirmingProposal\]\s*=\s*useState\(false\)/);
-      assert.match(assistantSource, /const\s*\[isCancellingProposal,\s*setIsCancellingProposal\]\s*=\s*useState\(false\)/);
-    });
-
-    it('clears proposal, resets loading states, and closes receipt when activeId changes', () => {
+    it('closes in-flight receipt when activeId changes', () => {
       assert.match(assistantSource, /if\s*\(activeIdRef\.current\s*!==\s*assistant\.activeId\)\s*\{/);
-      assert.match(assistantSource, /setProposal\(null\)/);
-      assert.match(assistantSource, /setIsConfirmingProposal\(false\)/);
-      assert.match(assistantSource, /setIsCancellingProposal\(false\)/);
       assert.match(assistantSource, /closeReceipt\(\)/);
     });
 
-    it('clears proposal when isProposalExpiredOrMissing is true in handleConfirmProposal', () => {
-      assert.match(assistantSource, /if\s*\(isProposalExpiredOrMissing\(requestError\)\)\s*\{\s*setProposal\(null\)/);
-    });
-
-    it('clears proposal when isProposalExpiredOrMissing is true in handleCancelProposal', () => {
-      assert.match(assistantSource, /async function handleCancelProposal\(\)/);
-      assert.match(assistantSource, /if\s*\(isProposalExpiredOrMissing\(requestError\)\)\s*\{\s*[\s\S]*?setProposal\(null\)/);
-    });
-
-    it('protects against cross-conversation async responses during onSendMessage', () => {
-      assert.match(assistantSource, /if\s*\(activeIdRef\.current\s*===\s*sendingConversationId\)/);
+    it('passes sendingConversationId context during onSendMessage', () => {
+      assert.match(assistantSource, /const sendingConversationId = context\?\.conversationId \|\| activeIdRef\.current;/);
+      assert.match(assistantSource, /onAsk\(text, history, \{ conversationId: sendingConversationId \}\)/);
     });
   });
 
-  describe('5. useChat Conversation Isolation, Deletion, and Message Guard', () => {
+  describe('5. useChat / createChatController Conversation Isolation, Deletion, and Message Guard', () => {
     const useChatSource = readSource('client/src/features/chat/useChat.js');
 
-    it('clears error whenever activeId changes', () => {
-      assert.match(useChatSource, /useEffect\(\(\)\s*=>\s*\{\s*setError\(''\);\s*\},?\s*\[activeId\]\)/);
+    it('useChat delegates conversation state management to createChatController', () => {
+      assert.match(useChatSource, /createChatController/);
     });
 
-    it('does not reset activeId or change tab when deleting an inactive conversation', () => {
-      assert.match(useChatSource, /if\s*\(id\s*===\s*activeId\)\s*\{[\s\S]*?setActiveId\(next\.id\);[\s\S]*?setTab\('chat'\);[\s\S]*?\}\s*else\s*\{\s*setConversations\(remaining\);\s*\}/);
+    it('clears error whenever activeId changes', async () => {
+      const { createChatController } = await import('../../client/src/features/chat/chatController.js');
+      const controller = createChatController({
+        storage: null,
+        historyApi: {
+          listConversations: async () => ({
+            conversations: [
+              { id: 'c1', title: 'One', updatedAt: '2026-11-17T00:00:00Z' },
+              { id: 'c2', title: 'Two', updatedAt: '2026-11-17T00:00:00Z' },
+            ],
+          }),
+          getConversation: async () => ({ conversation: {}, messages: [] }),
+        },
+      });
+      await controller.loadUserConversations('user-1');
+      controller.setError('Previous error');
+      await controller.selectConversation('c2');
+      assert.equal(controller.getState().error, '');
     });
 
-    it('enforces 1000-character limit check before sending message in sendMessage', () => {
-      assert.match(useChatSource, /trimmed\.length\s*>\s*1000/);
-      assert.match(useChatSource, /setError\(['"].*1000.*['"]\)/);
+    it('does not reset activeId when deleting an inactive conversation', async () => {
+      const { createChatController } = await import('../../client/src/features/chat/chatController.js');
+      const controller = createChatController({
+        storage: null,
+        historyApi: {
+          listConversations: async () => ({
+            conversations: [
+              { id: 'c1', title: 'One', updatedAt: '2026-11-17T00:00:00Z' },
+              { id: 'c2', title: 'Two', updatedAt: '2026-11-17T00:00:00Z' },
+            ],
+          }),
+          getConversation: async () => ({ conversation: {}, messages: [] }),
+          deleteConversation: async () => ({ deleted: true }),
+        },
+      });
+      await controller.loadUserConversations('user-1');
+      assert.equal(controller.getState().activeId, 'c1');
+      await controller.removeConversation('c2');
+      assert.equal(controller.getState().activeId, 'c1');
+      assert.deepEqual(controller.getState().conversations.map((c) => c.id), ['c1']);
     });
 
-    it('formats history using buildHistoryPayload', () => {
-      assert.match(useChatSource, /const\s+history\s*=\s*buildHistoryPayload\(active\.messages,\s*8,\s*1000\)/);
+    it('enforces 1000-character limit check before sending message in sendMessage', async () => {
+      const { createChatController } = await import('../../client/src/features/chat/chatController.js');
+      let sent = false;
+      const controller = createChatController({
+        storage: null,
+        historyApi: { listConversations: async () => ({ conversations: [] }) },
+        onSendMessage: async () => { sent = true; return { answer: 'ok' }; },
+      });
+      await controller.loadUserConversations('user-1');
+      await controller.sendMessage('a'.repeat(1001));
+      assert.equal(sent, false);
+      assert.match(controller.getState().error, /1000/);
     });
 
-    it('safely associates async messages with targetConversationId', () => {
-      assert.match(useChatSource, /const\s+targetConversationId\s*=\s*active\.id/);
-      assert.match(useChatSource, /appendMessageToConversation\(targetConversationId,\s*'user',\s*trimmed\)/);
-      assert.match(useChatSource, /appendMessageToConversation\(targetConversationId,\s*'assistant'/);
+    it('formats history using buildHistoryPayload and associates async response with targetConversationId', async () => {
+      const { createChatController } = await import('../../client/src/features/chat/chatController.js');
+      let capturedHistory = null;
+      let capturedContext = null;
+      const controller = createChatController({
+        storage: null,
+        historyApi: {
+          listConversations: async () => ({
+            conversations: [
+              { id: 'c1', title: 'One', updatedAt: '2026-11-17T00:00:00Z' },
+              { id: 'c2', title: 'Two', updatedAt: '2026-11-17T00:00:00Z' },
+            ],
+          }),
+          getConversation: async (id) => ({
+            conversation: { id },
+            messages: id === 'c1' ? [{ id: 'm1', role: 'user', text: 'Prior turn' }] : [],
+          }),
+          appendMessage: async (_id, msg) => ({ message: msg }),
+          updateConversation: async (_id, patch) => ({ conversation: patch }),
+        },
+        onSendMessage: async (_text, history, context) => {
+          capturedHistory = history;
+          capturedContext = context;
+          await controller.selectConversation('c2');
+          return { answer: 'Reply for c1' };
+        },
+      });
+
+      await controller.loadUserConversations('user-1');
+      await controller.sendMessage('Follow up');
+      assert.deepEqual(capturedHistory, [{ role: 'user', text: 'Prior turn' }]);
+      assert.equal(capturedContext.conversationId, 'c1');
+      const c1 = controller.getState().conversations.find((c) => c.id === 'c1');
+      assert.equal(c1.messages.at(-1).text, 'Reply for c1');
     });
   });
 

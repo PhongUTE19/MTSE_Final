@@ -38,7 +38,7 @@ import {
   filterInMemoryRecords,
   SORT_FIELDS,
   SORT_ORDERS,
-} from '../../server/src/features/analytics/index.js';
+} from '../../server/src/features/aiUsage/index.js';
 
 describe('AI Usage Analytics Suite', () => {
   let tracker;

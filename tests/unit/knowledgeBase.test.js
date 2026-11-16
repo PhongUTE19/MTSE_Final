@@ -6,6 +6,14 @@ import { fileURLToPath } from 'url';
 import { loadAndChunkMarkdown, recursiveCharacterTextSplit } from '../../server/src/features/knowledgeBase/chunker.js';
 import { buildGroundedPrompt, formatContextSections } from '../../server/src/features/knowledgeBase/promptBuilder.js';
 import { executeRAG } from '../../server/src/features/knowledgeBase/ragService.js';
+import { runIndexer } from '../../server/src/features/knowledgeBase/indexer.js';
+import {
+  initVectorStore,
+  getVectorStoreCount,
+  searchVectorPoints,
+  setQdrantClientForTests,
+} from '../../server/src/features/knowledgeBase/vectorStore.js';
+import { config } from '../../server/src/config.js';
 import { SERVER_MESSAGES } from '../../server/src/constants/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -156,6 +164,78 @@ describe('Knowledge Base Chunking and Prompt Construction Suite', () => {
       assert.equal(result.passedThreshold, false);
       assert.equal(result.refusalText, SERVER_MESSAGES.ERRORS.INSUFFICIENT_INFORMATION);
       assert.deepEqual(result.sources, []);
+    });
+  });
+
+  describe('3. Non-Destructive Qdrant Adapter & Embedding Validation', () => {
+    it('rejects invalid embedding dimensions before creating any shadow collection', async () => {
+      let created = false;
+      const mockClient = {
+        createCollection: async () => { created = true; },
+        getAliases: async () => ({ aliases: [] }),
+        getCollections: async () => ({ collections: [] }),
+      };
+
+      await assert.rejects(
+        () => runIndexer({
+          knowledgeDir,
+          client: mockClient,
+          embedder: async () => [0.1, 0.2], // wrong dimension
+        }),
+        /Invalid embedding dimension/
+      );
+      assert.equal(created, false);
+    });
+
+    it('initVectorStore bootstraps active alias for legacy physical "spendwise" without deleting it', async () => {
+      let deleted = false;
+      const aliasActions = [];
+      const mockClient = {
+        getAliases: async () => ({ aliases: [] }),
+        getCollections: async () => ({ collections: [{ name: config.qdrantCollection }] }),
+        deleteCollection: async () => { deleted = true; },
+        updateCollectionAliases: async ({ actions }) => { aliasActions.push(...actions); },
+      };
+
+      setQdrantClientForTests(mockClient);
+      try {
+        await initVectorStore();
+        assert.equal(deleted, false);
+        assert.deepEqual(aliasActions, [
+          { create_alias: { collection_name: config.qdrantCollection, alias_name: config.qdrantActiveAlias } },
+        ]);
+      } finally {
+        setQdrantClientForTests(null);
+      }
+    });
+
+    it('searchVectorPoints and getVectorStoreCount prefer active alias and fall back to legacy collection', async () => {
+      const queriedTargets = [];
+      const mockClient = {
+        getAliases: async () => ({ aliases: [{ alias_name: config.qdrantActiveAlias, collection_name: 'spendwise_v2' }] }),
+        collectionExists: async () => ({ exists: true }),
+        count: async (target) => {
+          queriedTargets.push(`count:${target}`);
+          return { count: 12 };
+        },
+        query: async (target) => {
+          queriedTargets.push(`query:${target}`);
+          return { points: [{ id: 1, score: 0.9, payload: { id: 'c1', title: 'T', content: 'C', source: 's.md' } }] };
+        },
+      };
+
+      setQdrantClientForTests(mockClient);
+      try {
+        assert.equal(await getVectorStoreCount(), 12);
+        const pts = await searchVectorPoints({ vector: [0.1], limit: 2 });
+        assert.equal(pts.length, 1);
+        assert.deepEqual(queriedTargets, [
+          `count:${config.qdrantActiveAlias}`,
+          `query:${config.qdrantActiveAlias}`,
+        ]);
+      } finally {
+        setQdrantClientForTests(null);
+      }
     });
   });
 });

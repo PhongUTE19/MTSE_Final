@@ -39,11 +39,46 @@ describe('Currency Standardization and Personal Finance Formatting Suite', () =>
   });
 
   describe('2. parseMoney numeric parsing', () => {
-    it('parses numeric values and strings to integer VND', () => {
-      assert.equal(parseMoney(50000), 50000);
-      assert.equal(parseMoney('50000'), 50000);
+    it('parses plain, negative, and comma-separated VND values', () => {
+      assert.equal(parseMoney(183000), 183000);
+      assert.equal(parseMoney(0), 0);
+      assert.equal(parseMoney(-50000), -50000);
+      assert.equal(parseMoney('183000'), 183000);
+      assert.equal(parseMoney('0'), 0);
+      assert.equal(parseMoney('-50,000'), -50000);
+      assert.equal(parseMoney('-₫50,000'), -50000);
       assert.equal(parseMoney('50,000'), 50000);
+      assert.equal(parseMoney('1,500,000'), 1500000);
       assert.equal(parseMoney('50000 ₫'), 50000);
+    });
+
+    it('parses Vietnamese dot-grouped thousands, đ/Đ/₫ symbols, whitespace, and shorthand k', () => {
+      assert.equal(parseMoney('183.000'), 183000);
+      assert.equal(parseMoney('1.500.000'), 1500000);
+      assert.equal(parseMoney('183.000đ'), 183000);
+      assert.equal(parseMoney('183.000Đ'), 183000);
+      assert.equal(parseMoney('183.000₫'), 183000);
+      assert.equal(parseMoney('50 000'), 50000);
+      assert.equal(parseMoney('  50 000 đ  '), 50000);
+      assert.equal(parseMoney('1 500 000'), 1500000);
+      assert.equal(parseMoney('500k'), 500000);
+      assert.equal(parseMoney('500K'), 500000);
+      assert.equal(parseMoney('1.5k'), 1500);
+    });
+
+    it('preserves valid decimals while rejecting malformed separators and foreign currencies', () => {
+      assert.equal(parseMoney('12.50'), 12.5);
+      assert.equal(parseMoney('1,250.50'), 1250.5);
+      assert.equal(parseMoney('1.250,50'), 1250.5);
+      assert.equal(parseMoney('500.5'), 500.5);
+      assert.equal(parseMoney('183.00.00'), 0);
+      assert.equal(parseMoney('1,23,456'), 0);
+      assert.equal(parseMoney('50 00'), 0);
+      assert.equal(parseMoney('12..34'), 0);
+      assert.equal(parseMoney('$12.50'), 0);
+      assert.equal(parseMoney('12.50 USD'), 0);
+      assert.equal(parseMoney('€25.00'), 0);
+      assert.equal(parseMoney('25 EUR'), 0);
     });
 
     it('returns 0 for empty, null, or invalid inputs', () => {
@@ -51,6 +86,8 @@ describe('Currency Standardization and Personal Finance Formatting Suite', () =>
       assert.equal(parseMoney(null), 0);
       assert.equal(parseMoney(undefined), 0);
       assert.equal(parseMoney('invalid'), 0);
+      assert.equal(parseMoney('--500'), 0);
+      assert.equal(parseMoney(NaN), 0);
     });
   });
 

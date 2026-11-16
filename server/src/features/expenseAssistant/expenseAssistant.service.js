@@ -1,11 +1,13 @@
+import crypto from 'crypto';
 import { AppError } from '../../shared/errors/index.js';
 import { HTTP_STATUS, SERVER_MESSAGES } from '../../constants/index.js';
 import { detectPromptInjection } from '../../shared/guardrails/index.js';
 import { getSpendingSummary, listTransactions } from '../transaction/transaction.service.js';
-import { createDraft } from '../transactionDraft/index.js';
 import { createTransactionArgsSchema, searchTransactionsArgsSchema, spendingSummaryArgsSchema } from './expenseAssistant.schema.js';
 import { runGeminiExpenseAssistant } from './geminiExpenseAssistant.js';
 import { formatConversationContext } from './expenseAssistantPrompt.js';
+import { registerLegacyAgentRunner } from '../chatAssistant/chatAssistant.service.js';
+import { orchestrateUnifiedChat } from '../chatAssistant/assistantOrchestrator.js';
 
 const MAX_AGENT_STEPS = 2; // Gemini calls tool once, then summarizes response.
 
@@ -83,27 +85,20 @@ export async function getSpendingSummaryForUser(user, message, options = {}) {
   }
 }
 
-async function createDraftFromArgs(user, rawArgs, options = {}) {
+async function createDraftFromArgs(_user, rawArgs, options = {}) {
   const parsed = createTransactionArgsSchema.safeParse(rawArgs);
   if (!parsed.success) {
     throw new AppError('Gemini returned incomplete or invalid transaction details.', HTTP_STATUS.BAD_REQUEST);
   }
 
-  const makeDraft = options.createDraft || createDraft;
-  const conversationId = options.conversationId || options.sourceRef || null;
-  const draftRecord = await makeDraft({
-    user,
-    sourceType: 'assistant_proposal',
-    sourceRef: conversationId,
-    data: parsed.data,
-  });
-
-  const draftId = draftRecord.id;
-  const draftFields = draftRecord.originalData || parsed.data;
+  const draftId = crypto.randomUUID();
+  const sourceRef = options.conversationId || options.sourceRef || null;
 
   return {
     draftId,
-    draft: draftFields,
+    sourceType: 'assistant_proposal',
+    sourceRef,
+    draft: parsed.data,
   };
 }
 
@@ -175,4 +170,37 @@ export async function runExpenseAssistantForUser(user, message, options = {}) {
     console.error('[ExpenseAgent] Assistant failed', { name: error?.name || 'UnknownError' });
     throw new AppError('AI expense assistant is temporarily unavailable.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
   }
+}
+
+registerLegacyAgentRunner(runExpenseAssistantForUser);
+
+/**
+ * Legacy compatibility facade delegating /api/expense-assistant to the unified
+ * orchestrator and normalizing `propose_transaction` -> `create_transaction`.
+ */
+export async function runUnifiedExpenseAssistant(user, message, options = {}) {
+  const resolvedConversationId = options.conversationId || null;
+  const result = await orchestrateUnifiedChat(user, message, {
+    ...options,
+    conversationId: resolvedConversationId,
+  });
+
+  const isProposal = result.toolName === 'propose_transaction' && result.proposal;
+  const legacyToolName = isProposal ? 'create_transaction' : (result.toolName || null);
+  const legacyToolResult = isProposal
+    ? {
+        sourceType: 'assistant_proposal',
+        sourceRef: result.toolResult?.sourceRef ?? resolvedConversationId,
+        draft: result.proposal,
+      }
+    : (result.toolResult || null);
+
+  return {
+    answer: result.answer,
+    strategy: result.strategy || 'unified',
+    toolName: legacyToolName,
+    toolResult: legacyToolResult,
+    sources: result.sources || [],
+    retrieval: result.retrieval || null,
+  };
 }

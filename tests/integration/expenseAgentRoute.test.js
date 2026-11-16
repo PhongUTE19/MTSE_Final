@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import expenseAgentRouter from '../../server/src/features/expenseAgent/expenseAgent.routes.js';
+import expenseAgentRouter from '../../server/src/features/expenseAssistant/expenseAssistant.route.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
 import { setTokenVerifierForTests } from '../../server/src/shared/middleware/authenticate.js';
-import { setExpenseClientFactoryForTests } from '../../server/src/features/expenses/expenses.service.js';
-import { setGeminiExpenseAgentClientFactoryForTests } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+import { setExpenseClientFactoryForTests } from '../../server/src/features/transaction/transaction.service.js';
+import { setGeminiExpenseAssistantClientFactoryForTests } from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
 
 function dispatch(router, { method = 'POST', path = '/search', headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
@@ -37,7 +37,7 @@ test('POST /api/expense-agent/search completes auth → Gemini tool call → RLS
   const geminiRequests = [];
   setTokenVerifierForTests(async (token) => token === 'valid-token' ? { id: 'user-a', app_metadata: { role: 'user' } } : null);
   setExpenseClientFactoryForTests(() => ({ from: () => query }));
-  setGeminiExpenseAgentClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
+  setGeminiExpenseAssistantClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
     geminiRequests.push(request);
     if (geminiRequests.length === 1) return {
       functionCalls: [{ name: 'search_transactions', args: { type: 'expense', merchant: 'Highlands', from: '2026-10-24', to: '2026-10-24' } }],
@@ -48,7 +48,7 @@ test('POST /api/expense-agent/search completes auth → Gemini tool call → RLS
   t.after(() => {
     setTokenVerifierForTests(null);
     setExpenseClientFactoryForTests(null);
-    setGeminiExpenseAgentClientFactoryForTests(null);
+    setGeminiExpenseAssistantClientFactoryForTests(null);
   });
 
   const response = await dispatch(expenseAgentRouter, {
@@ -65,25 +65,30 @@ test('POST /api/expense-agent/search completes auth → Gemini tool call → RLS
   assert.equal(geminiRequests[1].contents[2].parts[0].functionResponse.name, 'search_transactions');
 });
 
-test('POST /api/expense-agent/assistant renders a create proposal but does not persist it', { concurrency: false }, async (t) => {
+test('POST /api/expense-assistant/ delegates to unified orchestrator and maps propose_transaction to legacy create_transaction draft', { concurrency: false }, async (t) => {
   setTokenVerifierForTests(async (token) => token === 'valid-token' ? { id: 'user-a', app_metadata: { role: 'user' } } : null);
   const requests = [];
-  setGeminiExpenseAgentClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
+  setGeminiExpenseAssistantClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
     requests.push(request);
     if (requests.length === 1) return {
-      functionCalls: [{ name: 'create_transaction', args: { type: 'expense', amount: 45000, date: '2026-10-25', category: 'Food & dining', merchant: 'Highlands', note: '', items: [] } }],
+      functionCalls: [{ name: 'propose_transaction', args: { type: 'expense', amount: 45000, date: '2026-10-25', category: 'Food & dining', merchant: 'Highlands', note: '' } }],
       candidates: [{ content: { role: 'model', parts: [] } }],
     };
     return { text: 'Please review and confirm the transaction.' };
   } } }));
-  t.after(() => { setTokenVerifierForTests(null); setGeminiExpenseAgentClientFactoryForTests(null); });
+  t.after(() => {
+    setTokenVerifierForTests(null);
+    setGeminiExpenseAssistantClientFactoryForTests(null);
+  });
 
   const response = await dispatch(expenseAgentRouter, {
-    path: '/assistant', headers: { authorization: 'Bearer valid-token', 'content-type': 'application/json' }, body: { message: 'Bought Highlands 45k today', history: [{ role: 'user', text: 'I want to add an expense.' }] },
+    path: '/', headers: { authorization: 'Bearer valid-token', 'content-type': 'application/json' }, body: { message: 'Bought Highlands 45k today', history: [{ role: 'user', text: 'I want to add an expense.' }] },
   });
   assert.equal(response.status, 200);
   assert.equal(response.payload.toolName, 'create_transaction');
-  assert.equal(response.payload.toolResult.proposal.transaction.amount, 45000);
-  assert.equal(requests[0].config.tools[0].functionDeclarations.length, 3);
-  assert.match(requests[0].contents, /Conversation context/);
+  assert.equal(response.payload.toolResult.draftId, undefined);
+  assert.equal(response.payload.toolResult.sourceType, 'assistant_proposal');
+  assert.equal(response.payload.toolResult.draft.amount, 45000);
+  assert.equal(requests[0].config.tools[0].functionDeclarations[0].name, 'propose_transaction');
+  assert.match(requests[0].contents[0].parts[0].text, /untrusted_prior_user_messages/);
 });

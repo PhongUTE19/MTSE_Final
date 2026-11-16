@@ -1,31 +1,19 @@
-import { AppError, handleDatabaseError } from '../../shared/errors/index.js';
+import { AppError } from '../../shared/errors/index.js';
 import { HTTP_STATUS } from '../../constants/index.js';
-import { createUserScopedSupabaseClient } from '../../shared/integrations/supabase.js';
-import { TRANSACTION_MESSAGES } from './transaction.constant.js';
+import {
+  setExpenseClientFactoryForTests,
+  queryTransactionsPage,
+  queryTransactionsForSummary,
+  findTransactionById,
+  findOwnedTransactionRow,
+  insertTransaction,
+  updateTransactionById,
+  deleteTransactionById,
+} from './transaction.repository.js';
 
-const TRANSACTIONS_TABLE = 'expense_transactions';
 const SUMMARY_BATCH_SIZE = 1000;
-let clientFactory = null;
 
-/** @internal Test seam; production creates a fresh RLS-aware client per request. */
-export function setExpenseClientFactoryForTests(factory) { clientFactory = factory; }
-
-function clientFor(user) {
-  const client = clientFactory ? clientFactory(user) : createUserScopedSupabaseClient(user.token);
-  if (!client) throw new AppError('Expense persistence is not configured.', HTTP_STATUS.INTERNAL_SERVER_ERROR);
-  return client;
-}
-
-function databaseError(error, operation = 'database operation') {
-  return handleDatabaseError(
-    'ExpenseService',
-    operation,
-    error,
-    'Expense persistence is temporarily unavailable.'
-  );
-}
-
-function notFound() { return new AppError(TRANSACTION_MESSAGES.TRANSACTION_NOT_FOUND, HTTP_STATUS.NOT_FOUND); }
+export { setExpenseClientFactoryForTests };
 
 // The public API retains the original camelCase/date shape while the database
 // keeps its established snake_case transaction_date/timestamp columns.
@@ -47,6 +35,7 @@ function toTransaction(row) {
 
 function toRow(input) {
   return {
+    ...(input.id ? { id: input.id } : {}),
     type: input.type,
     amount: input.amount,
     transaction_date: input.date,
@@ -57,26 +46,17 @@ function toRow(input) {
   };
 }
 
-function escapeSearch(value) { return value.replace(/[,%()]/g, '\\$&'); }
-
-export async function listTransactions(user, query) {
-  const { search, type, category, from, to, minAmount, maxAmount, page, pageSize, sortBy, sortOrder } = query;
-  let request = clientFor(user).from(TRANSACTIONS_TABLE).select('*', { count: 'exact' }).eq('user_id', user.id);
-  if (type) request = request.eq('type', type);
-  if (category) request = request.eq('category', category);
-  if (from) request = request.gte('transaction_date', from);
-  if (to) request = request.lte('transaction_date', to);
-  if (minAmount !== undefined) request = request.gte('amount', minAmount);
-  if (maxAmount !== undefined) request = request.lte('amount', maxAmount);
-  if (search) {
-    const term = `%${escapeSearch(search)}%`;
-    request = request.or(`merchant.ilike.${term},note.ilike.${term}`);
-  }
-  const column = sortBy === 'amount' ? 'amount' : 'transaction_date';
-  const start = (page - 1) * pageSize;
-  const { data, count, error } = await request.order(column, { ascending: sortOrder === 'asc' }).range(start, start + pageSize - 1);
-  if (error) throw databaseError();
-  return { transactions: (data || []).map(toTransaction), total: count || 0, page, pageSize };
+function transactionRowsMatch(row, input) {
+  if (!row || !input) return false;
+  return (
+    row.type === input.type &&
+    Number(row.amount) === Number(input.amount) &&
+    row.transaction_date === input.date &&
+    row.category === input.category &&
+    row.merchant === input.merchant &&
+    (row.note || '') === (input.note || '') &&
+    JSON.stringify(row.items || []) === JSON.stringify(input.items || [])
+  );
 }
 
 function toMoneyCents(value) {
@@ -84,33 +64,22 @@ function toMoneyCents(value) {
   return Math.round(Number(value) * 100);
 }
 
-function fromMoneyCents(cents) { return cents / 100; }
+function fromMoneyCents(cents) {
+  return cents / 100;
+}
+
+export async function listTransactions(user, query) {
+  const { page, pageSize } = query;
+  const { rows, total } = await queryTransactionsPage(user, query);
+  return { transactions: rows.map(toTransaction), total, page, pageSize };
+}
 
 /**
  * Calculates summary report from all transactions for a user within a period.
  * Does not use listTransactions because listTransactions is paginated for UI display.
  */
 export async function getSpendingSummary(user, period) {
-  const buildQuery = () => {
-    let request = clientFor(user)
-      .from(TRANSACTIONS_TABLE)
-      .select('type,amount,category', { count: 'exact' })
-      .eq('user_id', user.id)
-      .gte('transaction_date', period.from)
-      .lte('transaction_date', period.to);
-    return request;
-  };
-
-  const firstPage = await buildQuery().order('transaction_date', { ascending: false }).range(0, SUMMARY_BATCH_SIZE - 1);
-  if (firstPage.error) throw databaseError(firstPage.error, 'Summary query');
-
-  const rows = [...(firstPage.data || [])];
-  const total = firstPage.count || 0;
-  for (let start = SUMMARY_BATCH_SIZE; start < total; start += SUMMARY_BATCH_SIZE) {
-    const page = await buildQuery().order('transaction_date', { ascending: false }).range(start, start + SUMMARY_BATCH_SIZE - 1);
-    if (page.error) throw databaseError(page.error, 'Summary query');
-    rows.push(...(page.data || []));
-  }
+  const rows = await queryTransactionsForSummary(user, period, SUMMARY_BATCH_SIZE);
 
   let incomeCents = 0;
   let expenseCents = 0;
@@ -136,47 +105,46 @@ export async function getSpendingSummary(user, period) {
 }
 
 export async function getTransaction(user, id) {
-  const { data, error } = await clientFor(user).from(TRANSACTIONS_TABLE).select('*').eq('id', id).eq('user_id', user.id).maybeSingle();
-  if (error) throw databaseError();
-  if (!data) throw notFound();
-
-  const transaction = toTransaction(data);
-
-  const { data: receiptData, error: receiptError } = await clientFor(user)
-    .from('receipts')
-    .select('id, status')
-    .eq('transaction_id', id)
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (receiptError) throw databaseError(receiptError, 'Linked receipt lookup');
-
-  transaction.receipt = receiptData && receiptData.status
-    ? { id: receiptData.id, status: receiptData.status }
+  const { row, receiptRow } = await findTransactionById(user, id);
+  const transaction = toTransaction(row);
+  transaction.receipt = receiptRow && receiptRow.status
+    ? { id: receiptRow.id, status: receiptRow.status }
     : null;
-
   return transaction;
 }
 
 export async function createTransaction(user, input) {
-  const { data, error } = await clientFor(user).from(TRANSACTIONS_TABLE).insert({ ...toRow(input), user_id: user.id }).select('*').single();
-  if (error) throw databaseError();
-  return toTransaction(data);
+  if (input.id) {
+    const existing = await findOwnedTransactionRow(user, input.id);
+    if (existing) {
+      if (!transactionRowsMatch(existing, input)) {
+        throw new AppError('Transaction ID already exists with conflicting data.', HTTP_STATUS.CONFLICT);
+      }
+      return toTransaction(existing);
+    }
+  }
+
+  try {
+    const data = await insertTransaction(user, toRow(input));
+    return toTransaction(data);
+  } catch (error) {
+    if (input.id && (error?.code === '23505' || error?.statusCode === HTTP_STATUS.CONFLICT)) {
+      const existing = await findOwnedTransactionRow(user, input.id);
+      if (existing && transactionRowsMatch(existing, input)) {
+        return toTransaction(existing);
+      }
+      throw new AppError('Transaction ID already exists with conflicting data.', HTTP_STATUS.CONFLICT);
+    }
+    throw error;
+  }
 }
 
 export async function updateTransaction(user, id, input) {
-  const { data, error } = await clientFor(user).from(TRANSACTIONS_TABLE).update(toRow(input)).eq('id', id).eq('user_id', user.id).select('*').maybeSingle();
-  if (error) throw databaseError();
-  if (!data) throw notFound();
+  const data = await updateTransactionById(user, id, toRow(input));
   return toTransaction(data);
 }
 
 export async function deleteTransaction(user, id) {
-  const { data, error } = await clientFor(user).from(TRANSACTIONS_TABLE).delete().eq('id', id).eq('user_id', user.id).select('*').maybeSingle();
-  if (error?.code === '23503') {
-    throw new AppError(TRANSACTION_MESSAGES.TRANSACTION_LINKED_TO_RECEIPT, HTTP_STATUS.CONFLICT);
-  }
-  if (error) throw databaseError(error, 'Transaction deletion');
-  if (!data) throw notFound();
+  const data = await deleteTransactionById(user, id);
   return toTransaction(data);
 }

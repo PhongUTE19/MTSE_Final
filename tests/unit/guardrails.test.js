@@ -14,7 +14,7 @@ import {
 } from '../../server/src/shared/guardrails/index.js';
 import { SERVER_MESSAGES, GUARDRAIL_CONFIG, HTTP_STATUS } from '../../server/src/constants/index.js';
 import { executeRAG } from '../../server/src/features/knowledgeBase/ragService.js';
-import { orchestrateChat, orchestrateChatStream, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
+import { orchestrateChat, orchestrateChatStream, ChatAssistantServiceError as ChatServiceError } from '../../server/src/features/chatAssistant/chatAssistant.service.js';
 
 describe('Guardrails Comprehensive Test Suite', () => {
   describe('1. Prompt Injection Guardrails', () => {

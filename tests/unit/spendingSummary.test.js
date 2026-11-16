@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
-import { getSpendingSummary, setExpenseClientFactoryForTests } from '../../server/src/features/expenses/expenses.service.js';
-import { spendingSummaryArgsSchema } from '../../server/src/features/expenseAgent/expenseAgent.schemas.js';
-import { getSpendingSummaryForUser } from '../../server/src/features/expenseAgent/expenseAgent.service.js';
-import { runGeminiExpenseAgent, SPENDING_SUMMARY_TOOL } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+import { getSpendingSummary, setExpenseClientFactoryForTests } from '../../server/src/features/transaction/transaction.service.js';
+import { spendingSummaryArgsSchema } from '../../server/src/features/expenseAssistant/expenseAssistant.schema.js';
+import { getSpendingSummaryForUser } from '../../server/src/features/expenseAssistant/expenseAssistant.service.js';
+import { runGeminiExpenseAssistant as runGeminiExpenseAgent, SPENDING_SUMMARY_TOOL } from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
 
 const user = { id: 'user-a', token: 'verified-token' };
 const period = { from: '2026-10-01', to: '2026-10-31' };

@@ -1,12 +1,12 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatDbToRecord, formatRecordForDb } from '../../server/src/features/analytics/analytics.repository.js';
+import { formatDbToRecord, formatRecordForDb } from '../../server/src/features/aiUsage/aiUsage.repository.js';
 import {
   calculateRequestCost,
   MODEL_PRICING_REGISTRY,
   normalizeModelName,
-} from '../../server/src/features/analytics/pricingConfig.js';
-import { calculateOverviewMetrics } from '../../server/src/features/analytics/analytics.utils.js';
+} from '../../server/src/features/aiUsage/pricingConfig.js';
+import { calculateOverviewMetrics } from '../../server/src/features/aiUsage/aiUsage.util.js';
 
 describe('Historical AI Telemetry Data & UI Field Mapping Suite', () => {
   describe('1. Legacy Hash Detection & Prompt Version Recovery', () => {

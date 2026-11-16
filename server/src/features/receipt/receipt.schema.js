@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { transactionSchema } from '../transaction/transaction.schema.js';
+import { parseReceiptAmount } from '../../shared/validation/money.js';
 
 export const RECEIPT_CATEGORIES = [
   'Food & dining', 'Transportation', 'Shopping', 'Education', 'Health',
@@ -74,20 +76,7 @@ export function normalizeReceiptDate(value) {
 }
 
 function parseReceiptNumericAmount(value) {
-  if (value === null || value === undefined || value === '') return null;
-  if (typeof value === 'number') {
-    return Number.isFinite(value) ? value : null;
-  }
-  if (typeof value === 'string') {
-    const cleaned = value.replace(/[$₫€£¥]|VND|USD|EUR/gi, '').trim();
-    if (!cleaned) return null;
-    const normalizedStr = /^[+-]?\d{1,3}(\.\d{3})+$/.test(cleaned)
-      ? cleaned.replace(/\./g, '')
-      : cleaned.replace(/,/g, '');
-    const num = Number(normalizedStr);
-    return Number.isFinite(num) ? num : null;
-  }
-  return null;
+  return parseReceiptAmount(value);
 }
 
 export function normalizeReceiptAmount(value) {
@@ -233,6 +222,71 @@ export const receiptSchema = z.object({
   mimeType: z.enum(RECEIPT_MIME_TYPES),
   size: z.coerce.number().positive().max(RECEIPT_LIMITS.MAX_RECEIPT_SIZE_BYTES),
 });
+
+function parseJsonField(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback;
+  if (typeof value === 'string') {
+    return JSON.parse(value);
+  }
+  return value;
+}
+
+export const receiptConfirmSchema = z.object({
+  draftId: z
+    .string()
+    .trim()
+    .min(1, 'draftId is required.')
+    .max(128, 'draftId is too long.')
+    .refine((v) => !/[\\/]|\.\./.test(v), 'draftId contains invalid path characters.'),
+  sha256: z
+    .string()
+    .trim()
+    .regex(/^[a-f0-9]{64}$/i, 'Invalid SHA-256 checksum.')
+    .optional(),
+  transaction: transactionSchema,
+  extraction: z.record(z.any()).optional().default({}),
+  warnings: z.array(z.string()).optional().default([]),
+  aiModel: z.string().trim().max(100).nullable().optional().default(null),
+  promptVersion: z.string().trim().max(100).nullable().optional().default(null),
+});
+
+export function parseReceiptConfirmBody(rawBody = {}) {
+  let transactionInput;
+  try {
+    transactionInput = rawBody.transaction !== undefined
+      ? parseJsonField(rawBody.transaction, {})
+      : {
+          type: rawBody.type,
+          amount: rawBody.amount,
+          date: rawBody.date,
+          category: rawBody.category,
+          merchant: rawBody.merchant,
+          note: rawBody.note,
+          items: parseJsonField(rawBody.items, []),
+        };
+  } catch {
+    throw new Error('Invalid JSON in transaction payload.');
+  }
+
+  let extraction;
+  let warnings;
+  try {
+    extraction = parseJsonField(rawBody.extraction, {});
+    warnings = parseJsonField(rawBody.warnings, []);
+  } catch {
+    throw new Error('Invalid JSON in receipt metadata.');
+  }
+
+  return receiptConfirmSchema.parse({
+    draftId: rawBody.draftId,
+    sha256: rawBody.sha256 || undefined,
+    transaction: transactionInput,
+    extraction,
+    warnings,
+    aiModel: rawBody.aiModel || null,
+    promptVersion: rawBody.promptVersion || null,
+  });
+}
 
 
 

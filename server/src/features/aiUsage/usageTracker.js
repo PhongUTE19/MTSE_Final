@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import { calculateRequestCost } from './pricingConfig.js';
+import { setAIUsageRecorder } from '../../shared/integrations/ai/telemetry.js';
 
 /**
  * Generates a deterministic SHA-256 hash of the resolved prompt text.
@@ -256,17 +257,21 @@ export function createUsageTracker(options = {}) {
         ? Math.max(1, recordData.totalAttempts)
         : attempts.length;
 
-      // Token counts: Explicitly represent unavailable values as null
+      // Token counts: Explicitly represent unavailable values as null (never convert missing to 0)
       const rawTokens = recordData.tokenUsage || {};
-      const hasInputTokens = typeof rawTokens.inputTokens === 'number';
-      const hasOutputTokens = typeof rawTokens.outputTokens === 'number';
+      const hasInputTokens = typeof rawTokens.inputTokens === 'number' && Number.isFinite(rawTokens.inputTokens);
+      const hasOutputTokens = typeof rawTokens.outputTokens === 'number' && Number.isFinite(rawTokens.outputTokens);
+      const hasTotalTokens = typeof rawTokens.totalTokens === 'number' && Number.isFinite(rawTokens.totalTokens);
+      const hasCachedTokens = typeof rawTokens.cachedTokens === 'number' && Number.isFinite(rawTokens.cachedTokens);
+
       const tokenCountsAvailable = typeof rawTokens.tokenCountsAvailable === 'boolean'
         ? rawTokens.tokenCountsAvailable
         : Boolean(hasInputTokens && hasOutputTokens);
 
       const inputTokens = hasInputTokens ? rawTokens.inputTokens : null;
       const outputTokens = hasOutputTokens ? rawTokens.outputTokens : null;
-      const totalTokens = typeof rawTokens.totalTokens === 'number'
+      const cachedTokens = hasCachedTokens ? rawTokens.cachedTokens : null;
+      const totalTokens = hasTotalTokens
         ? rawTokens.totalTokens
         : (hasInputTokens && hasOutputTokens ? inputTokens + outputTokens : null);
 
@@ -274,10 +279,18 @@ export function createUsageTracker(options = {}) {
         ? rawTokens.tokenCountsComplete
         : Boolean(hasInputTokens && hasOutputTokens && totalTokens !== null);
 
+      const usageSource = rawTokens.usageSource || (
+        hasInputTokens && hasOutputTokens && hasTotalTokens
+          ? 'provider_reported'
+          : (hasInputTokens && hasOutputTokens ? 'derived' : 'unavailable')
+      );
+
       const tokenUsage = {
         inputTokens,
         outputTokens,
+        cachedTokens,
         totalTokens,
+        usageSource,
         tokenCountsAvailable,
         tokenCountsComplete,
       };
@@ -383,6 +396,9 @@ const defaultTracker = createUsageTracker({ store: defaultUsageStore });
 export function recordUsage(recordData) {
   return defaultTracker.trackUsage(recordData);
 }
+
+// Register default usage recorder with shared AI infrastructure.
+setAIUsageRecorder(recordUsage);
 
 /**
  * Retrieves recently recorded usage events from the in-memory store.

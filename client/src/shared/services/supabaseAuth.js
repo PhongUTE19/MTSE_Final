@@ -98,9 +98,6 @@ export function getPostAuthPath(role, requestedNext) {
     if (requestedNext === APP_ROUTES.ADMIN_AI_USAGE) {
       return APP_ROUTES.ADMIN_AI_USAGE;
     }
-    if (EXPENSE_ROUTE_DESTINATIONS.has(requestedNext)) {
-      return requestedNext;
-    }
     return APP_ROUTES.HOME;
   }
 

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { after, describe, it } from 'node:test';
-import { getRecentUsageRecords, getUsageStore } from '../../server/src/features/analytics/index.js';
-import { searchTransactionsArgsSchema } from '../../server/src/features/expenseAgent/expenseAgent.schemas.js';
-import { searchTransactionsForUser } from '../../server/src/features/expenseAgent/expenseAgent.service.js';
-import { getVietnamDate, runGeminiExpenseAgent, setGeminiExpenseAgentClientFactoryForTests } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+import { getRecentUsageRecords, getUsageStore } from '../../server/src/features/aiUsage/index.js';
+import { searchTransactionsArgsSchema } from '../../server/src/features/expenseAssistant/expenseAssistant.schema.js';
+import { searchTransactionsForUser } from '../../server/src/features/expenseAssistant/expenseAssistant.service.js';
+import { getVietnamDate, runGeminiExpenseAssistant as runGeminiExpenseAgent, setGeminiExpenseAssistantClientFactoryForTests as setGeminiExpenseAgentClientFactoryForTests } from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
 import { setAIClientForTests } from '../../server/src/shared/integrations/ai/index.js';
 
 const user = { id: 'user-a', token: 'verified-token' };

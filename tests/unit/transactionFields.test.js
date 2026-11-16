@@ -11,9 +11,9 @@ import {
   isValidCalendarDate,
   updateTransactionField,
   validateTransactionData,
-} from '../../client/src/features/expense/transactionFieldsUtils.js';
-import { categoriesForType } from '../../client/src/features/expense/expenseCategories.js';
-import { EXPENSE_CATEGORIES } from '../../client/src/features/expense/expenseConstants.js';
+} from '../../client/src/shared/transactions/transactionFieldsUtils.js';
+import { categoriesForType } from '../../client/src/shared/transactions/expenseCategories.js';
+import { EXPENSE_CATEGORIES } from '../../client/src/shared/transactions/expenseConstants.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const readSource = (relativePath) => fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
@@ -242,9 +242,11 @@ describe('TransactionFields & Form Consolidation Suite', () => {
   });
 
   describe('5. FE-TASK-06 modal accessibility, unified fields and warning semantics (source contracts)', () => {
-    const fieldsSource = readSource('client/src/features/expense/TransactionFields.jsx');
-    const formSource = readSource('client/src/features/expense/TransactionForm.jsx');
-    const reviewSource = readSource('client/src/features/receipts/ReceiptReview.jsx');
+    const fieldsSource = readSource('client/src/composites/transactions/TransactionFields.jsx');
+    const formSource = readSource('client/src/features/transaction/ManualEntry.jsx');
+    const modalSource = readSource('client/src/composites/overlays/Modal.jsx');
+    const modalHookSource = readSource('client/src/shared/hooks/useModalAccessibility.js');
+    const reviewSource = readSource('client/src/composites/transactions/TransactionDraftReview.jsx');
     const expenseCssPath = path.join(ROOT, 'client/src/features/expense/expense.css');
     const expenseCss = fs.existsSync(expenseCssPath) ? readSource('client/src/features/expense/expense.css') : '';
 
@@ -261,23 +263,22 @@ describe('TransactionFields & Form Consolidation Suite', () => {
     });
 
     it('TransactionFields keeps its prop contract', () => {
-      for (const prop of ['values', 'onChange', 'disabled', 'showType', 'labels', 'className', 'required', 'noteRows']) {
+      for (const prop of ['values', 'onChange', 'disabled', 'showType', 'labels', 'layout', 'required', 'noteRows']) {
         assert.match(fieldsSource, new RegExp(`\\b${prop}\\b`));
       }
     });
 
-    it('TransactionForm is an accessible modal dialog that cannot be dismissed while saving', () => {
-      assert.match(formSource, /role="dialog"/);
-      assert.match(formSource, /aria-modal="true"/);
+    it('ManualEntry and Modal form an accessible modal dialog that cannot be dismissed while saving', () => {
+      assert.match(modalSource, /role=\{role\}/);
+      assert.match(modalSource, /aria-modal=\{ariaModal \? 'true' : undefined\}/);
       assert.match(formSource, /aria-labelledby=\{titleId\}/);
       assert.match(formSource, /<CardTitle[\s\S]*?as="h2"[\s\S]*?id=\{titleId\}>/);
-      assert.match(formSource, /event\.key === 'Escape'/);
-      assert.match(formSource, /if \(!latest\.current\.saving\) latest\.current\.onClose\(\)/);
-      assert.match(formSource, /event\.target === event\.currentTarget && !saving/);
-      assert.match(formSource, /resolveTabTarget/);
-      assert.match(formSource, /restoreFocus\(previouslyFocused\)/);
-      assert.equal((formSource.match(/addEventListener\('keydown'/g) || []).length, 1);
-      assert.equal((formSource.match(/removeEventListener\('keydown'/g) || []).length, 1);
+      assert.match(formSource, /dismissible: !saving/);
+      assert.match(modalHookSource, /event\.key === 'Escape'/);
+      assert.match(modalHookSource, /resolveTabTarget/);
+      assert.match(modalHookSource, /restoreFocus\(previouslyFocused\)/);
+      assert.equal((modalHookSource.match(/addEventListener\('keydown'/g) || []).length, 1);
+      assert.equal((modalHookSource.match(/removeEventListener\('keydown'/g) || []).length, 1);
     });
 
     it('ReceiptReview separates non-fatal warnings (status) from blocking errors (alert)', () => {

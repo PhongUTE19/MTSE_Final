@@ -11,7 +11,7 @@ const ACCEPTED_TYPES = new Set(RECEIPT_MIME_TYPES);
 
 const uploader = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_RECEIPT_BYTES, files: 1, fields: 4 },
+  limits: { fileSize: MAX_RECEIPT_BYTES, files: 1, fields: 20 },
 }).single('receipt');
 
 export async function inspectReceiptImage(file) {

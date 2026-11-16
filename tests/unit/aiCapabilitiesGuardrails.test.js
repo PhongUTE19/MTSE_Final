@@ -10,31 +10,64 @@ import {
   AIResponseTimeoutError,
 } from '../../server/src/shared/guardrails/index.js';
 import { SERVER_MESSAGES } from '../../server/src/constants/index.js';
-import { enforceReceiptGuardrails, ReceiptGuardrailError } from '../../server/src/features/expenses/receiptGuardrails.js';
+import { enforceReceiptGuardrails, ReceiptGuardrailError } from '../../server/src/features/receipt/receiptGuardrails.js';
 import { extractReceiptImage } from '../../server/src/shared/integrations/ai/providers/geminiProvider.js';
 import {
   searchTransactionsForUser,
   getSpendingSummaryForUser,
   createTransactionProposalForUser,
   runExpenseAssistantForUser,
-  confirmTransactionProposal,
-  cancelTransactionProposal,
-  clearTransactionProposalsForTests,
-  setProposalClockForTests,
-} from '../../server/src/features/expenseAgent/expenseAgent.service.js';
-import { runGeminiExpenseAgent } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+} from '../../server/src/features/expenseAssistant/expenseAssistant.service.js';
+import { runGeminiExpenseAssistant as runGeminiExpenseAgent } from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
+import { createTransactionDraftController } from '../../client/src/features/transactionDraft/draftController.js';
+import { resetMemoryDraftStorageForTests } from '../../client/src/features/transactionDraft/draftStorage.js';
+import { createTransaction, setExpenseClientFactoryForTests } from '../../server/src/features/transaction/transaction.service.js';
 import { buildGroundedPrompt, formatContextSections } from '../../server/src/features/knowledgeBase/promptBuilder.js';
+
+function createInMemoryTxClientFactory(onInsertTransaction) {
+  const transactions = new Map();
+  let txSeq = 0;
+
+  return (user) => ({
+    from: () => ({
+      select: () => {
+        const filters = {};
+        const q = {
+          eq(col, val) { filters[col] = val; return q; },
+          maybeSingle: async () => {
+            const row = transactions.get(filters.id);
+            return { data: row && row.user_id === user.id ? row : null, error: null };
+          },
+        };
+        return q;
+      },
+      insert: (row) => ({
+        select: () => ({
+          single: async () => {
+            const id = row.id || `saved-tx-${++txSeq}`;
+            if (transactions.has(id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
+            const tx = { id, ...row, created_at: '2026-10-27T00:00:00Z', updated_at: '2026-10-27T00:00:00Z' };
+            transactions.set(id, tx);
+            if (onInsertTransaction) onInsertTransaction(tx);
+            return { data: tx, error: null };
+          },
+        }),
+      }),
+    }),
+  });
+}
 
 const mockUser = { id: 'test-user-123', token: 'mock-jwt-token' };
 
 describe('AI Capabilities Prompt, Guardrail, and Fallback Audit', () => {
   beforeEach(() => {
-    clearTransactionProposalsForTests();
+    resetMemoryDraftStorageForTests();
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory());
   });
 
   afterEach(() => {
-    clearTransactionProposalsForTests();
-    setProposalClockForTests(null);
+    resetMemoryDraftStorageForTests();
+    setExpenseClientFactoryForTests(null);
   });
 
   describe('Capability A: Multimodal Receipt Extraction Guardrails', () => {
@@ -210,14 +243,13 @@ describe('AI Capabilities Prompt, Guardrail, and Fallback Audit', () => {
       assert.equal(result.answer, SERVER_MESSAGES.ERRORS.PROMPT_INJECTION_REFUSAL);
     });
 
-    it('enforces proposal confirmation authorization, expiration, and idempotency', async () => {
+    it('enforces draft confirmation authorization and idempotency', async () => {
       let createdCalls = 0;
-      const mockCreate = async (_user, tx) => {
+      setExpenseClientFactoryForTests(createInMemoryTxClientFactory(() => {
         createdCalls++;
-        return { id: 'saved-tx-1', ...tx };
-      };
+      }));
 
-      // 1. Create proposal
+      // 1. Create stateless proposal and stage locally
       const proposalRes = await createTransactionProposalForUser(
         mockUser,
         'Add expense 50k lunch at Pho 24 today',
@@ -235,93 +267,64 @@ describe('AI Capabilities Prompt, Guardrail, and Fallback Audit', () => {
         }
       );
 
-      const proposalId = proposalRes.toolResult.proposal.id;
-      assert.ok(proposalId);
+      const draftId = proposalRes.toolResult.draftId;
+      assert.ok(draftId);
+      const controllerA = createTransactionDraftController({
+        createTransactionApi: (payload) => createTransaction(mockUser, payload),
+      });
+      controllerA.setUserId(mockUser.id);
+      await controllerA.createDraft({
+        id: draftId,
+        sourceType: 'assistant_proposal',
+        originalData: proposalRes.toolResult.draft,
+      });
 
       // 2. Reject confirmation by different unauthorized user
       const otherUser = { id: 'other-user-999', token: 'other-jwt' };
+      const controllerOther = createTransactionDraftController({
+        createTransactionApi: (payload) => createTransaction(otherUser, payload),
+      });
+      controllerOther.setUserId(otherUser.id);
       await assert.rejects(
-        () => confirmTransactionProposal(otherUser, proposalId, proposalRes.toolResult.proposal.transaction, { createTransaction: mockCreate }),
-        (err) => err.statusCode === 404
+        () => controllerOther.confirmDraft(draftId, proposalRes.toolResult.draft),
+        /not found/i
       );
       assert.equal(createdCalls, 0);
 
-      // 3. Confirm successfully by owner
-      const confirmed = await confirmTransactionProposal(
-        mockUser,
-        proposalId,
-        proposalRes.toolResult.proposal.transaction,
-        { createTransaction: mockCreate }
-      );
+      // 3. Confirm successfully by owner using deterministic draftId
+      const confirmed = await controllerA.confirmDraft(draftId, proposalRes.toolResult.draft);
       assert.equal(createdCalls, 1);
-      assert.equal(confirmed.id, 'saved-tx-1');
+      assert.equal(confirmed.transaction.id, draftId);
 
-      // 4. Double confirmation / retry must be rejected (proposal already consumed)
-      await assert.rejects(
-        () => confirmTransactionProposal(mockUser, proposalId, proposalRes.toolResult.proposal.transaction, { createTransaction: mockCreate }),
-        (err) => err.statusCode === 404
-      );
+      // 4. Retry on transaction endpoint with same deterministic ID must be idempotent
+      const reconfirmed = await createTransaction(mockUser, { id: draftId, ...proposalRes.toolResult.draft });
+      assert.equal(reconfirmed.id, draftId);
       assert.equal(createdCalls, 1);
     });
 
-    it('rejects confirmation for expired proposals', async () => {
-      let currentTime = 1000000;
-      setProposalClockForTests(() => currentTime);
+    it('supports draft rejection cleanly and blocks subsequent confirmation', async () => {
+      const controller = createTransactionDraftController({
+        createTransactionApi: (payload) => createTransaction(mockUser, payload),
+      });
+      controller.setUserId(mockUser.id);
+      const staged = await controller.createDraft({
+        sourceType: 'assistant_proposal',
+        originalData: {
+          type: 'expense',
+          amount: 30000,
+          date: '2026-10-27',
+          category: 'Food & dining',
+          merchant: 'Circle K',
+        },
+      });
 
-      const proposalRes = await createTransactionProposalForUser(
-        mockUser,
-        'Add expense 20k coffee today',
-        {
-          agentRunner: async (_msg, executeTool) => ({
-            answer: 'Proposal created.',
-            toolResult: await executeTool('create_transaction', {
-              type: 'expense',
-              amount: 20000,
-              date: '2026-10-27',
-              category: 'Food & dining',
-              merchant: 'Gong Cha',
-            }),
-          }),
-        }
-      );
+      await controller.rejectDraft(staged.id);
+      assert.deepEqual(controller.getState().drafts, []);
 
-      const proposalId = proposalRes.toolResult.proposal.id;
-
-      // Advance clock past 10 minutes TTL
-      currentTime += 11 * 60 * 1000;
-
+      // Verify rejected draft cannot be confirmed
       await assert.rejects(
-        () => confirmTransactionProposal(mockUser, proposalId, proposalRes.toolResult.proposal.transaction),
-        (err) => err.statusCode === 400 && err.message.includes('expired')
-      );
-    });
-
-    it('supports proposal cancellation cleanly', async () => {
-      const proposalRes = await createTransactionProposalForUser(
-        mockUser,
-        'Add expense 30k snack',
-        {
-          agentRunner: async (_msg, executeTool) => ({
-            answer: 'Proposal created.',
-            toolResult: await executeTool('create_transaction', {
-              type: 'expense',
-              amount: 30000,
-              date: '2026-10-27',
-              category: 'Food & dining',
-              merchant: 'Circle K',
-            }),
-          }),
-        }
-      );
-
-      const proposalId = proposalRes.toolResult.proposal.id;
-      const cancelled = cancelTransactionProposal(mockUser, proposalId);
-      assert.equal(cancelled.cancelled, true);
-
-      // Verify proposal is no longer pending
-      await assert.rejects(
-        () => confirmTransactionProposal(mockUser, proposalId, proposalRes.toolResult.proposal.transaction),
-        (err) => err.statusCode === 404
+        () => controller.confirmDraft(staged.id, staged.originalData),
+        /not found/i
       );
     });
   });

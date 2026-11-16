@@ -34,6 +34,7 @@ export function formatRecordForDb(record) {
     input_tokens: record.tokenUsage?.inputTokens ?? null,
     output_tokens: record.tokenUsage?.outputTokens ?? null,
     total_tokens: record.tokenUsage?.totalTokens ?? null,
+    usage_source: record.tokenUsage?.usageSource ?? null,
     token_counts_available: Boolean(record.tokenUsage?.tokenCountsAvailable),
     estimated_input_tokens: record.estimatedTokens?.inputTokens ?? record.estimatedInputTokens ?? null,
     estimated_output_tokens: record.estimatedTokens?.outputTokens ?? record.estimatedOutputTokens ?? null,
@@ -94,7 +95,15 @@ export function formatDbToRecord(row) {
     ? row.token_counts_available
     : Boolean(hasInput && hasOutput);
 
-  // Read or deterministically generate separate estimated token fields
+  const VALID_USAGE_SOURCES = new Set(['provider_reported', 'derived', 'unavailable', 'unknown']);
+  const persistedUsageSource = typeof row.usage_source === 'string' && VALID_USAGE_SOURCES.has(row.usage_source)
+    ? row.usage_source
+    : null;
+
+  const resolvedUsageSource = persistedUsageSource
+    || ((!tokenCountsAvailable && !hasInput && !hasOutput && !hasTotal) ? 'unavailable' : 'unknown');
+
+  // Read or normalize missing token fields without fabricating counts
   const storedEstIn = row.estimated_input_tokens ?? row.attempts?.[0]?.estimatedTokens?.inputTokens ?? null;
   const storedEstOut = row.estimated_output_tokens ?? row.attempts?.[0]?.estimatedTokens?.outputTokens ?? null;
   const storedEstTot = row.estimated_total_tokens ?? row.attempts?.[0]?.estimatedTokens?.totalTokens ?? null;
@@ -109,10 +118,11 @@ export function formatDbToRecord(row) {
         effectiveInputTokens: hasInput ? row.input_tokens : storedEstIn,
         effectiveOutputTokens: hasOutput ? row.output_tokens : storedEstOut,
         effectiveTotalTokens: storedEstTot,
+        usageSource: resolvedUsageSource,
         isEstimated: true,
       };
     } else {
-      const estimate = estimateTokensForRequest(row);
+      const estimate = estimateTokensForRequest({ ...row, usage_source: resolvedUsageSource });
       estimatedTokens = {
         inputTokens: estimate.estimatedInputTokens,
         outputTokens: estimate.estimatedOutputTokens,
@@ -120,7 +130,8 @@ export function formatDbToRecord(row) {
         effectiveInputTokens: estimate.effectiveInputTokens,
         effectiveOutputTokens: estimate.effectiveOutputTokens,
         effectiveTotalTokens: estimate.effectiveTotalTokens,
-        isEstimated: true,
+        usageSource: resolvedUsageSource,
+        isEstimated: estimate.isEstimated,
       };
     }
   }
@@ -158,6 +169,7 @@ export function formatDbToRecord(row) {
       inputTokens: hasInput ? row.input_tokens : null,
       outputTokens: hasOutput ? row.output_tokens : null,
       totalTokens,
+      usageSource: resolvedUsageSource,
       tokenCountsAvailable,
       tokenCountsComplete: Boolean(
         tokenCountsAvailable &&

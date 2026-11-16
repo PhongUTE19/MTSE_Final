@@ -166,18 +166,22 @@ export function WorkspaceSidebar({
           onClick={() => navigate(APP_ROUTES.HOME)}
         />
 
-        <SidebarSectionLabel>Workspace</SidebarSectionLabel>
-        {workspace.map((item) => {
-          const isActive = isWorkspaceItemActive(item, location.pathname, activeView);
-          return (
-            <SidebarNavigationItem
-              key={item.key}
-              label={item.label}
-              isActive={isActive}
-              onClick={() => handleWorkspaceNavigation(item)}
-            />
-          );
-        })}
+        {workspace && workspace.length > 0 && (
+          <>
+            <SidebarSectionLabel>Workspace</SidebarSectionLabel>
+            {workspace.map((item) => {
+              const isActive = isWorkspaceItemActive(item, location.pathname, activeView);
+              return (
+                <SidebarNavigationItem
+                  key={item.key}
+                  label={item.label}
+                  isActive={isActive}
+                  onClick={() => handleWorkspaceNavigation(item)}
+                />
+              );
+            })}
+          </>
+        )}
 
         {admin && (
           <>

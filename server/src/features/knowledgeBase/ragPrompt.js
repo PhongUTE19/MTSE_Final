@@ -84,6 +84,7 @@ export function getRagPrompt(promptType, options = {}) {
     : RAG_PROMPT_IDS.GROUNDED;
 
   const requestedVersion = options.version || RAG_PROMPT_VERSION;
+  const resolvedDir = options.promptsDir || promptsDirectory;
   let rawTemplate = '';
   let isOverride = false;
   let baseVersion = requestedVersion;
@@ -93,24 +94,34 @@ export function getRagPrompt(promptType, options = {}) {
     isOverride = true;
   } else {
     const filePrefix = PROMPT_FILE_PREFIX[promptId] || 'grounded';
-    const filePath = path.join(promptsDirectory, `${filePrefix}-${requestedVersion}.md`);
+    const filePath = path.join(resolvedDir, `${filePrefix}-${requestedVersion}.md`);
 
-    try {
-      if (fs.existsSync(filePath)) {
-        rawTemplate = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').trim();
-      } else {
-        const defaultPath = path.join(promptsDirectory, `${filePrefix}-${RAG_PROMPT_VERSION}.md`);
-        if (fs.existsSync(defaultPath)) {
-          console.warn(`[RagPrompt] Prompt "${promptId}" version "${requestedVersion}" not found. Falling back to default "${RAG_PROMPT_VERSION}".`);
-          rawTemplate = fs.readFileSync(defaultPath, 'utf-8').replace(/\r\n/g, '\n').trim();
-          baseVersion = RAG_PROMPT_VERSION;
-        } else {
-          rawTemplate = BUILTIN_FALLBACKS[promptId] || '';
-        }
+    if (promptId === RAG_PROMPT_IDS.SYSTEM) {
+      if (!fs.existsSync(filePath)) {
+        throw new Error(`Canonical RAG system prompt file not found: ${filePath}`);
       }
-    } catch (err) {
-      console.warn(`[RagPrompt] Error loading prompt from disk: ${err.message}. Using built-in fallback.`);
-      rawTemplate = BUILTIN_FALLBACKS[promptId] || '';
+      rawTemplate = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').trim();
+      if (!rawTemplate) {
+        throw new Error(`Canonical RAG system prompt file is empty or invalid: ${filePath}`);
+      }
+    } else {
+      try {
+        if (fs.existsSync(filePath)) {
+          rawTemplate = fs.readFileSync(filePath, 'utf-8').replace(/\r\n/g, '\n').trim();
+        } else {
+          const defaultPath = path.join(resolvedDir, `${filePrefix}-${RAG_PROMPT_VERSION}.md`);
+          if (fs.existsSync(defaultPath)) {
+            console.warn(`[RagPrompt] Prompt "${promptId}" version "${requestedVersion}" not found. Falling back to default "${RAG_PROMPT_VERSION}".`);
+            rawTemplate = fs.readFileSync(defaultPath, 'utf-8').replace(/\r\n/g, '\n').trim();
+            baseVersion = RAG_PROMPT_VERSION;
+          } else {
+            rawTemplate = BUILTIN_FALLBACKS[promptId] || '';
+          }
+        }
+      } catch (err) {
+        console.warn(`[RagPrompt] Error loading prompt from disk: ${err.message}. Using built-in fallback.`);
+        rawTemplate = BUILTIN_FALLBACKS[promptId] || '';
+      }
     }
   }
 

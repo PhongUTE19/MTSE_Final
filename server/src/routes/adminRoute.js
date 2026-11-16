@@ -12,10 +12,10 @@ const router = express.Router();
 // requirement. Roles originate only from verified Supabase app_metadata.
 router.use(authenticate, authorize('admin'));
 
-// Document management CRUD (modularized in features/document)
+// Read-only document listing and inspection (modularized in features/document)
 router.use('/document', documentRouter);
 
-// System prompt management (modularized in features/systemPrompt)
+// Read-only system prompt inspection (modularized in features/systemPrompt)
 router.use('/system-prompt', systemPromptRouter);
 
 // AI usage monitoring (modularized in features/aiUsage)

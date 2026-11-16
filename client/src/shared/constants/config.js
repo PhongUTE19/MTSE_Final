@@ -21,7 +21,6 @@ export const API_ENDPOINTS = Object.freeze({
   ADMIN_KNOWLEDGE_CHUNKS: '/api/admin/knowledge-base/chunks',
   ADMIN_KNOWLEDGE_INDEX: '/api/admin/knowledge-base/index',
   ADMIN_SYSTEM_PROMPT: '/api/admin/system-prompt',
-  ADMIN_SYSTEM_PROMPT_RESET: '/api/admin/system-prompt/reset',
   ADMIN_AI_USAGE_OVERVIEW: '/api/admin/ai-usage/overview',
   ADMIN_AI_USAGE_TIMESERIES: '/api/admin/ai-usage/timeseries',
   ADMIN_AI_USAGE_BREAKDOWN: '/api/admin/ai-usage/breakdown',
@@ -38,7 +37,6 @@ export const HTTP_METHODS = Object.freeze({
 export const ADMIN_PANELS = Object.freeze({
   DOCUMENTS: 'documents',
   CHUNKS: 'chunks',
-  PROMPT: 'prompt',
 });
 
 export const ADMIN_TABS = Object.freeze({

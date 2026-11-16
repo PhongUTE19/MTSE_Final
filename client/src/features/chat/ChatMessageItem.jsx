@@ -2,6 +2,7 @@ import React from 'react';
 import FormattedMessageText from './FormattedMessageText.jsx';
 import ThinkingIndicator from '../../primitives/feedback/ThinkingIndicator.jsx';
 import Avatar from '../../primitives/display/Avatar.jsx';
+import Button from '../../primitives/buttons/Button.jsx';
 import Text from '../../primitives/typography/Text.jsx';
 
 /**
@@ -32,12 +33,15 @@ export default function ChatMessageItem({
   item,
   variant = item?.role === 'user' ? 'user' : 'assistant',
   onRevealComplete,
+  onRetry,
   renderToolResult,
   avatarIcon,
 }) {
   const isUser = variant === 'user';
-  const isThinking = item?.id === 'thinking';
+  const isThinking = item?.id === 'thinking' || (item?.isStreaming && !item?.text);
   const messageClass = CHAT_MESSAGE_VARIANTS[variant] || CHAT_MESSAGE_VARIANTS.assistant;
+  const isAborted = item?.status === 'aborted';
+  const isFailed = item?.status === 'failed';
 
   return (
     <article className={messageClass} key={item?.id}>
@@ -57,10 +61,27 @@ export default function ChatMessageItem({
               <>
                 <FormattedMessageText
                   text={item?.text}
-                  animate={Boolean(item?.isNew)}
+                  animate={Boolean(item?.isNew) && !item?.streamed && !item?.isStreaming}
                   onComplete={() => onRevealComplete?.(item?.id)}
                 />
                 {renderToolResult?.(item)}
+                {(isAborted || isFailed) && (
+                  <div className="flex items-center gap-2 pt-1 text-xs text-content-muted">
+                    <span>
+                      {isAborted ? 'Stopped (partial response)' : (item?.errorMessage || 'Failed to complete response')}
+                    </span>
+                    {onRetry && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onRetry(item?.id)}
+                      >
+                        Retry
+                      </Button>
+                    )}
+                  </div>
+                )}
               </>
             )}
 

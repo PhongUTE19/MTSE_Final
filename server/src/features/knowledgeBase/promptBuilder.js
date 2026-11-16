@@ -1,5 +1,3 @@
-import { config } from '../../config.js';
-import { getSystemPrompt } from '../systemPrompt/systemPrompt.service.js';
 import { getRagPrompt, getRagPromptDetails } from './ragPrompt.js';
 
 /**
@@ -36,7 +34,7 @@ export function formatContextSections(chunks) {
  */
 export function buildGroundedPrompt(question, chunks, customPrompt, options = {}) {
   const contextSections = formatContextSections(chunks);
-  const systemPrompt = customPrompt || (typeof getSystemPrompt === 'function' ? getSystemPrompt() : (config.defaultSystemPrompt || ''));
+  const systemPrompt = customPrompt || getRagPrompt('system').text;
   const sanitizedQuestion = (question || '').replace(/<\/?(?:retrieved_context|student_question|user_question|context|system|prompt|instruction)>/gi, '');
 
   const promptResult = getRagPrompt('grounded', {
@@ -63,7 +61,7 @@ export function buildGroundedPrompt(question, chunks, customPrompt, options = {}
  */
 export function buildGroundedPromptDetails(question, chunks, customPrompt, options = {}) {
   const contextSections = formatContextSections(chunks);
-  const systemPrompt = customPrompt || (typeof getSystemPrompt === 'function' ? getSystemPrompt() : (config.defaultSystemPrompt || ''));
+  const systemPrompt = customPrompt || getRagPrompt('system').text;
   const sanitizedQuestion = (question || '').replace(/<\/?(?:retrieved_context|student_question|user_question|context|system|prompt|instruction)>/gi, '');
 
   return getRagPromptDetails('grounded', {

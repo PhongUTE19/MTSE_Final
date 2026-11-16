@@ -21,16 +21,16 @@ export const ADMIN_NAV_ITEMS = Object.freeze([
 
 /**
  * Resolves visible navigation sections for a given user.
- * - Workspace: Transactions, Receipts (all authenticated users).
- * - Administration: Knowledge Base, AI Usage (verified administrators, in addition to Workspace).
+ * - Workspace: Transactions, Scan Receipt (authenticated regular users only).
+ * - Administration: Knowledge Base, AI Usage (verified administrators only).
  *
  * @param {object} user - Authenticated Supabase user object or session.
- * @returns {{ workspace: typeof WORKSPACE_NAV_ITEMS, admin: typeof ADMIN_NAV_ITEMS | null }}
+ * @returns {{ workspace: typeof WORKSPACE_NAV_ITEMS | null, admin: typeof ADMIN_NAV_ITEMS | null }}
  */
 export function getSidebarNavigation(user) {
   const isAdmin = getUserRole(user) === 'admin';
   return {
-    workspace: WORKSPACE_NAV_ITEMS,
+    workspace: isAdmin ? null : WORKSPACE_NAV_ITEMS,
     admin: isAdmin ? ADMIN_NAV_ITEMS : null,
   };
 }

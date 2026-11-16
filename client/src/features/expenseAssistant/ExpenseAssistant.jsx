@@ -16,6 +16,10 @@ import { RECEIPT_ACCEPT_ATTR } from '../../shared/transactions/expenseConstants.
 export default function ExpenseAssistant({
   userId,
   onAsk,
+  onAskStream,
+  drafts = [],
+  draftsLoading = false,
+  onCreateDraft,
   onConfirmDraft,
   onRejectDraft,
   onSaveDraft,
@@ -27,15 +31,58 @@ export default function ExpenseAssistant({
 }) {
   const imageInputRef = useRef(null);
   const activeIdRef = useRef('');
+  const stagedReceiptIdsRef = useRef(new Set());
 
   const handleReceiptUpload = onReceiptUpload || receiptApi?.upload;
+
+  const stageProposalDraft = async (proposalPayload, { conversationId: convId } = {}) => {
+    const proposalData = proposalPayload?.proposal || proposalPayload?.draft || proposalPayload;
+    if (!proposalData) return null;
+    const localDraftId = proposalPayload?.draftId || crypto.randomUUID();
+    const normalizedToolResult = {
+      draftId: localDraftId,
+      sourceType: 'assistant_proposal',
+      sourceRef: proposalPayload?.sourceRef || convId || null,
+      draft: proposalData,
+    };
+    if (onCreateDraft) {
+      await onCreateDraft({
+        id: localDraftId,
+        sourceType: 'assistant_proposal',
+        sourceRef: normalizedToolResult.sourceRef,
+        originalData: proposalData,
+        reviewedData: proposalData,
+      });
+    }
+    return normalizedToolResult;
+  };
 
   const assistant = useChat({
     userId,
     namespace: 'expense-assistant',
+    onSendMessageStream: onAskStream || null,
+    onProposal: stageProposalDraft,
     onSendMessage: async (text, history, context) => {
       const sendingConversationId = context?.conversationId || activeIdRef.current;
-      return onAsk(text, history, { conversationId: sendingConversationId });
+      const response = await onAsk(text, history, { conversationId: sendingConversationId });
+      const isProposalTool = response?.toolName === 'propose_transaction' || response?.toolName === 'create_transaction';
+      const proposalData = response?.toolResult?.proposal || response?.proposal || response?.toolResult?.draft || null;
+
+      if (isProposalTool && proposalData) {
+        const normalizedToolResult = await stageProposalDraft(
+          {
+            draftId: response?.toolResult?.draftId,
+            sourceRef: response?.toolResult?.sourceRef || sendingConversationId,
+            proposal: proposalData,
+          },
+          { conversationId: sendingConversationId }
+        );
+        return {
+          ...response,
+          toolResult: normalizedToolResult,
+        };
+      }
+      return response;
     },
     onOpenChange,
   });
@@ -65,6 +112,32 @@ export default function ExpenseAssistant({
       closeReceipt();
     }
   }, [assistant.activeId, closeReceipt]);
+
+  // Persist stateless receipt extraction + Blob in local IndexedDB on upload
+  useEffect(() => {
+    const draft = receipt?.draft;
+    if (!draft?.id || !onCreateDraft || stagedReceiptIdsRef.current.has(draft.id)) {
+      return;
+    }
+    stagedReceiptIdsRef.current.add(draft.id);
+    onCreateDraft({
+      id: draft.id,
+      sourceType: 'receipt_extraction',
+      originalData: draft.originalData || receipt.extraction || {},
+      reviewedData: draft.reviewedData || draft.originalData || receipt.extraction || {},
+      warnings: draft.warnings || receipt.warnings || [],
+      receiptBlob: receipt.file || null,
+      fileMeta: draft.fileMeta || {
+        filename: receipt.file?.name || 'receipt.png',
+        mimeType: receipt.file?.type || 'image/png',
+        size: receipt.file?.size || null,
+      },
+      aiModel: draft.aiModel || null,
+      promptVersion: draft.promptVersion || null,
+    }).catch((err) => {
+      setError(err?.message || 'Failed to stage receipt draft locally.');
+    });
+  }, [receipt, onCreateDraft, setError]);
 
   async function handleConfirmReceipt(payload) {
     if (!receipt) return;
@@ -117,6 +190,9 @@ export default function ExpenseAssistant({
         renderToolResult={(item) => (
           <ExpenseToolResult
             message={item}
+            drafts={drafts}
+            draftsLoading={draftsLoading}
+            onCreateDraft={onCreateDraft}
             onConfirmDraft={onConfirmDraft}
             onRejectDraft={onRejectDraft}
             onSaveDraft={onSaveDraft}

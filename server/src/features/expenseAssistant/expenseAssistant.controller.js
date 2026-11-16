@@ -1,9 +1,10 @@
 import {
   createTransactionProposalForUser,
   getSpendingSummaryForUser,
-  runExpenseAssistantForUser,
+  runUnifiedExpenseAssistant,
   searchTransactionsForUser,
 } from './expenseAssistant.service.js';
+import { getGeminiExpenseAssistantClientForTests } from './geminiExpenseAssistant.js';
 
 export async function search(req, res, next) {
   try {
@@ -26,18 +27,13 @@ export async function summary(req, res, next) {
 export async function assistant(req, res, next) {
   try {
     const { message, history, conversationId } = res.locals.validated.body;
-    const rawResult = await runExpenseAssistantForUser(req.user, message, {
+    const resolvedConversationId = conversationId || req.body?.conversationId || null;
+    const result = await runUnifiedExpenseAssistant(req.user, message, {
       history,
-      conversationId: conversationId || req.body?.conversationId || null,
+      conversationId: resolvedConversationId,
+      ai: getGeminiExpenseAssistantClientForTests(),
     });
-    res.json({
-      answer: rawResult.answer,
-      strategy: 'agent',
-      toolName: rawResult.toolName || null,
-      toolResult: rawResult.toolResult || null,
-      sources: [],
-      retrieval: null,
-    });
+    res.json(result);
   } catch (error) {
     next(error);
   }

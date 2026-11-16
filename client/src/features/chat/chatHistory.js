@@ -25,6 +25,7 @@ export function saveChatHistory(storage, userId, conversations, namespace = 'cha
     id: conversation.id,
     title: String(conversation.title || 'New conversation').slice(0, 80),
     updatedAt: conversation.updatedAt,
+    persisted: Boolean(conversation.persisted),
     messages: (conversation.messages || [])
       .slice(-MAX_MESSAGES)
       .map(({ id, role, text, toolName, result, sources }) => ({
@@ -37,6 +38,15 @@ export function saveChatHistory(storage, userId, conversations, namespace = 'cha
       })),
   }));
   storage.setItem(storageKey(userId, namespace), JSON.stringify(safeConversations));
+}
+
+export function clearChatHistory(storage, userId, namespace = 'chat') {
+  if (!storage || !userId) return;
+  try {
+    storage.removeItem?.(storageKey(userId, namespace));
+  } catch {
+    // Ignore storage removal errors
+  }
 }
 
 export function makeConversation(title = 'New conversation') {

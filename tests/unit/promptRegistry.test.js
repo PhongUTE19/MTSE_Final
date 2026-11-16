@@ -5,14 +5,14 @@ import {
   RECEIPT_PROMPT_VERSION,
   getReceiptPrompt,
   getReceiptPromptDetails,
-} from '../../server/src/features/expenses/receiptPrompt.js';
+} from '../../server/src/features/receipt/receiptPrompt.js';
 import {
   EXPENSE_AGENT_PROMPT_IDS,
   EXPENSE_AGENT_PROMPT_VERSION,
   PROMPT_DIRECTORIES,
   resolvePromptFilePath,
   BUILTIN_FALLBACKS,
-  getExpenseAgentPrompt,
+  getExpenseAssistantPrompt as getExpenseAgentPrompt,
   renderExpenseAgentPrompt,
   computeExpenseAgentPromptVersion,
   systemInstruction,
@@ -20,7 +20,7 @@ import {
   createSystemInstruction,
   assistantSystemInstruction,
   formatConversationContext,
-} from '../../server/src/features/expenseAgent/expenseAgentPrompt.js';
+} from '../../server/src/features/expenseAssistant/expenseAssistantPrompt.js';
 import {
   RAG_PROMPT_IDS,
   RAG_PROMPT_VERSION,
@@ -33,9 +33,9 @@ import {
   buildGroundedPrompt,
   buildGroundedPromptDetails,
 } from '../../server/src/features/knowledgeBase/promptBuilder.js';
-import { orchestrateRAGChat } from '../../server/src/features/assistant/assistant.service.js';
-import { runGeminiExpenseAgent } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
-import { getRecentUsageRecords } from '../../server/src/features/analytics/index.js';
+import { orchestrateRAGChat } from '../../server/src/features/chatAssistant/chatAssistant.service.js';
+import { runGeminiExpenseAssistant as runGeminiExpenseAgent } from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
+import { getRecentUsageRecords } from '../../server/src/features/aiUsage/index.js';
 
 describe('Version-Controlled Prompt Management for Approved AI Capabilities', () => {
   describe('1. Multimodal Receipt Understanding Prompt Management', () => {
@@ -372,6 +372,33 @@ describe('Version-Controlled Prompt Management for Approved AI Capabilities', ()
       const v = computeRagPromptVersion('rag_grounded', 'v1', 'sample content');
       assert.ok(v.startsWith('rag_grounded:v1:'));
       assert.equal(v.split(':').length, 3);
+    });
+
+    it('fails explicitly when canonical RAG system prompt file is missing or empty', async () => {
+      const fs = await import('node:fs');
+      const os = await import('node:os');
+      const path = await import('node:path');
+      const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'spendwise-rag-prompt-'));
+      try {
+        assert.throws(
+          () => getRagPrompt('system', { promptsDir: emptyDir }),
+          /Canonical RAG system prompt file not found/
+        );
+
+        fs.writeFileSync(path.join(emptyDir, 'system-v1.md'), '   \n  ', 'utf-8');
+        assert.throws(
+          () => getRagPrompt('system', { promptsDir: emptyDir }),
+          /Canonical RAG system prompt file is empty or invalid/
+        );
+      } finally {
+        fs.rmSync(emptyDir, { recursive: true, force: true });
+      }
+    });
+
+    it('buildGroundedPrompt uses canonical Git-managed system prompt instead of mutable host files', () => {
+      const canonicalSystem = getRagPrompt('system').text;
+      const grounded = buildGroundedPrompt('What is the receipt limit?', []);
+      assert.ok(grounded.startsWith(canonicalSystem));
     });
   });
 });

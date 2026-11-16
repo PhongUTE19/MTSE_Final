@@ -16,3 +16,22 @@ export function isValidIsoCalendarDate(value) {
     utc.getUTCDate() === d
   );
 }
+
+/**
+ * Returns today's YYYY-MM-DD calendar date in Vietnam (Asia/Ho_Chi_Minh).
+ *
+ * @param {Date} [now]
+ * @returns {string}
+ */
+export function getVietnamDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(now);
+  const values = Object.fromEntries(
+    parts.filter(({ type }) => type !== 'literal').map(({ type, value }) => [type, value])
+  );
+  return `${values.year}-${values.month}-${values.day}`;
+}

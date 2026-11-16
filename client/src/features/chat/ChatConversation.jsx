@@ -24,10 +24,13 @@ export default function ChatConversation({
   const {
     active,
     busy,
+    isStreaming,
     error,
     conversationRef,
     handleScroll,
     sendMessage,
+    stopStreaming,
+    retryMessage,
     handleRevealComplete,
   } = assistant;
 
@@ -74,13 +77,14 @@ export default function ChatConversation({
             item={item}
             variant={item.role === 'user' ? 'user' : 'assistant'}
             onRevealComplete={handleRevealComplete}
+            onRetry={retryMessage}
             renderToolResult={renderToolResult}
             avatarIcon={avatarIcon}
             toolLabel={toolLabel}
           />
         ))}
 
-        {busy && (
+        {busy && !isStreaming && (
           <ChatMessageItem
             variant="assistant"
             item={{ id: 'thinking', role: 'assistant', text: 'Thinking…' }}
@@ -95,7 +99,9 @@ export default function ChatConversation({
 
       <ChatComposer
         onSendMessage={sendMessage}
+        onStop={stopStreaming}
         busy={busy}
+        isStreaming={isStreaming}
         placeholder={composerPlaceholder}
         sendLabel={sendLabel}
         renderAttachmentAction={renderAttachmentAction}

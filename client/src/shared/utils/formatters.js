@@ -93,12 +93,72 @@ export function formatMoney(value) {
  * @param {any} value
  * @returns {number}
  */
+const FOREIGN_CURRENCY_PATTERN = /[$€£¥₹₩฿]|(?<![a-z])(USD|EUR|GBP|JPY|AUD|CAD|SGD|KRW|THB|CNY|RMB)(?![a-z])/i;
+const VND_CURRENCY_PATTERN = /₫|VNĐ|VND|[đĐ]/gi;
+
+/**
+ * Parses monetary input safely to numeric VND amount.
+ *
+ * Rules:
+ * - Rejects foreign currency markers ($, €, £, ¥, USD, EUR, etc.) with 0.
+ * - Strips VND symbols (₫, đ, Đ, VND, VNĐ) and outer whitespace.
+ * - Supports shorthand `k`/`K` thousands (e.g. `500k` -> 500000).
+ * - Supports grouped thousands with `.` (`183.000`), `,` (`50,000`), or space (`50 000`).
+ * - Preserves valid decimal inputs (`12.50`, `1,250.50`, `1.250,50`).
+ * - Rejects malformed or ambiguous punctuation (`183.00.00`, `50 00`, `1,23,456`) with 0.
+ *
+ * @param {any} value
+ * @returns {number}
+ */
 export function parseMoney(value) {
   if (value === null || value === undefined || value === '') return 0;
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? Math.round(value) : 0;
+    return Number.isFinite(value) ? value : 0;
   }
-  const cleaned = String(value).replace(/[^\d.-]/g, '');
-  const numeric = Number(cleaned);
-  return Number.isFinite(numeric) ? Math.round(numeric) : 0;
+  if (typeof value !== 'string') return 0;
+
+  const trimmed = value.trim();
+  if (!trimmed || FOREIGN_CURRENCY_PATTERN.test(trimmed)) return 0;
+
+  const withoutCurrency = trimmed.replace(VND_CURRENCY_PATTERN, '').trim();
+  if (!withoutCurrency) return 0;
+
+  let sign = 1;
+  let body = withoutCurrency;
+  if (body.startsWith('-')) {
+    sign = -1;
+    body = body.slice(1).trim();
+  } else if (body.startsWith('+')) {
+    body = body.slice(1).trim();
+  }
+
+  if (!body || /[+-]/.test(body)) return 0;
+
+  const kMatch = body.match(/^(\d+(?:[.,]\d{1,2})?)\s*k$/i);
+  if (kMatch) {
+    const base = Number(kMatch[1].replace(',', '.'));
+    return Number.isFinite(base) ? sign * Math.round(base * 1000) : 0;
+  }
+
+  let normalized = null;
+  if (/^\d+$/.test(body)) {
+    normalized = body;
+  } else if (/^\d{1,3}( \d{3})+$/.test(body)) {
+    normalized = body.replace(/ /g, '');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(body)) {
+    normalized = body.replace(/\./g, '');
+  } else if (/^\d{1,3}(,\d{3})+$/.test(body)) {
+    normalized = body.replace(/,/g, '');
+  } else if (/^\d{1,3}(,\d{3})+\.\d{1,2}$/.test(body)) {
+    normalized = body.replace(/,/g, '');
+  } else if (/^\d{1,3}(\.\d{3})+,\d{1,2}$/.test(body)) {
+    normalized = body.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d+\.\d+$/.test(body)) {
+    normalized = body;
+  }
+
+  if (normalized === null) return 0;
+
+  const numeric = Number(normalized);
+  return Number.isFinite(numeric) ? sign * numeric : 0;
 }

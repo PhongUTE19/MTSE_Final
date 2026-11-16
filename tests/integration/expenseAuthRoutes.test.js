@@ -1,16 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import express from '../../server/node_modules/express/index.js';
-import expenseRouter from '../../server/src/features/expenses/expenses.routes.js';
-import expenseAgentRouter from '../../server/src/features/expenseAgent/expenseAgent.routes.js';
+import transactionRouter from '../../server/src/features/transaction/transaction.route.js';
+import receiptRouter from '../../server/src/features/receipt/receipt.route.js';
+import expenseAgentRouter from '../../server/src/features/expenseAssistant/expenseAssistant.route.js';
+import chatAssistantRouter from '../../server/src/features/chatAssistant/chatAssistant.route.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
 import {
   setTokenVerifierForTests,
   authenticate,
 } from '../../server/src/shared/middleware/authenticate.js';
 import { authorize } from '../../server/src/shared/middleware/authorize.js';
-import { setExpenseClientFactoryForTests } from '../../server/src/features/expenses/expenses.service.js';
-import { setReceiptDependenciesForTests } from '../../server/src/features/expenses/receipt.service.js';
+import { setExpenseClientFactoryForTests } from '../../server/src/features/transaction/transaction.service.js';
+import { setReceiptDependenciesForTests } from '../../server/src/features/receipt/receipt.service.js';
 
 function dispatch(router, { method = 'GET', path, headers = {}, body } = {}) {
   return new Promise((resolve, reject) => {
@@ -65,16 +67,16 @@ function receiptClientWithoutLinkedTransaction() {
   return { from: () => query };
 }
 
-test('expense routes reject unauthenticated transaction and receipt-draft requests', { concurrency: false }, async (t) => {
+test('user-only API routes reject unauthenticated guests with HTTP 401 across all four route groups', { concurrency: false }, async (t) => {
   setTokenVerifierForTests(async () => null);
   t.after(() => {
     setTokenVerifierForTests(null);
   });
 
-  const transactionResponse = await dispatch(expenseRouter, { path: '/transactions' });
-  const receiptResponse = await dispatch(expenseRouter, {
+  const transactionResponse = await dispatch(transactionRouter, { path: '/transaction' });
+  const receiptResponse = await dispatch(receiptRouter, {
     method: 'POST',
-    path: '/receipts/upload',
+    path: '/upload',
     headers: { 'content-type': 'application/json' },
     body: { fileName: 'receipt.png', fileType: 'image/png' },
   });
@@ -84,11 +86,49 @@ test('expense routes reject unauthenticated transaction and receipt-draft reques
   const summaryResponse = await dispatch(expenseAgentRouter, {
     method: 'POST', path: '/summary', body: { message: 'Total spending this month' },
   });
+  const chatResponse = await dispatch(chatAssistantRouter, {
+    method: 'POST', path: '/', body: { message: 'What is SpendWise?' },
+  });
+  const chatStreamResponse = await dispatch(chatAssistantRouter, {
+    method: 'POST', path: '/stream', body: { message: 'What is SpendWise?' },
+  });
 
   assert.equal(transactionResponse.status, 401);
   assert.equal(receiptResponse.status, 401);
   assert.equal(agentResponse.status, 401);
   assert.equal(summaryResponse.status, 401);
+  assert.equal(chatResponse.status, 401);
+  assert.equal(chatStreamResponse.status, 401);
+});
+
+test('user-only API routes reject authenticated admin users with HTTP 403 across all four route groups', { concurrency: false }, async (t) => {
+  setTokenVerifierForTests(async (token) => {
+    if (token === 'admin-token') return { id: 'admin-1', app_metadata: { role: 'admin' } };
+    return null;
+  });
+  t.after(() => {
+    setTokenVerifierForTests(null);
+  });
+
+  const headers = { authorization: 'Bearer admin-token', 'content-type': 'application/json' };
+
+  const transactionResponse = await dispatch(transactionRouter, { path: '/transaction', headers });
+  const receiptResponse = await dispatch(receiptRouter, { path: '/', headers });
+  const agentResponse = await dispatch(expenseAgentRouter, {
+    method: 'POST', path: '/', headers, body: { message: 'Log 50k coffee' },
+  });
+  const chatResponse = await dispatch(chatAssistantRouter, {
+    method: 'POST', path: '/', headers, body: { message: 'What is SpendWise?' },
+  });
+  const chatStreamResponse = await dispatch(chatAssistantRouter, {
+    method: 'POST', path: '/stream', headers, body: { message: 'What is SpendWise?' },
+  });
+
+  assert.equal(transactionResponse.status, 403);
+  assert.equal(receiptResponse.status, 403);
+  assert.equal(agentResponse.status, 403);
+  assert.equal(chatResponse.status, 403);
+  assert.equal(chatStreamResponse.status, 403);
 });
 
 test('expense routes enforce ownership at the HTTP boundary and reject non-admin roles', { concurrency: false }, async (t) => {
@@ -112,10 +152,10 @@ test('expense routes enforce ownership at the HTTP boundary and reject non-admin
     setReceiptDependenciesForTests();
   });
 
-  const getResponse = await dispatch(expenseRouter, { path: '/transactions/transaction-a', headers });
-  const updateResponse = await dispatch(expenseRouter, {
+  const getResponse = await dispatch(transactionRouter, { path: '/transaction/transaction-a', headers });
+  const updateResponse = await dispatch(transactionRouter, {
     method: 'PUT',
-    path: '/transactions/transaction-a',
+    path: '/transaction/transaction-a',
     headers,
     body: {
       type: 'expense',
@@ -127,7 +167,7 @@ test('expense routes enforce ownership at the HTTP boundary and reject non-admin
       items: [],
     },
   });
-  const deleteResponse = await dispatch(expenseRouter, { method: 'DELETE', path: '/transactions/transaction-a', headers });
+  const deleteResponse = await dispatch(transactionRouter, { method: 'DELETE', path: '/transaction/transaction-a', headers });
   const roleResponse = await dispatch(adminRouter, { path: '/admin-check', headers });
 
   assert.equal(getResponse.status, 404);

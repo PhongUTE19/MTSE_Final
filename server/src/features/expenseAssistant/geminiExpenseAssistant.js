@@ -1,9 +1,12 @@
 import { config } from '../../config.js';
 import { RETRY_CONFIG } from '../../constants/index.js';
 import { recordUsage, hashPrompt } from '../aiUsage/index.js';
-import { getAIClient, executeWithRetry } from '../../shared/integrations/ai/index.js';
+import { generateToolTurn, generateToolFollowup } from '../../shared/integrations/ai/index.js';
 import { validateChatResponse } from '../../shared/guardrails/index.js';
+import { getVietnamDate } from '../../shared/validation/date.js';
 import { getExpenseAssistantPrompt } from './expenseAssistantPrompt.js';
+
+export { getVietnamDate };
 
 export const SEARCH_TRANSACTIONS_TOOL = Object.freeze({
   name: 'search_transactions',
@@ -51,20 +54,11 @@ export const CREATE_TRANSACTION_TOOL = Object.freeze({
 
 let clientFactory = null;
 export function setGeminiExpenseAssistantClientFactoryForTests(factory) { clientFactory = factory; }
+export function getGeminiExpenseAssistantClientForTests() { return clientFactory ? clientFactory() : undefined; }
 
-// Supabase transaction_date is local calendar date. Use Vietnam time zone
-// instead of server UTC so "yesterday / this month" dates do not shift at midnight.
-export function getVietnamDate(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Ho_Chi_Minh', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).formatToParts(now);
-  const values = Object.fromEntries(parts.filter(({ type }) => type !== 'literal').map(({ type, value }) => [type, value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-function getClient() {
-  if (clientFactory) return clientFactory();
-  return getAIClient();
+function getClientOverride(options) {
+  if (options.ai) return options.ai;
+  return clientFactory ? clientFactory() : undefined;
 }
 
 function safeRecordUsage(recordData) {
@@ -107,23 +101,15 @@ const AGENT_TOOL_DECLARATIONS = Object.freeze({
   search: [SEARCH_TRANSACTIONS_TOOL],
 });
 
-/** Runs exactly one read-only function call, then returns Gemini's natural-language summary. */
+/** Runs exactly one tool-calling turn (if needed), then returns a natural-language summary. */
 export async function runGeminiExpenseAssistant(message, executeTool, options = {}) {
-  const ai = options.ai || getClient();
+  const aiOverride = getClientOverride(options);
   const model = options.model || config.geminiModel;
   const timeoutMs = options.timeoutMs ?? EXPENSE_ASSISTANT_TIMEOUT_MS;
   const today = options.today || getVietnamDate();
   const promptResolution = resolveExpenseAssistantPrompt(options.agentType, today, options.systemInstruction);
   const instruction = promptResolution.text;
   const declarations = AGENT_TOOL_DECLARATIONS[options.agentType] || AGENT_TOOL_DECLARATIONS.search;
-  const generationConfig = {
-    systemInstruction: instruction,
-    tools: [{ functionDeclarations: declarations }],
-    // AUTO allows Gemini to ask for clarification on ambiguous dates instead of guessing filters.
-    // Gemini API only allows allowedFunctionNames in ANY mode. AUTO preserves the ability
-    // to ask follow-up questions for ambiguous dates; tool declaration already has only target tools.
-    toolConfig: { functionCallingConfig: { mode: 'AUTO' } },
-  };
 
   const feature = options.feature || 'expense_agent';
   const promptId = options.promptId || promptResolution.promptId;
@@ -132,54 +118,39 @@ export async function runGeminiExpenseAssistant(message, executeTool, options = 
   const maxRetries = options.maxRetries ?? RETRY_CONFIG.MAX_RETRIES;
   const initialDelayMs = options.initialDelayMs ?? RETRY_CONFIG.INITIAL_DELAY_MS;
 
-  let firstResponse;
-  let firstAttempts;
-  let firstTotalAttempts;
-  let firstDurationMs;
-
+  let firstTurn;
   try {
-    const executed = await executeWithRetry(
-      () => ai.models.generateContent({
+    firstTurn = await generateToolTurn(
+      {
+        prompt: message,
+        systemInstruction: instruction,
+        tools: declarations,
         model,
-        contents: message,
-        config: generationConfig,
-      }),
-      maxRetries,
-      initialDelayMs,
-      timeoutMs,
-      'Expense search timed out.'
+        timeoutMs,
+        maxRetries,
+        initialDelayMs,
+        timeoutMessage: 'Expense search timed out.',
+        ai: aiOverride,
+      },
+      { provider: options.provider }
     );
-    firstResponse = executed.result;
-    firstAttempts = executed.attempts;
-    firstTotalAttempts = executed.totalAttempts;
-    firstDurationMs = executed.durationMs;
-
-    const firstCandidate = firstResponse?.candidates?.[0];
-    const finishReason = firstCandidate?.finishReason;
-    const isRefusal = finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'BLOCKLIST';
-    const usage = firstResponse?.usageMetadata || {};
 
     safeRecordUsage({
       feature,
       operation: options.operation ? `${options.operation}:tool_selection` : 'expenseAgent.toolSelection',
-      provider: 'google-genai',
-      model,
-      outcome: isRefusal ? 'refusal' : 'success',
-      isRefusal,
-      refusalReason: isRefusal ? finishReason : null,
-      durationMs: firstDurationMs,
-      attempts: firstAttempts,
-      totalAttempts: firstTotalAttempts,
+      provider: firstTurn.provider,
+      model: firstTurn.model,
+      outcome: firstTurn.isRefusal ? 'refusal' : 'success',
+      isRefusal: firstTurn.isRefusal,
+      refusalReason: firstTurn.isRefusal ? firstTurn.finishReason : null,
+      durationMs: firstTurn.durationMs,
+      attempts: firstTurn.attempts,
+      totalAttempts: firstTurn.totalAttempts,
       promptId,
       promptVersion,
       promptHash,
       toolsExecuted: [],
-      tokenUsage: {
-        inputTokens: typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : null,
-        outputTokens: typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : null,
-        totalTokens: typeof usage.totalTokenCount === 'number' ? usage.totalTokenCount : null,
-        tokenCountsAvailable: typeof usage.promptTokenCount === 'number',
-      },
+      tokenUsage: firstTurn.tokenUsage,
     });
   } catch (error) {
     const meta = error.executionMetadata || {
@@ -211,9 +182,9 @@ export async function runGeminiExpenseAssistant(message, executeTool, options = 
     throw error;
   }
 
-  const call = firstResponse.functionCalls?.[0];
+  const call = firstTurn.toolCall;
   if (!call) {
-    const clarification = firstResponse.text?.trim();
+    const clarification = firstTurn.text;
     if (!clarification) throw new Error('Gemini returned neither a function call nor a clarification.');
     const validated = validateChatResponse(clarification);
     return { answer: validated.answer, toolName: null, toolResult: null, promptId, promptVersion, promptHash };
@@ -221,58 +192,41 @@ export async function runGeminiExpenseAssistant(message, executeTool, options = 
 
   const toolResult = await executeTool(call.name, call.args || {});
 
-  let finalResponse;
-  let finalAttempts;
-  let finalTotalAttempts;
-  let finalDurationMs;
-
+  let finalTurn;
   try {
-    const executed = await executeWithRetry(
-      () => ai.models.generateContent({
+    finalTurn = await generateToolFollowup(
+      {
+        prompt: message,
+        systemInstruction: instruction,
+        rawAssistantContent: firstTurn.rawAssistantContent,
+        toolName: call.name,
+        toolResult,
         model,
-        contents: [
-          { role: 'user', parts: [{ text: message }] },
-          firstResponse.candidates?.[0]?.content,
-          { role: 'user', parts: [{ functionResponse: { name: call.name, response: toolResult } }] },
-        ],
-        config: { systemInstruction: instruction },
-      }),
-      maxRetries,
-      initialDelayMs,
-      timeoutMs,
-      'Expense search timed out.'
+        timeoutMs,
+        maxRetries,
+        initialDelayMs,
+        timeoutMessage: 'Expense search timed out.',
+        ai: aiOverride,
+      },
+      { provider: options.provider }
     );
-    finalResponse = executed.result;
-    finalAttempts = executed.attempts;
-    finalTotalAttempts = executed.totalAttempts;
-    finalDurationMs = executed.durationMs;
-
-    const finalCandidate = finalResponse?.candidates?.[0];
-    const finishReason = finalCandidate?.finishReason;
-    const isRefusal = finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'BLOCKLIST';
-    const usage = finalResponse?.usageMetadata || {};
 
     safeRecordUsage({
       feature,
       operation: options.operation ? `${options.operation}:summary` : 'expenseAgent.summary',
-      provider: 'google-genai',
-      model,
-      outcome: isRefusal ? 'refusal' : 'success',
-      isRefusal,
-      refusalReason: isRefusal ? finishReason : null,
-      durationMs: finalDurationMs,
-      attempts: finalAttempts,
-      totalAttempts: finalTotalAttempts,
+      provider: finalTurn.provider,
+      model: finalTurn.model,
+      outcome: finalTurn.isRefusal ? 'refusal' : 'success',
+      isRefusal: finalTurn.isRefusal,
+      refusalReason: finalTurn.isRefusal ? finalTurn.finishReason : null,
+      durationMs: finalTurn.durationMs,
+      attempts: finalTurn.attempts,
+      totalAttempts: finalTurn.totalAttempts,
       promptId,
       promptVersion,
       promptHash,
       toolsExecuted: [call.name],
-      tokenUsage: {
-        inputTokens: typeof usage.promptTokenCount === 'number' ? usage.promptTokenCount : null,
-        outputTokens: typeof usage.candidatesTokenCount === 'number' ? usage.candidatesTokenCount : null,
-        totalTokens: typeof usage.totalTokenCount === 'number' ? usage.totalTokenCount : null,
-        tokenCountsAvailable: typeof usage.promptTokenCount === 'number',
-      },
+      tokenUsage: finalTurn.tokenUsage,
     });
   } catch (error) {
     const meta = error.executionMetadata || {
@@ -304,7 +258,7 @@ export async function runGeminiExpenseAssistant(message, executeTool, options = 
     throw error;
   }
 
-  const answer = finalResponse.text?.trim();
+  const answer = finalTurn.text;
   if (!answer) throw new Error('Gemini returned an empty final answer.');
   const validated = validateChatResponse(answer);
   return { answer: validated.answer, toolName: call.name, toolResult, promptVersion };

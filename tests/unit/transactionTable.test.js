@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { calculatePagination } from '../../client/src/shared/utils/collectionUtils.js';
-import { clearSearchFilters } from '../../client/src/features/expense/transactionFieldsUtils.js';
+import { clearSearchFilters } from '../../client/src/shared/transactions/transactionFieldsUtils.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../..');
@@ -159,7 +159,7 @@ describe('TransactionTable Server Query & Table Controls Suite', () => {
       'utf8'
     );
     const transactionTableJsx = fs.readFileSync(
-      path.join(ROOT, 'client/src/features/expense/TransactionTable.jsx'),
+      path.join(ROOT, 'client/src/features/transaction/TransactionTable.jsx'),
       'utf8'
     );
 

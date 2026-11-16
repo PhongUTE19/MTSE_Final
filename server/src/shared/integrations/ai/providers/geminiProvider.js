@@ -1,12 +1,41 @@
 import sharp from 'sharp';
 import { GoogleGenAI } from '@google/genai';
 import { config } from '../../../../config.js';
-import { SERVER_MESSAGES, RETRY_CONFIG, SERVER_CONFIG_DEFAULTS, GUARDRAIL_CONFIG } from '../../../../constants/index.js';
-import { recordUsage, hashPrompt } from '../../../../features/aiUsage/index.js';
+import { ALL_CATEGORIES, SERVER_MESSAGES, RETRY_CONFIG, SERVER_CONFIG_DEFAULTS, GUARDRAIL_CONFIG } from '../../../../constants/index.js';
+import { recordProviderUsage as recordUsage, hashPrompt } from '../telemetry.js';
 import { validateChatResponse, withTimeout, validateStructuredOutput, AIResponseValidationError } from '../../../guardrails/index.js';
-import { RECEIPT_CATEGORIES, receiptExtractionSchema } from '../../../../features/receipt/receipt.schema.js';
-import { enforceReceiptGuardrails } from '../../../../features/receipt/receiptGuardrails.js';
-import { getReceiptPrompt, RECEIPT_PROMPT_ID, RECEIPT_PROMPT_VERSION } from '../../../../features/receipt/receiptPrompt.js';
+
+export function normalizeUsageMetadata(usageMetadata) {
+  const usage = usageMetadata || {};
+  const inputTokens = typeof usage.promptTokenCount === 'number' && Number.isFinite(usage.promptTokenCount)
+    ? usage.promptTokenCount
+    : null;
+  const outputTokens = typeof usage.candidatesTokenCount === 'number' && Number.isFinite(usage.candidatesTokenCount)
+    ? usage.candidatesTokenCount
+    : null;
+  const cachedTokens = typeof usage.cachedContentTokenCount === 'number' && Number.isFinite(usage.cachedContentTokenCount)
+    ? usage.cachedContentTokenCount
+    : null;
+  const rawTotal = typeof usage.totalTokenCount === 'number' && Number.isFinite(usage.totalTokenCount)
+    ? usage.totalTokenCount
+    : null;
+
+  const hasIn = inputTokens !== null;
+  const hasOut = outputTokens !== null;
+  const totalTokens = rawTotal !== null ? rawTotal : (hasIn && hasOut ? inputTokens + outputTokens : null);
+  const usageSource = (hasIn && hasOut && rawTotal !== null)
+    ? 'provider_reported'
+    : (hasIn && hasOut ? 'derived' : (rawTotal !== null ? 'provider_reported' : 'unavailable'));
+
+  return {
+    inputTokens,
+    outputTokens,
+    cachedTokens,
+    totalTokens,
+    usageSource,
+    tokenCountsAvailable: hasIn || hasOut || rawTotal !== null,
+  };
+}
 
 let aiInstance = null;
 
@@ -48,13 +77,25 @@ export async function executeWithRetry(
   maxRetries = RETRY_CONFIG.MAX_RETRIES,
   initialDelayMs = RETRY_CONFIG.INITIAL_DELAY_MS,
   timeoutMs = GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS,
-  customTimeoutMessage = SERVER_MESSAGES.ERRORS.AI_TIMEOUT
+  customTimeoutMessage = SERVER_MESSAGES.ERRORS.AI_TIMEOUT,
+  signal = null
 ) {
   const attempts = [];
   const startOverall = Date.now();
   let attemptNumber = 0;
 
   while (true) {
+    if (signal?.aborted) {
+      const abortError = new Error('Operation aborted by client.');
+      abortError.name = 'AbortError';
+      abortError.executionMetadata = {
+        attempts,
+        totalAttempts: attempts.length,
+        durationMs: Date.now() - startOverall,
+      };
+      throw abortError;
+    }
+
     attemptNumber++;
     const startAttempt = Date.now();
     try {
@@ -83,22 +124,26 @@ export async function executeWithRetry(
 
       const msg = String(error?.message || error || '').toLowerCase();
       const status = error?.status || error?.code || error?.statusCode;
+      const isAbort = error?.name === 'AbortError' || Boolean(signal?.aborted);
       const isTimeout =
-        error?.name === 'AIResponseTimeoutError' ||
-        error?.name === 'AbortError' ||
-        msg.includes('timed out') ||
-        msg.includes('timeout') ||
-        status === 408 ||
-        status === 504;
+        !isAbort && (
+          error?.name === 'AIResponseTimeoutError' ||
+          msg.includes('timed out') ||
+          msg.includes('timeout') ||
+          status === 408 ||
+          status === 504
+        );
       const isTransient =
-        isTimeout ||
-        status === 429 ||
-        status === 503 ||
-        msg.includes('503') ||
-        msg.includes('unavailable') ||
-        msg.includes('429') ||
-        msg.includes('resource_exhausted') ||
-        msg.includes('quota');
+        !isAbort && (
+          isTimeout ||
+          status === 429 ||
+          status === 503 ||
+          msg.includes('503') ||
+          msg.includes('unavailable') ||
+          msg.includes('429') ||
+          msg.includes('resource_exhausted') ||
+          msg.includes('quota')
+        );
 
       if (attemptNumber <= maxRetries && isTransient) {
         const delay = initialDelayMs * Math.pow(2, attemptNumber - 1);
@@ -298,7 +343,7 @@ export async function generateAnswer(prompt, options = {}) {
  * @returns {Promise<AsyncIterable<any>>} Async iterable of chunks
  */
 export async function generateAnswerStream(prompt, options = {}) {
-  const ai = getAIClient();
+  const ai = options.ai || getAIClient();
   const feature = options.feature || 'chat';
   const model = options.model || config.geminiModel;
   const promptId = options.promptId || null;
@@ -316,12 +361,18 @@ export async function generateAnswerStream(prompt, options = {}) {
   let streamInitDuration;
 
   try {
-    const executed = await executeWithRetry(() =>
-      ai.models.generateContentStream({
-        model,
-        contents: prompt,
-        config: requestConfig,
-      })
+    const executed = await executeWithRetry(
+      () =>
+        ai.models.generateContentStream({
+          model,
+          contents: prompt,
+          config: requestConfig,
+        }),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      options.signal
     );
     rawStream = executed.result;
     attempts = executed.attempts;
@@ -402,7 +453,7 @@ export async function generateAnswerStream(prompt, options = {}) {
             operation: 'generateAnswerStream',
             provider: 'google-genai',
             model,
-            outcome: 'failure',
+            outcome: isAborted ? 'aborted' : 'failure',
             durationMs: totalStreamDuration,
             timeToFirstTokenMs,
             attempts,
@@ -412,24 +463,9 @@ export async function generateAnswerStream(prompt, options = {}) {
             promptHash,
             toolsExecuted: [],
             error: streamError || (isAborted ? new Error('Generation aborted by client') : null),
-            tokenUsage: {
-              inputTokens: null,
-              outputTokens: null,
-              totalTokens: null,
-              tokenCountsAvailable: false,
-            },
+            tokenUsage: normalizeUsageMetadata(capturedUsageMetadata),
           });
         } else {
-          const inputTokens = typeof capturedUsageMetadata?.promptTokenCount === 'number'
-            ? capturedUsageMetadata.promptTokenCount
-            : null;
-          const outputTokens = typeof capturedUsageMetadata?.candidatesTokenCount === 'number'
-            ? capturedUsageMetadata.candidatesTokenCount
-            : null;
-          const totalTokens = typeof capturedUsageMetadata?.totalTokenCount === 'number'
-            ? capturedUsageMetadata.totalTokenCount
-            : null;
-
           recordUsage({
             feature,
             operation: 'generateAnswerStream',
@@ -446,12 +482,7 @@ export async function generateAnswerStream(prompt, options = {}) {
             promptVersion,
             promptHash,
             toolsExecuted: [],
-            tokenUsage: {
-              inputTokens,
-              outputTokens,
-              totalTokens,
-              tokenCountsAvailable: inputTokens !== null,
-            },
+            tokenUsage: normalizeUsageMetadata(capturedUsageMetadata),
           });
         }
       }
@@ -487,9 +518,16 @@ export async function extractReceiptImage(image, options = {}) {
     throw new AIResponseValidationError('Receipt image buffer is missing or empty.');
   }
   const preparedImage = await prepareImageForExtraction(image);
-  const ai = getAIClient();
+  const ai = options.ai || getAIClient();
   const model = options.model || config.geminiReceiptModel || config.geminiModel;
-  const prompt = options.prompt || getReceiptPrompt();
+
+  const prompt = options.prompt || 'Extract structured receipt data as JSON.';
+  const promptId = options.promptId || null;
+  const promptVersion = options.promptVersion || null;
+  const schema = options.schema || { safeParse: (data) => ({ success: true, data }) };
+  const categories = options.categories || ALL_CATEGORIES;
+  const guardrailsFn = options.guardrailsFn || (() => {});
+
   const timeoutMs = options.timeoutMs ?? GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS;
   const started = Date.now();
   try {
@@ -516,7 +554,7 @@ export async function extractReceiptImage(image, options = {}) {
               description: 'The final grand total, total paid, or amount due printed on this receipt. Never use subtotal, tax amount, discount, tip, cash tendered, or change.',
             },
             currency: { type: 'string' },
-            category: { type: 'string', enum: RECEIPT_CATEGORIES },
+            category: { type: 'string', enum: categories },
             items: {
               type: 'array',
               items: {
@@ -532,23 +570,289 @@ export async function extractReceiptImage(image, options = {}) {
         temperature: 0,
       },
     }), undefined, undefined, timeoutMs);
-    const validated = validateStructuredOutput(result.text || '', receiptExtractionSchema, { throwOnError: true });
-    enforceReceiptGuardrails(validated.data);
+    const validated = validateStructuredOutput(result.text || '', schema, { throwOnError: true });
+    guardrailsFn(validated.data);
     const usage = result.usageMetadata || {};
     recordUsage({ feature: 'receipt_extraction', operation: 'extractReceiptImage', provider: 'google-genai', model,
-      outcome: 'success', durationMs, attempts, totalAttempts, promptId: RECEIPT_PROMPT_ID, promptVersion: RECEIPT_PROMPT_VERSION,
-      promptHash: hashPrompt(prompt), toolsExecuted: [], tokenUsage: { inputTokens: usage.promptTokenCount ?? null, outputTokens: usage.candidatesTokenCount ?? null, totalTokens: usage.totalTokenCount ?? null, tokenCountsAvailable: typeof usage.promptTokenCount === 'number' },
+      outcome: 'success', durationMs, attempts, totalAttempts, promptId, promptVersion,
+      promptHash: hashPrompt(prompt), toolsExecuted: [], tokenUsage: normalizeUsageMetadata(usage),
     });
     return { extraction: validated.data, provider: 'google-genai', model, latencyMs: Date.now() - started, tokenUsage: usage };
   } catch (error) {
     const meta = error.executionMetadata || { attempts: [], totalAttempts: 1, durationMs: Date.now() - started };
     recordUsage({ feature: 'receipt_extraction', operation: 'extractReceiptImage', provider: 'google-genai', model,
       outcome: 'failure', durationMs: meta.durationMs, attempts: meta.attempts, totalAttempts: meta.totalAttempts,
-      promptId: RECEIPT_PROMPT_ID, promptVersion: RECEIPT_PROMPT_VERSION, promptHash: hashPrompt(prompt), toolsExecuted: [], error,
-      tokenUsage: { inputTokens: null, outputTokens: null, totalTokens: null, tokenCountsAvailable: false },
+      promptId, promptVersion, promptHash: hashPrompt(prompt), toolsExecuted: [], error,
+      tokenUsage: normalizeUsageMetadata(null),
     });
     throw error;
   }
+}
+
+/**
+ * Normalizes Gemini finishReason & usageMetadata into provider-agnostic telemetry fields.
+ */
+function extractResponseTelemetry(response) {
+  const candidate = response?.candidates?.[0];
+  const finishReason = candidate?.finishReason || null;
+  const isRefusal = finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'BLOCKLIST';
+  return {
+    finishReason,
+    isRefusal,
+    tokenUsage: normalizeUsageMetadata(response?.usageMetadata),
+  };
+}
+
+/**
+ * Executes a single tool-selection turn using Gemini function calling.
+ * Normalizes function-call and refusal/usage metadata into provider-agnostic output.
+ */
+export async function generateToolTurn({
+  prompt,
+  systemInstruction,
+  tools = [],
+  model: modelOverride,
+  timeoutMs = GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS,
+  maxRetries = RETRY_CONFIG.MAX_RETRIES,
+  initialDelayMs = RETRY_CONFIG.INITIAL_DELAY_MS,
+  timeoutMessage = SERVER_MESSAGES.ERRORS.AI_TIMEOUT,
+  ai: aiOverride,
+} = {}) {
+  const ai = aiOverride || getAIClient();
+  const model = modelOverride || config.geminiModel;
+  const executed = await executeWithRetry(
+    () =>
+      ai.models.generateContent({
+        model,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          tools: tools.length > 0 ? [{ functionDeclarations: tools }] : undefined,
+          toolConfig: tools.length > 0 ? { functionCallingConfig: { mode: 'AUTO' } } : undefined,
+        },
+      }),
+    maxRetries,
+    initialDelayMs,
+    timeoutMs,
+    timeoutMessage
+  );
+
+  const response = executed.result;
+  const telemetry = extractResponseTelemetry(response);
+  const rawCalls = Array.isArray(response?.functionCalls) ? response.functionCalls : [];
+  const functionCalls = rawCalls.map((call) => ({
+    ...(call.id ? { id: call.id } : {}),
+    name: call.name,
+    args: call.args || {},
+  }));
+  const firstCall = functionCalls[0] || null;
+
+  return {
+    provider: 'google-genai',
+    model,
+    text: response?.text?.trim() || '',
+    toolCall: firstCall,
+    functionCalls,
+    rawAssistantContent: response?.candidates?.[0]?.content || null,
+    ...telemetry,
+    attempts: executed.attempts,
+    totalAttempts: executed.totalAttempts,
+    durationMs: executed.durationMs,
+  };
+}
+
+/**
+ * Executes a follow-up generation turn after executing a tool call.
+ */
+export async function generateToolFollowup({
+  prompt,
+  systemInstruction,
+  rawAssistantContent,
+  toolName,
+  toolResult,
+  model: modelOverride,
+  timeoutMs = GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS,
+  maxRetries = RETRY_CONFIG.MAX_RETRIES,
+  initialDelayMs = RETRY_CONFIG.INITIAL_DELAY_MS,
+  timeoutMessage = SERVER_MESSAGES.ERRORS.AI_TIMEOUT,
+  ai: aiOverride,
+} = {}) {
+  const ai = aiOverride || getAIClient();
+  const model = modelOverride || config.geminiModel;
+  const executed = await executeWithRetry(
+    () =>
+      ai.models.generateContent({
+        model,
+        contents: [
+          { role: 'user', parts: [{ text: prompt }] },
+          rawAssistantContent,
+          { role: 'user', parts: [{ functionResponse: { name: toolName, response: toolResult } }] },
+        ],
+        config: { systemInstruction },
+      }),
+    maxRetries,
+    initialDelayMs,
+    timeoutMs,
+    timeoutMessage
+  );
+
+  const response = executed.result;
+  const telemetry = extractResponseTelemetry(response);
+
+  return {
+    provider: 'google-genai',
+    model,
+    text: response?.text?.trim() || '',
+    ...telemetry,
+    attempts: executed.attempts,
+    totalAttempts: executed.totalAttempts,
+    durationMs: executed.durationMs,
+  };
+}
+
+/**
+ * Streams a single tool-selection or final-answer turn via Gemini generateContentStream.
+ * Yields `{ type: 'text', text }` incrementally as chunks arrive, and concludes with
+ * `{ type: 'turn_complete', text, toolCall, functionCalls, rawAssistantContent, finishReason, isRefusal, tokenUsage }`.
+ */
+export async function generateToolTurnStream({
+  prompt,
+  systemInstruction,
+  tools = [],
+  model: modelOverride,
+  timeoutMs = GUARDRAIL_CONFIG.DEFAULT_TIMEOUT_MS,
+  maxRetries = RETRY_CONFIG.MAX_RETRIES,
+  initialDelayMs = RETRY_CONFIG.INITIAL_DELAY_MS,
+  timeoutMessage = SERVER_MESSAGES.ERRORS.AI_TIMEOUT,
+  signal,
+  ai: aiOverride,
+} = {}) {
+  const ai = aiOverride || getAIClient();
+  const model = modelOverride || config.geminiModel;
+
+  const requestConfig = { systemInstruction };
+  if (tools.length > 0) {
+    requestConfig.tools = [{ functionDeclarations: tools }];
+    requestConfig.toolConfig = { functionCallingConfig: { mode: 'AUTO' } };
+  }
+  if (signal) {
+    requestConfig.abortSignal = signal;
+  }
+
+  const executed = await executeWithRetry(
+    () =>
+      ai.models.generateContentStream({
+        model,
+        contents: prompt,
+        config: requestConfig,
+      }),
+    maxRetries,
+    initialDelayMs,
+    timeoutMs,
+    timeoutMessage,
+    signal
+  );
+
+  const rawStream = executed.result;
+
+  return (async function* streamTurn() {
+    const streamStart = Date.now();
+    let timeToFirstTokenMs = null;
+    let fullText = '';
+    const collectedCalls = [];
+    const accumulatedParts = [];
+    let assistantRole = 'model';
+    let finishReason = null;
+    let usageMetadata = null;
+
+    for await (const chunk of rawStream) {
+      if (signal?.aborted) {
+        const abortErr = new Error('Generation aborted by client');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
+      if (!chunk || typeof chunk !== 'object') {
+        continue;
+      }
+
+      const candidate = chunk.candidates?.[0];
+      const candidateParts = Array.isArray(candidate?.content?.parts) ? candidate.content.parts : null;
+      let chunkText = '';
+      if (typeof chunk.text === 'string' && chunk.text.length > 0) {
+        chunkText = chunk.text;
+      } else if (candidateParts) {
+        chunkText = candidateParts
+          .filter((part) => typeof part?.text === 'string' && part.text.length > 0 && !part.thought)
+          .map((part) => part.text)
+          .join('');
+      }
+
+      if (chunkText.length > 0) {
+        if (timeToFirstTokenMs === null) {
+          timeToFirstTokenMs = Date.now() - streamStart;
+        }
+        fullText += chunkText;
+        yield { type: 'text', text: chunkText };
+      }
+
+      if (Array.isArray(chunk.functionCalls) && chunk.functionCalls.length > 0) {
+        for (const call of chunk.functionCalls) {
+          if (call?.name) {
+            collectedCalls.push({
+              ...(call.id ? { id: call.id } : {}),
+              name: call.name,
+              args: call.args || {},
+            });
+          }
+        }
+      } else if (candidateParts) {
+        for (const part of candidateParts) {
+          if (part?.functionCall?.name) {
+            collectedCalls.push({
+              ...(part.functionCall.id ? { id: part.functionCall.id } : {}),
+              name: part.functionCall.name,
+              args: part.functionCall.args || {},
+            });
+          }
+        }
+      }
+
+      if (candidate?.content) {
+        if (candidate.content.role) {
+          assistantRole = candidate.content.role;
+        }
+        if (candidateParts && candidateParts.length > 0) {
+          accumulatedParts.push(...candidateParts);
+        }
+      }
+      if (candidate?.finishReason) {
+        finishReason = candidate.finishReason;
+      }
+      if (chunk.usageMetadata) {
+        usageMetadata = chunk.usageMetadata;
+      }
+    }
+
+    const rawAssistantContent = accumulatedParts.length > 0
+      ? { role: assistantRole, parts: accumulatedParts }
+      : null;
+    const isRefusal = finishReason === 'SAFETY' || finishReason === 'RECITATION' || finishReason === 'BLOCKLIST';
+    const tokenUsage = normalizeUsageMetadata(usageMetadata);
+
+    yield {
+      type: 'turn_complete',
+      provider: 'google-genai',
+      model,
+      text: fullText.trim(),
+      toolCall: collectedCalls[0] || null,
+      functionCalls: collectedCalls,
+      rawAssistantContent,
+      finishReason,
+      isRefusal,
+      timeToFirstTokenMs,
+      tokenUsage,
+    };
+  })();
 }
 
 /**
@@ -556,10 +860,21 @@ export async function extractReceiptImage(image, options = {}) {
  */
 export const geminiProvider = {
   name: 'gemini',
+  capabilities: Object.freeze({
+    textGeneration: true,
+    streaming: true,
+    toolCalling: true,
+    structuredOutput: true,
+    multimodal: true,
+    embeddings: true,
+  }),
   getAIClient,
   executeWithRetry,
   embedText,
   generateAnswer,
   generateAnswerStream,
   extractReceiptImage,
+  generateToolTurn,
+  generateToolTurnStream,
+  generateToolFollowup,
 };

@@ -15,10 +15,11 @@ export async function chat(req, res, next) {
   }
 
   try {
-    const { message, history } = validated;
+    const { message, history, conversationId } = validated;
     const result = await chatAssistantService.orchestrateChat(message, {
       user: req.user,
       history,
+      conversationId,
     });
     res.json(result);
   } catch (error) {
@@ -37,9 +38,22 @@ export async function chatStream(req, res, next) {
     return next(validationError);
   }
 
-  const { message, history } = validated;
+  const { message, history, conversationId, requestId, userMessageId, retryOfMessageId } = validated;
+  const enablePersistence = req.app?.locals?.enableChatStreamPersistence ?? true;
 
-  // Set SSE response headers with proxy buffering disabled
+  let prepared;
+  try {
+    prepared = await chatAssistantService.prepareChatStream(message, {
+      user: req.user,
+      history,
+      conversationId,
+      enablePersistence,
+    });
+  } catch (prepError) {
+    return next(prepError);
+  }
+
+  // Set SSE response headers with proxy buffering disabled (only after pre-stream validation succeeds)
   res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -52,7 +66,7 @@ export async function chatStream(req, res, next) {
   const abortController = new AbortController();
 
   res.on('close', () => {
-    if (!res.writableEnded) {
+    if (!res.writableEnded && !abortController.signal.aborted) {
       abortController.abort();
     }
   });
@@ -72,6 +86,12 @@ export async function chatStream(req, res, next) {
     await chatAssistantService.orchestrateChatStream(message, sendEvent, {
       user: req.user,
       history,
+      trustedHistory: prepared?.trustedHistory ?? undefined,
+      conversationId,
+      requestId,
+      userMessageId,
+      retryOfMessageId,
+      enablePersistence,
       signal: abortController.signal,
     });
   } catch (error) {

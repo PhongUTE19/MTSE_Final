@@ -13,15 +13,11 @@ import { Table, TableHead, TableBody, TableRow, TableHeaderCell, TableCell } fro
 
 export default function DocumentTable({
   documents = [],
-  editorLoading,
-  onNew,
-  onEdit,
-  onDelete,
-  onUpload,
+  viewerLoading = false,
+  onView,
   onReindex,
   indexing,
   loading,
-  uploading = false,
 }) {
   const { searchQuery, handleSearchChange, clearSearch, applyFilter } = useSearch({
     searchFields: ['filename'],
@@ -47,12 +43,9 @@ export default function DocumentTable({
     <Stack gap="md">
       <DocumentTableToolbar
         hasDocuments={documents.length > 0}
-        uploading={uploading}
         indexing={indexing}
         loading={loading}
         searchQuery={searchQuery}
-        onUpload={onUpload}
-        onNew={onNew}
         onReindex={onReindex}
         onSearchChange={(val) => {
           handleSearchChange(val);
@@ -136,18 +129,10 @@ export default function DocumentTable({
                       type="button"
                       variant="secondary"
                       size="sm"
-                      disabled={editorLoading}
-                      onClick={() => onEdit(doc.filename)}
+                      disabled={viewerLoading}
+                      onClick={() => onView?.(doc.filename)}
                     >
-                      {UI_LABELS.COMMON.EDIT}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="danger"
-                      size="sm"
-                      onClick={() => onDelete(doc.filename)}
-                    >
-                      {UI_LABELS.COMMON.DELETE}
+                      View
                     </Button>
                   </Inline>
                 </TableCell>

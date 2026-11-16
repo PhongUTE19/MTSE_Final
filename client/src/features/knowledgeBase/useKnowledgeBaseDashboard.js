@@ -34,9 +34,7 @@ export function useKnowledgeBaseDashboard({ isOffline = false, onOpenDocumentPan
   });
 
   const docs = useDocuments({
-    onRefresh: handleRefresh,
     onError: toast.error,
-    onSuccess: toast.success,
     onOpenDocumentPanel,
   });
 

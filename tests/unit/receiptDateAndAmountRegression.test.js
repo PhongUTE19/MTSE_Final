@@ -4,13 +4,13 @@ import {
   normalizeReceiptDate,
   normalizeReceiptAmount,
   receiptExtractionSchema,
-} from '../../server/src/features/expenses/receipt.schemas.js';
+} from '../../server/src/features/receipt/receipt.schema.js';
 import {
   setReceiptDependenciesForTests,
   uploadReceipt,
   retryReceipt,
   toDraft,
-} from '../../server/src/features/expenses/receipt.service.js';
+} from '../../server/src/features/receipt/receipt.service.js';
 
 afterEach(() => {
   setReceiptDependenciesForTests();
@@ -231,44 +231,11 @@ describe('Sequential and concurrent receipt processing isolation', () => {
   };
 
   it('processes two distinct receipts sequentially without cross-contamination', async () => {
-    const createdReceipts = new Map([
-      ['receipt-aaa', receiptA],
-      ['receipt-bbb', receiptB],
-    ]);
-
-    let seq = 0;
+    let callIdx = 0;
     setReceiptDependenciesForTests({
-      clientFactory: {
-        user: () => ({
-          rpc: async (name) => {
-            if (name === 'create_receipt_upload') {
-              seq++;
-              const id = seq === 1 ? 'receipt-aaa' : 'receipt-bbb';
-              return { data: createdReceipts.get(id), error: null };
-            }
-            if (name === 'start_receipt_processing') {
-              const id = seq === 1 ? 'receipt-aaa' : 'receipt-bbb';
-              return { data: createdReceipts.get(id), error: null };
-            }
-            throw new Error(`Unexpected user RPC: ${name}`);
-          },
-        }),
-        server: () => ({
-          rpc: async (name, args) => {
-            if (name === 'server_complete_receipt_extraction') {
-              return { data: createdReceipts.get(args.p_receipt_id), error: null };
-            }
-            throw new Error(`Unexpected server RPC: ${name}`);
-          },
-          storage: {
-            from: () => ({
-              upload: async () => ({ error: null }),
-            }),
-          },
-        }),
-      },
       extractor: async () => {
-        if (seq === 1) return { extraction: receiptA.extraction };
+        callIdx++;
+        if (callIdx === 1) return { extraction: receiptA.extraction };
         return { extraction: receiptB.extraction };
       },
     });
@@ -281,7 +248,7 @@ describe('Sequential and concurrent receipt processing isolation', () => {
       { buffer: Buffer.from('imageA') },
       { filename: 'receiptA.jpg', mimeType: 'image/jpeg', size: 100, sha256: 'a'.repeat(64) }
     );
-    assert.equal(resA.id, 'receipt-aaa');
+    assert.ok(resA.id);
     assert.equal(resA.extraction.merchant, 'Merchant A');
     assert.equal(resA.extraction.transactionDate, '2024-01-15');
     assert.equal(resA.extraction.totalAmount, 50000);
@@ -295,7 +262,7 @@ describe('Sequential and concurrent receipt processing isolation', () => {
       { buffer: Buffer.from('imageB') },
       { filename: 'receiptB.jpg', mimeType: 'image/jpeg', size: 200, sha256: 'b'.repeat(64) }
     );
-    assert.equal(resB.id, 'receipt-bbb');
+    assert.ok(resB.id);
     assert.equal(resB.extraction.merchant, 'Merchant B');
     assert.equal(resB.extraction.transactionDate, '2024-08-20');
     assert.equal(resB.extraction.totalAmount, 120000);

@@ -16,7 +16,9 @@ import TextArea from '../../primitives/inputs/TextArea.jsx';
  */
 export default function ChatComposer({
   onSendMessage,
+  onStop,
   busy = false,
+  isStreaming = false,
   placeholder = 'Ask a question...',
   sendLabel = 'Send',
   renderAttachmentAction,
@@ -90,16 +92,28 @@ export default function ChatComposer({
           {renderAttachmentAction ? renderAttachmentAction({ busy: isDisabled }) : null}
         </div>
 
-        <Button
-          variant="primary"
-          type="submit"
-          disabled={isDisabled || !isMessageValid}
-          loading={isSubmitting}
-          aria-label={sendLabel}
-          title={sendLabel}
-        >
-          {sendLabel}
-        </Button>
+        {isStreaming && onStop ? (
+          <Button
+            variant="danger"
+            type="button"
+            onClick={onStop}
+            aria-label="Stop generating"
+            title="Stop generating"
+          >
+            Stop
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            type="submit"
+            disabled={isDisabled || !isMessageValid}
+            loading={isSubmitting}
+            aria-label={sendLabel}
+            title={sendLabel}
+          >
+            {sendLabel}
+          </Button>
+        )}
       </div>
     </form>
   );

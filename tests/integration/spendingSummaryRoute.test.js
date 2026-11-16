@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import expenseAgentRouter from '../../server/src/features/expenseAgent/expenseAgent.routes.js';
+import expenseAgentRouter from '../../server/src/features/expenseAssistant/expenseAssistant.route.js';
 import { errorHandler } from '../../server/src/shared/middleware/errorHandler.js';
 import { setTokenVerifierForTests } from '../../server/src/shared/middleware/authenticate.js';
-import { setExpenseClientFactoryForTests } from '../../server/src/features/expenses/expenses.service.js';
-import { setGeminiExpenseAgentClientFactoryForTests } from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+import { setExpenseClientFactoryForTests } from '../../server/src/features/transaction/transaction.service.js';
+import { setGeminiExpenseAssistantClientFactoryForTests } from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
 
 function dispatch(body, headers = { authorization: 'Bearer valid-token' }) {
   return new Promise((resolve, reject) => {
@@ -26,12 +26,12 @@ test('POST /api/expense-agent/summary completes auth → Gemini → full summary
     return query;
   } }));
   const requests = [];
-  setGeminiExpenseAgentClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
+  setGeminiExpenseAssistantClientFactoryForTests(() => ({ models: { generateContent: async (request) => {
     requests.push(request);
     if (requests.length === 1) return { functionCalls: [{ name: 'get_spending_summary', args: { from: '2026-10-01', to: '2026-10-31' } }], candidates: [{ content: { role: 'model', parts: [] } }] };
     return { text: 'In October you earned 5,000,000 VND and spent 120,000 VND.' };
   } } }));
-  t.after(() => { setTokenVerifierForTests(null); setExpenseClientFactoryForTests(null); setGeminiExpenseAgentClientFactoryForTests(null); });
+  t.after(() => { setTokenVerifierForTests(null); setExpenseClientFactoryForTests(null); setGeminiExpenseAssistantClientFactoryForTests(null); });
 
   const response = await dispatch({ message: 'What was my total spending in October?' });
   assert.equal(response.status, 200);

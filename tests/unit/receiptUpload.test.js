@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { describe, it } from 'node:test';
-import { inspectReceiptImage, MAX_RECEIPT_BYTES } from '../../server/src/features/expenses/receiptUpload.middleware.js';
+import { inspectReceiptImage, MAX_RECEIPT_BYTES } from '../../server/src/features/receipt/receiptUpload.middleware.js';
 import sharp from '../../server/node_modules/sharp/lib/index.js';
 
 function png(width = 2, height = 3) {

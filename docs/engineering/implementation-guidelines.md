@@ -131,51 +131,36 @@
   - **Ownership:** Multimodal document ingestion, OCR extraction, pending review management, and extraction retry (`ScanReceiptPage.jsx`, `useReceiptUpload.js`, `receiptApi.js`).
   - **Contract:** Scoped strictly to document upload, preview, list, and OCR retry via `receiptApi.js`. Uses the unified `TransactionDraftReview` composite for reviewing candidate drafts. Emits `notifyTransactionsChanged()` and `notifyReceiptsChanged()` upon successful confirmation.
 - **Transaction Draft (`client/src/features/transactionDraft/`):**
-  - **Ownership:** Centralized candidate transaction staging client (`transactionDraftApi.js`, `useTransactionDrafts.js`).
-  - **Contract:** Manages listing, fetching, patching user-reviewed data, confirming, and rejecting candidate drafts backed by `/api/transaction-draft`.
+  - **Ownership:** Browser-local IndexedDB candidate transaction store (`draftStorage.js`, `draftController.js`, `previewUrlManager.js`, `useTransactionDrafts.js`).
+  - **Contract:** Stages unconfirmed receipt and assistant drafts locally per `userId` (including temporary `receiptBlob` for OCR previews) and commits confirmed drafts to `POST /api/receipt/confirm` or `POST /api/transaction` (`client_request_id` idempotency). Legacy `transactionDraftApi.js` and `/api/transaction-draft` are retired.
 - **Shared Transactions (`client/src/shared/transactions/`):**
   - **Ownership:** Domain-wide financial calculation utilities, schemas, and constants (`transactionFieldsUtils.js`, `expenseConstants.js`, `expenseCategories.js`).
 - **Composites (`client/src/composites/transactions/`):**
   - **Ownership:** Reusable transaction UI components: `TransactionFields.jsx` (controlled input fields) and `TransactionDraftReview.jsx` (unified review, validation, foreign currency warnings, itemized line items, and confirm/reject actions).
 - **Chat (`client/src/features/chat/`):**
-  - **Ownership:** Generic, domain-agnostic conversation interface and drawer presentation system (`Chatbot.jsx`, `ChatComposer.jsx`, `ChatMessageItem.jsx`, `ChatHistoryTab.jsx`, `ChatHistoryItem.jsx`, `FormattedMessageText.jsx`, `useChat.js`, `chatHistory.js`, `chatApi.js`).
+  - **Ownership:** Generic, domain-agnostic conversation interface, SSE stream consumer, and drawer presentation system (`Chatbot.jsx`, `ChatComposer.jsx`, `ChatMessageItem.jsx`, `ChatHistoryTab.jsx`, `ChatHistoryItem.jsx`, `FormattedMessageText.jsx`, `useChat.js`, `chatController.js`, `sseParser.js`, `chatHistory.js`, `chatApi.js`).
   - **Contract:** Zero coupling to expense, transaction, or receipt business logic. Exposes controlled slot props (`avatarIcon`, `quickActions`, `renderToolResult`, `renderBeforeComposer`, `renderAttachmentAction`).
 - **Expense Assistant (`client/src/features/expenseAssistant/`):**
-  - **Ownership:** Domain-specific AI assistant implementation for Personal Finance (Model A).
-  - **Contract:** Composes `features/chat/` (`Chatbot`, `useChat`) to orchestrate AI conversations with Gemini (`/api/expense-assistant`), renders custom financial tool results (`ExpenseToolResult.jsx`), handles Human-in-the-Loop transaction draft reviews via `TransactionDraftReview`, enables in-assistant receipt uploads (`useReceiptUpload.js` + `TransactionDraftReview`), and syncs updates via `WorkspaceContext`. Consumes agent endpoints from `expenseAssistantApi.js` and receives draft action handlers via props from `app/App.jsx`.
+  - **Ownership:** Domain-specific AI assistant composition (`ExpenseAssistant.jsx`) wired in `client/src/app/App.jsx` to canonical `POST /api/chat-assistant` and `POST /api/chat-assistant/stream` (`sendChatMessage` / `sendChatMessageStream`).
+  - **Contract:** Composes `features/chat/` (`Chatbot`, `useChat`), renders custom financial tool results (`ExpenseToolResult.jsx`), handles Human-in-the-Loop transaction draft reviews via `TransactionDraftReview`, enables in-assistant receipt uploads (`useReceiptUpload.js`), and syncs updates via `WorkspaceContext`. Legacy `POST /api/expense-assistant` remains mounted as a JSON compatibility facade.
 
-### 2.6 Transaction Drafts, Extractions, and Receipt Lifecycle Standards
-- **Candidate Transaction Staging (`public.transaction_drafts`):**
-  - All AI-generated candidate transactions (from multimodal OCR or conversational assistant proposals) must be persisted in `public.transaction_drafts` before committing to the committed ledger (`public.expense_transactions`).
-  - `original_data` preserves the raw normalized extraction/proposal payload and is **immutable**.
-  - `reviewed_data` captures user edits made during review.
-  - Valid statuses are `'pending_review'`, `'confirmed'`, `'rejected'`. Drafts do **not** auto-expire into an invalid state; assistant drafts remain `pending_review` across sessions.
-- **Append-Only Extraction Audit History (`public.receipt_extractions`):**
-  - Every receipt OCR extraction attempt (both succeeded and failed) must append an immutable record to `public.receipt_extractions`.
-  - Protected by a PostgreSQL `BEFORE UPDATE` trigger raising an exception.
-  - Captures `receipt_id`, `user_id`, `attempt`, `status`, raw `result`, `warnings`, `error_code`, `ai_model`, and `prompt_version`.
-- **Shared Confirmation & Idempotency Contract:**
-  - Confirmation is executed via `POST /api/transaction-drafts/:id/confirm`.
-  - The service executes an atomic claim query (`UPDATE transaction_drafts SET status='confirmed' WHERE id=$1 AND status='pending_review'`).
-  - If a draft is already confirmed, the endpoint idempotently returns the existing linked transaction (HTTP 200 OK), preventing duplicate expenses on double-clicks or network retries.
-  - For receipt-backed drafts, confirmation invokes the security-definer `confirm_receipt_transaction` RPC to link `receipts.transaction_id` and update receipt status to `confirmed`.
-- **Safe Rejection & Receipt Retention Invariant:**
-  - Rejecting a candidate draft via `POST /api/transaction-drafts/:id/reject` marks the draft `status = 'rejected'`.
-  - For receipt-backed drafts, the associated record in `public.receipts` and the uploaded file in Supabase Storage are **retained untouched** for audit trails and accounting records. Receipts are never deleted upon draft rejection.
-- **REST Endpoints (`server/src/features/transactionDrafts/`):**
-  - `GET /api/transaction-drafts`: List drafts for the authenticated user (supports `?status=pending_review`).
-  - `GET /api/transaction-drafts/:id`: Fetch single draft by ID.
-  - `PATCH /api/transaction-drafts/:id`: Save partial `reviewed_data`.
-  - `POST /api/transaction-drafts/:id/confirm`: Atomically claim draft, validate required VND fields, commit to `expense_transactions`, and link transaction ID.
-  - `POST /api/transaction-drafts/:id/reject`: Mark draft rejected while preserving source receipt.
-  - Retired routes: `/api/receipts/:id/confirm`, `DELETE /api/receipts/:id` as user discard action, and `/api/expense-agent/proposals/*`.
-- **Database Migration Rule:**
-  - Schema changes are authored in `supabase/migrations/202611160008_transaction_drafts_and_extractions.sql`.
-  - Marked as **LOCAL-ONLY** and must not be applied to remote environments without explicit database administrator approval.
-- **Verification Constraints & Known Test Debt:**
-  - Per project instructions and coordinator directives, existing test files (`tests/**/*.test.js`) are **never modified** during feature refactoring.
-  - Tests directly importing removed files (`ReceiptsView.jsx`, `TransactionForm.jsx`, `ReceiptReview.jsx`, `TransactionProposalCard.jsx`) will fail until a dedicated test update cycle is executed.
-  - Verification is performed strictly via production compilation (`npm --prefix client run build`) and syntax checks (`node --check`). Real-browser testing was not performed in this headless environment.
+### 2.6 Transaction Drafts, Receipt Lifecycle, Chat Persistence & Phase 2 Migrations
+- **Browser-Local Candidate Staging (`TransactionDraft`):**
+  - Unconfirmed candidate transactions (from stateless `POST /api/receipt/upload` OCR or assistant `propose_transaction` calls) live only in user-scoped IndexedDB (`spendwise_transaction_drafts`) and are **not** persisted to PostgreSQL until explicit user confirmation.
+  - Unconfirmed receipt images remain browser-local `Blob` objects in IndexedDB and are uploaded to private Supabase Storage (`receipts` bucket) only upon confirmation.
+  - Because drafts are browser-local, unconfirmed drafts do not synchronize across devices; historical assistant `propose_transaction` messages without a local draft render read-only with explicit re-staging.
+- **Atomic Confirmation & Idempotency:**
+  - **Receipt-backed drafts (`POST /api/receipt/confirm`):** Uploads the image to private Storage (`<user_id>/<draft_id>/original`) and calls `confirm_staged_receipt_transaction` RPC (`202611170009`), which atomically inserts into `public.expense_transactions` and `public.receipts` (`status = 'confirmed'`) with advisory-lock idempotency per `(user_id, draft_id)`.
+  - **Assistant/manual transactions (`POST /api/transaction`):** Inserts into `public.expense_transactions` idempotently using `client_request_id`.
+- **Server-Authoritative Chat Persistence & SSE (`202611170010`, `202611170012`, `202611170013`):**
+  - `public.chat_conversations` and `public.chat_messages` store user-owned conversation history with RLS (`auth.uid() = user_id`) and ownership triggers.
+  - `begin_chat_stream_turn` RPC atomically ensures the owned conversation, user message, and `'streaming'` assistant attempt row with `(user_id, request_id)` idempotency. Only `'completed'` non-empty messages are included in subsequent model context.
+- **Phase 2 Migrations (`LOCAL ONLY` until remote deployment approval):**
+  - `202611170009_confirm_staged_receipt_transaction.sql`: Atomic receipt + transaction confirmation RPC.
+  - `202611170010_chat_history.sql`: `chat_conversations` and `chat_messages` tables + RLS.
+  - `202611170011_retire_legacy_drafts_and_extractions.sql`: Drops legacy `public.transaction_drafts` and `public.receipt_extractions`.
+  - `202611170012_chat_streaming_lifecycle.sql` & `202611170013_chat_stream_concurrency_hardening.sql`: Streaming lifecycle columns (`status`, `reply_to`, `request_id`, `error_message`, `completed_at`) and concurrency-safe `begin_chat_stream_turn`.
+  - `202611170014_add_usage_source_to_ai_usage.sql`: Adds `usage_source` provenance column (`provider_reported`, `derived`, `unavailable`, `unknown`) to `public.ai_usage_analytics`.
 
 ---
 
@@ -183,7 +168,7 @@
 
 | Command | Requires Live Gemini API? | Requires Live Supabase DB? | Purpose |
 | :--- | :---: | :---: | :--- |
-| `npm test` (`node --test "tests/**/*.test.js"`) | **No** (mocked) | **No** (mocked) | Full unit + integration regression suite (489 tests). Must run after every task. |
+| `npm test` (`node --test "tests/**/*.test.js"`) | **No** (mocked) | **No** (mocked) | Full unit + integration regression suite (719 tests across 209 suites). Must run after every task. |
 | `npm --prefix client run build` | **No** | **No** | Verifies React/Vite syntax, imports, and production bundle compilation. |
 | `docker compose config` | **No** | **No** | Validates `docker-compose.yml` syntax and variable interpolation. |
 | `docker compose build` | **No** | **No** (requires `client/.env` or build context) | Verifies `server/Dockerfile` and `client/Dockerfile` image builds. Requires local Docker daemon. |

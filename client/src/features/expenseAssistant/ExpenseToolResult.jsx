@@ -9,6 +9,9 @@ import ToolSpendingSummary from './ToolSpendingSummary.jsx';
  */
 export default function ExpenseToolResult({
   message,
+  drafts = [],
+  draftsLoading = false,
+  onCreateDraft,
   onConfirmDraft,
   onRejectDraft,
   onTransactionsChanged,
@@ -18,11 +21,14 @@ export default function ExpenseToolResult({
 
   if (!result && !toolName) return null;
 
-  if (toolName === 'create_transaction' || result?.draftId) {
+  if (toolName === 'propose_transaction' || toolName === 'create_transaction' || result?.draftId) {
     return (
       <ToolProposalResult
         result={result}
         conversationId={message?.conversationId}
+        drafts={drafts}
+        draftsLoading={draftsLoading}
+        onCreateDraft={onCreateDraft}
         onConfirmDraft={onConfirmDraft}
         onRejectDraft={onRejectDraft}
         onTransactionsChanged={onTransactionsChanged}

@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { executeRAG } from '../../server/src/features/knowledgeBase/ragService.js';
-import { orchestrateChat, ChatServiceError } from '../../server/src/features/assistant/assistant.service.js';
+import { orchestrateChat, ChatAssistantServiceError } from '../../server/src/features/chatAssistant/chatAssistant.service.js';
 import { SERVER_MESSAGES } from '../../server/src/constants/index.js';
 
 describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', () => {
@@ -178,19 +178,19 @@ describe('Chat Orchestration, Guardrails, and RAG Pipeline Integration Suite', (
   });
 
   describe('2. Query Validation and Boundary Enforcements', () => {
-    it('orchestrator rejects empty or non-string query with ChatServiceError', async () => {
+    it('orchestrator rejects empty or non-string query with ChatAssistantServiceError', async () => {
       await assert.rejects(
         async () => {
           await orchestrateChat('');
         },
-        (err) => err instanceof ChatServiceError && err.statusCode === 400
+        (err) => err instanceof ChatAssistantServiceError && err.statusCode === 400
       );
 
       await assert.rejects(
         async () => {
           await orchestrateChat('   ');
         },
-        (err) => err instanceof ChatServiceError && err.statusCode === 400
+        (err) => err instanceof ChatAssistantServiceError && err.statusCode === 400
       );
     });
   });

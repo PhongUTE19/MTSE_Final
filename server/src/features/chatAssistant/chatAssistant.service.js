@@ -1,9 +1,9 @@
 import { executeRAG } from '../knowledgeBase/ragService.js';
 import { generateAnswer, generateAnswerStream } from '../../shared/integrations/ai/index.js';
-import { runExpenseAssistantForUser } from '../expenseAssistant/expenseAssistant.service.js';
+import { orchestrateUnifiedChat, orchestrateUnifiedChatStream, prepareUnifiedChatStream } from './assistantOrchestrator.js';
 import { SERVER_MESSAGES, HTTP_STATUS } from '../../constants/index.js';
 import { AppError } from '../../shared/errors/index.js';
-import { getSystemPrompt } from '../systemPrompt/systemPrompt.service.js';
+import { getRagPrompt } from '../knowledgeBase/ragPrompt.js';
 import { config } from '../../config.js';
 import {
   validateChatResponse,
@@ -34,16 +34,39 @@ export async function orchestrateChat(rawMessage, options = {}) {
   }
 
   const query = rawMessage.trim();
-  const configuredStrategy = (process.env.CHAT_STRATEGY || config.chatStrategy || 'agent').toLowerCase();
+  const configuredStrategy = (process.env.CHAT_STRATEGY?.trim() || config.chatStrategy || 'unified').toLowerCase();
   const strategy = options.strategy || (
-    options.ragExecutor || options.llmGenerator ? 'rag' : configuredStrategy
+    options.ragExecutor || options.llmGenerator
+      ? 'rag'
+      : (options.agentRunner ? 'agent' : configuredStrategy)
   );
 
   if (strategy === 'rag') {
     return orchestrateRAGChat(query, options);
   }
 
-  return orchestrateAgentChat(query, options);
+  if (strategy === 'agent' || options.agentRunner) {
+    return orchestrateAgentChat(query, options);
+  }
+
+  if (!options.user?.id || !options.user?.token) {
+    throw new ChatAssistantServiceError(
+      SERVER_MESSAGES.AUTH?.AUTH_REQUIRED || 'Authentication required.',
+      HTTP_STATUS.UNAUTHORIZED
+    );
+  }
+
+  return orchestrateUnifiedChat(options.user, query, options);
+}
+
+let registeredLegacyAgentRunner = null;
+
+/**
+ * Registers the legacy single-tool expense agent runner without introducing
+ * an upward or circular dependency from chatAssistant to expenseAssistant.
+ */
+export function registerLegacyAgentRunner(runner) {
+  registeredLegacyAgentRunner = typeof runner === 'function' ? runner : null;
 }
 
 export async function orchestrateAgentChat(query, options = {}) {
@@ -54,7 +77,13 @@ export async function orchestrateAgentChat(query, options = {}) {
       HTTP_STATUS.UNAUTHORIZED
     );
   }
-  const runner = options.agentRunner || runExpenseAssistantForUser;
+  const runner = options.agentRunner || registeredLegacyAgentRunner;
+  if (!runner) {
+    throw new ChatAssistantServiceError(
+      'Legacy expense agent runner is not registered.',
+      HTTP_STATUS.INTERNAL_SERVER_ERROR
+    );
+  }
   const rawResult = await runner(user, query, options);
 
   // Normalized central response contract across all workflows
@@ -72,7 +101,7 @@ export async function orchestrateRAGChat(query, options = {}) {
   const ragExecutor = options.ragExecutor || executeRAG;
   const llmGenerator = options.llmGenerator || generateAnswer;
 
-  const systemPrompt = options.systemPrompt || getSystemPrompt();
+  const systemPrompt = options.systemPrompt || getRagPrompt('system').text;
   const ragResult = await ragExecutor(query, { ...options, systemPrompt });
 
   // If evidence is insufficient, request is out-of-scope, or prompt injection refused
@@ -122,6 +151,33 @@ export async function orchestrateRAGChat(query, options = {}) {
 }
 
 /**
+ * Pre-validates streaming request and loads trusted history before SSE headers are committed.
+ */
+export async function prepareChatStream(rawMessage, options = {}) {
+  if (!rawMessage || typeof rawMessage !== 'string' || !rawMessage.trim()) {
+    throw new ChatAssistantServiceError(SERVER_MESSAGES.ERRORS.QUERY_REQUIRED, HTTP_STATUS.BAD_REQUEST);
+  }
+
+  const query = rawMessage.trim();
+  const configuredStrategy = (process.env.CHAT_STRATEGY?.trim() || config.chatStrategy || 'unified').toLowerCase();
+  const strategy = options.strategy || (
+    options.ragExecutor || options.llmStreamGenerator
+      ? 'rag'
+      : (options.agentRunner ? 'agent' : configuredStrategy)
+  );
+
+  if (strategy === 'rag' || strategy === 'agent' || options.agentRunner) {
+    return { trustedHistory: null };
+  }
+
+  if (!options.user?.id || !options.user?.token) {
+    return { trustedHistory: null };
+  }
+
+  return prepareUnifiedChatStream(options.user, query, options);
+}
+
+/**
  * Streaming assistant orchestration.
  *
  * @param {string} rawMessage - Raw user query
@@ -135,16 +191,29 @@ export async function orchestrateChatStream(rawMessage, emit, options = {}) {
   }
 
   const query = rawMessage.trim();
-  const configuredStrategy = (process.env.CHAT_STRATEGY || config.chatStrategy || 'agent').toLowerCase();
+  const configuredStrategy = (process.env.CHAT_STRATEGY?.trim() || config.chatStrategy || 'unified').toLowerCase();
   const strategy = options.strategy || (
-    options.ragExecutor || options.llmStreamGenerator ? 'rag' : configuredStrategy
+    options.ragExecutor || options.llmStreamGenerator
+      ? 'rag'
+      : (options.agentRunner ? 'agent' : configuredStrategy)
   );
 
   if (strategy === 'rag') {
     return orchestrateRAGChatStream(query, emit, options);
   }
 
-  return orchestrateAgentChatStream(query, emit, options);
+  if (strategy === 'agent' || options.agentRunner) {
+    return orchestrateAgentChatStream(query, emit, options);
+  }
+
+  if (!options.user?.id || !options.user?.token) {
+    throw new ChatAssistantServiceError(
+      SERVER_MESSAGES.AUTH?.AUTH_REQUIRED || 'Authentication required.',
+      HTTP_STATUS.UNAUTHORIZED
+    );
+  }
+
+  return orchestrateUnifiedChatStream(options.user, query, emit, options);
 }
 
 export async function orchestrateAgentChatStream(query, emit, options = {}) {
@@ -182,7 +251,7 @@ export async function orchestrateRAGChatStream(query, emit, options = {}) {
   const ragExecutor = options.ragExecutor || executeRAG;
   const llmStreamGenerator = options.llmStreamGenerator || generateAnswerStream;
 
-  const systemPrompt = options.systemPrompt || getSystemPrompt();
+  const systemPrompt = options.systemPrompt || getRagPrompt('system').text;
   const ragResult = await ragExecutor(query, { ...options, systemPrompt });
 
   if (signal?.aborted) return;

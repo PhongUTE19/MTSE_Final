@@ -22,7 +22,11 @@ export default function HomePage({ user }) {
       <PageHeader
         eyebrow="SPENDWISE"
         title="Dashboard"
-        description="Overview of your personal finance workspace and quick navigation."
+        description={
+          isAdmin
+            ? 'Administration overview and quick access to operational tools.'
+            : 'Overview of your personal finance workspace and quick navigation.'
+        }
       />
       <Card as="section" variant="glass" padding="lg">
         <Inline justify="between" align="center" wrap gap="md">
@@ -30,7 +34,7 @@ export default function HomePage({ user }) {
             <CardTitle as="h2">Welcome back, {displayName}</CardTitle>
             <Text variant="secondary">
               {isAdmin
-                ? 'Administrator control center: monitor AI operational telemetry and access personal finance tools.'
+                ? 'Administrator control center: inspect the Knowledge Base and monitor AI operational telemetry.'
                 : 'Track personal spending, scan receipts with multimodal AI, and keep your finances in balance.'}
             </Text>
           </Stack>

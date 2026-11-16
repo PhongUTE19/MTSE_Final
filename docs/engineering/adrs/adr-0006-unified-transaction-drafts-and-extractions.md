@@ -1,7 +1,10 @@
 # ADR 0006: Unified Transaction Drafts, Immutable Extraction Audits, and Shared Confirmation Lifecycle
 
-* **Status:** Accepted  
+* **Status:** Superseded by Phase 2 (`202611170009_confirm_staged_receipt_transaction.sql` and `202611170011_retire_legacy_drafts_and_extractions.sql`)  
 * **Date:** 2026-11-16  
+
+> [!NOTE]
+> **Supersession Notice (2026-11-17):** Server-side `public.transaction_drafts`, `public.receipt_extractions`, and `/api/transaction-drafts` were retired in Phase 2 (`P2-T09`, `202611170011`). Unconfirmed candidate transactions (from stateless `POST /api/receipt/upload` OCR and assistant `propose_transaction` calls) now stage browser-locally in user-scoped IndexedDB (`client/src/features/transactionDraft/draftStorage.js`) and commit atomically via `POST /api/receipt/confirm` (`confirm_staged_receipt_transaction` RPC) or `POST /api/transaction` (`client_request_id` idempotency). See [`docs/engineering/architecture.md`](../architecture.md) for current-state documentation.
 * **Deciders:** Engineering Team, Swarm Architecture Worker  
 * **Consulted:** Coordinator, Transaction Worker, Receipt Worker, Assistant Worker, Integration Worker  
 * **Informed:** All Contributors  

@@ -25,6 +25,22 @@ export const upload = (req, res, next) =>
     next
   );
 
+export const confirmReceipt = (req, res, next) =>
+  respond(
+    async () => {
+      const result = await receiptService.confirmReceipt(
+        req.user,
+        req.receiptFile,
+        req.receiptMeta,
+        req.body
+      );
+      res.status(result.idempotent ? HTTP_STATUS.OK : HTTP_STATUS.CREATED).json(result);
+    },
+    req,
+    res,
+    next
+  );
+
 export const listReceipts = (req, res, next) =>
   respond(
     async () => {

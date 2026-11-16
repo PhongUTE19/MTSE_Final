@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { orchestrateChat } from '../../server/src/features/assistant/assistant.service.js';
+import { orchestrateChat } from '../../server/src/features/chatAssistant/chatAssistant.service.js';
 import { config } from '../../server/src/config.js';
 import { acceptanceCases } from './cases.js';
 

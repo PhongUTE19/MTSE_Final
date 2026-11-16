@@ -7,7 +7,7 @@ import {
   setTokenVerifierForTests,
   getTokenVerifier,
 } from '../../server/src/features/auth/auth.service.js';
-import { userRoleSchema } from '../../server/src/features/auth/auth.schemas.js';
+import { userRoleSchema } from '../../server/src/features/auth/auth.schema.js';
 import { AppError } from '../../server/src/shared/errors/index.js';
 
 describe('Auth Service and Role Management Suite', () => {

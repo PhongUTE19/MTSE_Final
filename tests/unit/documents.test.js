@@ -1,12 +1,14 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 
+import * as documentsService from '../../server/src/features/document/document.service.js';
 import {
   sanitizeFilename,
   validateMarkdownContent,
   DocumentServiceError,
-} from '../../server/src/features/documents/documents.service.js';
-import * as documentsController from '../../server/src/features/documents/documents.controller.js';
+} from '../../server/src/features/document/document.service.js';
+import * as documentsController from '../../server/src/features/document/document.controller.js';
+import documentRouter from '../../server/src/features/document/document.route.js';
 import { validate } from '../../server/src/shared/middleware/validateRequest.js';
 import {
   filenameSchema,
@@ -14,7 +16,7 @@ import {
   createDocumentSchema,
   updateDocumentSchema,
   documentParamsSchema,
-} from '../../server/src/features/documents/documents.schemas.js';
+} from '../../server/src/features/document/document.schema.js';
 import { ValidationError } from '../../server/src/shared/errors/index.js';
 import { SERVER_MESSAGES } from '../../server/src/constants/index.js';
 
@@ -173,18 +175,20 @@ describe('Document Service and Schemas Unit Suite', () => {
       assert.ok(passedError instanceof DocumentServiceError);
       assert.equal(passedError.statusCode, 400);
       assert.equal(passedError.message, SERVER_MESSAGES.ERRORS.FILENAME_REQUIRED);
+    });
 
-      passedError = null;
-      await documentsController.updateDocument(
-        { params: { filename: 'valid.md' }, body: { content: 'No level 2 header here' } },
-        {},
-        (err) => {
-          passedError = err;
-        }
-      );
-      assert.ok(passedError instanceof DocumentServiceError);
-      assert.equal(passedError.statusCode, 400);
-      assert.equal(passedError.message, SERVER_MESSAGES.ERRORS.MISSING_SECTION_HEADER);
+    it('enforces read-only document router, controller, and service surface', () => {
+      const routeMethods = documentRouter.stack
+        .filter((layer) => layer.route)
+        .flatMap((layer) => Object.keys(layer.route.methods).map((m) => `${m.toUpperCase()} ${layer.route.path}`));
+
+      assert.deepEqual(routeMethods, ['GET /', 'GET /:filename']);
+      assert.equal(documentsController.createDocument, undefined);
+      assert.equal(documentsController.updateDocument, undefined);
+      assert.equal(documentsController.deleteDocument, undefined);
+      assert.equal(documentsService.saveDocument, undefined);
+      assert.equal(documentsService.updateDocument, undefined);
+      assert.equal(documentsService.removeDocument, undefined);
     });
   });
 });

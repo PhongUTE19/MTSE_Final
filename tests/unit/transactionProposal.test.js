@@ -4,18 +4,50 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  cancelTransactionProposal,
-  clearTransactionProposalsForTests,
-  confirmTransactionProposal,
   createTransactionProposalForUser,
-  getProposalCountForTests,
   runExpenseAssistantForUser,
-  setProposalClockForTests,
-} from '../../server/src/features/expenseAgent/expenseAgent.service.js';
+} from '../../server/src/features/expenseAssistant/expenseAssistant.service.js';
 import {
   CREATE_TRANSACTION_TOOL,
-  runGeminiExpenseAgent,
-} from '../../server/src/features/expenseAgent/geminiExpenseAgent.js';
+  runGeminiExpenseAssistant as runGeminiExpenseAgent,
+} from '../../server/src/features/expenseAssistant/geminiExpenseAssistant.js';
+import { createTransactionDraftController } from '../../client/src/features/transactionDraft/draftController.js';
+import { resetMemoryDraftStorageForTests } from '../../client/src/features/transactionDraft/draftStorage.js';
+import { createTransaction, setExpenseClientFactoryForTests } from '../../server/src/features/transaction/transaction.service.js';
+import { transactionSchema } from '../../server/src/features/transaction/transaction.schema.js';
+
+function createInMemoryTxClientFactory(onInsertTransaction) {
+  const transactions = new Map();
+  let txSeq = 0;
+
+  return (user) => ({
+    from: () => ({
+      select: () => {
+        const filters = {};
+        const q = {
+          eq(col, val) { filters[col] = val; return q; },
+          maybeSingle: async () => {
+            const row = transactions.get(filters.id);
+            return { data: row && row.user_id === user.id ? row : null, error: null };
+          },
+        };
+        return q;
+      },
+      insert: (row) => ({
+        select: () => ({
+          single: async () => {
+            const id = row.id || `tx-${++txSeq}`;
+            if (transactions.has(id)) return { data: null, error: { code: '23505', message: 'duplicate' } };
+            const tx = { id, ...row, created_at: '2026-10-25T00:00:00Z', updated_at: '2026-10-25T00:00:00Z' };
+            transactions.set(id, tx);
+            if (onInsertTransaction) onInsertTransaction(tx);
+            return { data: tx, error: null };
+          },
+        }),
+      }),
+    }),
+  });
+}
 
 const userA = { id: 'user-a', token: 'a' };
 const userB = { id: 'user-b', token: 'b' };
@@ -39,111 +71,98 @@ async function proposal() {
 }
 
 afterEach(() => {
-  clearTransactionProposalsForTests();
-  setProposalClockForTests(null);
+  resetMemoryDraftStorageForTests();
+  setExpenseClientFactoryForTests(null);
 });
 
-describe('create_transaction proposal confirmation', () => {
-  it('creates a proposal but does not persist before confirmation', async () => {
+function makeUserController(user) {
+  const ctrl = createTransactionDraftController({
+    createTransactionApi: (payload) => {
+      const parsed = transactionSchema.parse(payload);
+      return createTransaction(user, parsed);
+    },
+  });
+  ctrl.setUserId(user.id);
+  return ctrl;
+}
+
+describe('create_transaction draft confirmation', () => {
+  it('stages a draft but does not persist a transaction before confirmation', async () => {
+    let creates = 0;
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory(() => { creates++; }));
     const result = await proposal();
-    assert.ok(result.toolResult.proposal.id);
-    assert.equal(result.toolResult.proposal.transaction.amount, 45000);
+    assert.ok(result.toolResult.draftId);
+    assert.equal(result.toolResult.draft.amount, 45000);
+    assert.equal(creates, 0);
   });
 
-  it('allows cancel without calling persistence', async () => {
-    const result = await proposal();
-    const cancelled = cancelTransactionProposal(userA, result.toolResult.proposal.id);
-    assert.equal(cancelled.cancelled, true);
+  it('allows reject without calling transaction persistence', async () => {
+    let creates = 0;
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory(() => { creates++; }));
+    const ctrl = makeUserController(userA);
+    const staged = await ctrl.createDraft({ sourceType: 'assistant_proposal', originalData: transaction });
+    await ctrl.rejectDraft(staged.id);
+    assert.equal(creates, 0);
 
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, result.toolResult.proposal.id, transaction, {
-          createTransaction: async () => assert.fail(),
-        }),
-      { statusCode: 404 }
+      () => ctrl.confirmDraft(staged.id, transaction),
+      /not found/i
     );
   });
 
-  it('confirms exactly once and revalidates edited transaction', async () => {
-    const result = await proposal();
+  it('confirms idempotently and revalidates edited transaction', async () => {
     let creates = 0;
-    const saved = await confirmTransactionProposal(
-      userA,
-      result.toolResult.proposal.id,
-      { ...transaction, amount: 46000 },
-      {
-        createTransaction: async (_u, value) => {
-          creates++;
-          return { id: 'tx-1', ...value };
-        },
-      }
-    );
-    assert.equal(saved.amount, 46000);
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory(() => { creates++; }));
+    const ctrl = makeUserController(userA);
+    const prop = await proposal();
+    const staged = await ctrl.createDraft({
+      id: prop.toolResult.draftId,
+      sourceType: 'assistant_proposal',
+      originalData: prop.toolResult.draft,
+    });
+    const saved = await ctrl.confirmDraft(staged.id, { ...transaction, amount: 46000 });
+    assert.equal(saved.transaction.amount, 46000);
     assert.equal(creates, 1);
 
-    await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, result.toolResult.proposal.id, transaction, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 404 }
-    );
+    // Re-confirming at the transaction API with the same deterministic ID is idempotent
+    const reconfirmed = await createTransaction(userA, { id: staged.id, ...transaction, amount: 46000 });
+    assert.equal(reconfirmed.id, saved.transaction.id);
+    assert.equal(creates, 1);
   });
 
-  it('rejects another user, expired proposals, and invalid confirmation data', async () => {
-    const result = await proposal();
+  it('rejects another user and invalid confirmation data', async () => {
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory());
+    const ctrlA = makeUserController(userA);
+    const ctrlB = makeUserController(userB);
+    const staged = await ctrlA.createDraft({ sourceType: 'assistant_proposal', originalData: transaction });
 
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userB, result.toolResult.proposal.id, transaction, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 404 }
+      () => ctrlB.confirmDraft(staged.id, transaction),
+      /not found/i
     );
 
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, result.toolResult.proposal.id, { ...transaction, amount: 0 }, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 400 }
-    );
-
-    setProposalClockForTests(() => Date.now() + 11 * 60 * 1000);
-
-    await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, result.toolResult.proposal.id, transaction, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 400 }
+      () => ctrlA.confirmDraft(staged.id, { ...transaction, amount: 0 }),
+      /greater than zero/i
     );
   });
 
   it('rejects zero, negative, and invalid-calendar amounts or dates at confirmation', async () => {
-    const result = await proposal();
-    const id = result.toolResult.proposal.id;
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory());
+    const ctrl = makeUserController(userA);
+    const staged = await ctrl.createDraft({ sourceType: 'assistant_proposal', originalData: transaction });
 
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, id, { ...transaction, amount: 0 }, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 400 }
+      () => ctrl.confirmDraft(staged.id, { ...transaction, amount: 0 }),
+      /greater than zero/i
     );
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, id, { ...transaction, amount: -500000 }, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 400 }
+      () => ctrl.confirmDraft(staged.id, { ...transaction, amount: -500000 }),
+      /greater than zero/i
     );
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, id, { ...transaction, date: '2026-02-30' }, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 400 }
+      () => ctrl.confirmDraft(staged.id, { ...transaction, date: '2026-02-30' }),
+      /valid calendar date/i
     );
   });
 
@@ -184,7 +203,7 @@ describe('create_transaction proposal confirmation', () => {
     assert.match(calls[0].config.systemInstruction, /internal transfer/);
   });
 
-  it('allows the unified assistant to create a proposal without persisting it', async () => {
+  it('allows the unified assistant to stage a draft without persisting a transaction', async () => {
     const output = await runExpenseAssistantForUser(userA, 'Buy coffee', {
       agentRunner: async (_message, execute) => ({
         answer: 'Please confirm the proposal.',
@@ -193,7 +212,7 @@ describe('create_transaction proposal confirmation', () => {
       }),
     });
     assert.equal(output.toolName, 'create_transaction');
-    assert.equal(output.toolResult.proposal.transaction.merchant, 'Highlands');
+    assert.equal(output.toolResult.draft.merchant, 'Highlands');
   });
 
   it('asks for clarification instead of creating a proposal when type is ambiguous or is an internal transfer', async () => {
@@ -219,42 +238,29 @@ describe('create_transaction proposal confirmation', () => {
           toolResult: await execute('create_transaction', { ...transaction, amount }),
         }),
       });
-      assert.equal(output.toolResult.proposal.transaction.amount, 500000);
+      assert.equal(output.toolResult.draft.amount, 500000);
     }
   });
 
-  it('prunes expired proposals opportunistically whenever a new proposal is created', async () => {
-    let mockTime = 1_000_000;
-    setProposalClockForTests(() => mockTime);
+  it('keeps multiple staged drafts isolated and independently rejectable or confirmable', async () => {
+    setExpenseClientFactoryForTests(createInMemoryTxClientFactory());
+    const ctrl = makeUserController(userA);
 
-    // Create proposal 1 at t=1,000,000 (expires at 1,000,000 + 10 min = 1,600,000)
-    const result1 = await proposal();
-    const id1 = result1.toolResult.proposal.id;
-    assert.equal(getProposalCountForTests(), 1);
+    const staged1 = await ctrl.createDraft({ sourceType: 'assistant_proposal', originalData: transaction });
+    const staged2 = await ctrl.createDraft({ sourceType: 'assistant_proposal', originalData: transaction });
+    assert.notEqual(staged1.id, staged2.id);
 
-    // Advance mock clock past 10 minutes (e.g. 11 minutes later)
-    mockTime += 11 * 60 * 1000;
+    await ctrl.rejectDraft(staged1.id);
 
-    // Create proposal 2 at t=1,660,000; should sweep proposal 1 from memory
-    const result2 = await proposal();
-    const id2 = result2.toolResult.proposal.id;
-    assert.equal(getProposalCountForTests(), 1);
-
-    // Proposal 1 must no longer exist in memory (confirm returns 404 Not Found)
+    // Draft 1 cannot be confirmed after rejection
     await assert.rejects(
-      () =>
-        confirmTransactionProposal(userA, id1, transaction, {
-          createTransaction: async () => ({}),
-        }),
-      { statusCode: 404 }
+      () => ctrl.confirmDraft(staged1.id, transaction),
+      /not found/i
     );
 
-    // Proposal 2 remains valid and confirmable
-    const saved = await confirmTransactionProposal(userA, id2, transaction, {
-      createTransaction: async (_u, val) => ({ id: 'tx-2', ...val }),
-    });
-    assert.equal(saved.id, 'tx-2');
-    assert.equal(getProposalCountForTests(), 0);
+    // Draft 2 remains valid and confirmable
+    const saved = await ctrl.confirmDraft(staged2.id, transaction);
+    assert.equal(saved.transaction.id, staged2.id);
   });
 
   describe('Chat Drawer Tailwind Migration & Computed-Style Equivalence (FE-TASK-04 / FE-REF-11)', () => {

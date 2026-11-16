@@ -93,8 +93,8 @@ Imports in `client/src/` must strictly flow downward in a unidirectional manner:
    - Use `OverlayDrawer` for modal slide-overs (document inspection) that require `Backdrop`, scroll locking, and `Tab` focus trapping.
 6. **Single-Currency VND Ledger Invariant:** `public.expense_transactions` stores amounts in **VND**. Non-VND receipts must never be silently converted; they require an explicit warning and user review before saving.
 7. **UTC Calendar Date Validation:** Validate calendar dates with UTC round-trip verification to prevent rollover bugs (e.g. `2026-02-30` rolling over to `2026-03-02`).
-8. **Unified Candidate Staging & Confirmation Idempotency:** Candidate transactions (from receipt OCR or AI assistant) stage in `public.transaction_drafts` and confirm via `POST /api/transaction-drafts/:id/confirm`. Re-confirming an already confirmed draft must return the existing transaction idempotently.
-9. **Safe Rejection & Receipt Retention:** Rejecting a transaction draft sets its status to `'rejected'`; it never deletes the source receipt record in `public.receipts` or the uploaded receipt image in Supabase Storage.
+8. **Unified Candidate Staging & Confirmation Idempotency:** Unconfirmed candidate transactions (from stateless receipt OCR `POST /api/receipt/upload` or AI assistant `propose_transaction` calls) stage browser-locally in user-scoped IndexedDB (`client/src/features/transactionDraft/draftStorage.js`). Confirmed receipt drafts commit atomically via `POST /api/receipt/confirm` (`confirm_staged_receipt_transaction` RPC, idempotent per `(user_id, draft_id)`), and assistant/manual drafts commit via `POST /api/transaction` (idempotent via `client_request_id`). Legacy `public.transaction_drafts` and `/api/transaction-drafts` are retired (`202611170011`).
+9. **Safe Rejection & Receipt Retention:** Rejecting a local `TransactionDraft` removes/marks only the browser-local draft without deleting any already-confirmed `public.receipts` row or Supabase Storage object. Unconfirmed receipt image Blobs exist only in browser-local IndexedDB until explicit confirmation.
 
 ---
 
@@ -113,7 +113,7 @@ Imports in `client/src/` must strictly flow downward in a unidirectional manner:
 Run only the necessary checks and report actual executed results:
 
 ```bash
-# 1. Full automated test suite (backend + frontend, 653 tests across 187 suites, 53 test files)
+# 1. Full automated test suite (backend + frontend, 719 tests across 209 suites)
 npm test
 
 # 2. Frontend production build compilation (~15s)

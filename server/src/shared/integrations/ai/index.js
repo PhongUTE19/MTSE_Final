@@ -1,5 +1,6 @@
 import { config } from '../../../config.js';
 import { geminiProvider } from './providers/geminiProvider.js';
+import { AI_CAPABILITIES, assertCapability, hasCapability } from './contracts.js';
 
 /**
  * Registry of available AI provider implementations.
@@ -56,9 +57,10 @@ export function getAIProvider(providerName) {
  * @returns {Promise<number[]>}
  */
 export async function embedText(text, options = {}) {
-  const provider = getAIProvider(options.provider);
+  const provider = getAIProvider(options.provider || config.embeddingProvider);
+  assertCapability(provider, AI_CAPABILITIES.EMBEDDINGS);
   if (typeof provider.embedText !== 'function') {
-    throw new Error(`AI provider "${provider.name || config.aiProvider}" does not support embedText.`);
+    throw new Error(`AI provider "${provider.name || config.embeddingProvider}" does not support embedText.`);
   }
   return provider.embedText(text, options);
 }
@@ -102,12 +104,42 @@ export async function generateAnswerStream(prompt, options = {}) {
 
 export async function extractReceiptImage(image, options = {}) {
   const provider = getAIProvider(options.provider);
+  assertCapability(provider, AI_CAPABILITIES.MULTIMODAL);
   if (typeof provider.extractReceiptImage !== 'function') {
     throw new Error(`AI provider "${provider.name || config.aiProvider}" does not support receipt extraction.`);
   }
   return provider.extractReceiptImage(image, options);
 }
 
+export async function generateToolTurn(params, options = {}) {
+  const provider = getAIProvider(options.provider);
+  assertCapability(provider, AI_CAPABILITIES.TOOL_CALLING);
+  if (typeof provider.generateToolTurn !== 'function') {
+    throw new Error(`AI provider "${provider.name || config.aiProvider}" does not support tool calling.`);
+  }
+  return provider.generateToolTurn(params);
+}
+
+export async function generateToolTurnStream(params, options = {}) {
+  const provider = getAIProvider(options.provider);
+  assertCapability(provider, AI_CAPABILITIES.STREAMING);
+  assertCapability(provider, AI_CAPABILITIES.TOOL_CALLING);
+  if (typeof provider.generateToolTurnStream !== 'function') {
+    throw new Error(`AI provider "${provider.name || config.aiProvider}" does not support streaming tool turns.`);
+  }
+  return provider.generateToolTurnStream(params);
+}
+
+export async function generateToolFollowup(params, options = {}) {
+  const provider = getAIProvider(options.provider);
+  assertCapability(provider, AI_CAPABILITIES.TOOL_CALLING);
+  if (typeof provider.generateToolFollowup !== 'function') {
+    throw new Error(`AI provider "${provider.name || config.aiProvider}" does not support tool calling.`);
+  }
+  return provider.generateToolFollowup(params);
+}
+
+export { AI_CAPABILITIES, assertCapability, hasCapability };
 export { geminiProvider };
 export {
   getAIClient,

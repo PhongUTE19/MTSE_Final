@@ -1,5 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getUserRole, getUserDisplayIdentity, getPostAuthPath } from '../../client/src/shared/services/supabaseAuth.js';
 import { ADMIN_TABS, APP_ROUTES } from '../../client/src/shared/constants/index.js';
 import {
@@ -9,6 +12,9 @@ import {
   WORKSPACE_NAV_ITEMS,
   ADMIN_NAV_ITEMS,
 } from '../../client/src/layouts/sidebarConfig.js';
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const readClientFile = (relPath) => fs.readFileSync(path.join(ROOT, 'client', 'src', relPath), 'utf8');
 
 describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
   describe('1. Role-based Navigation Configuration & Exposure', () => {
@@ -36,7 +42,7 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       );
       assert.deepEqual(
         nav.workspace.map((i) => i.label),
-        ['Transactions', 'Receipts']
+        ['Transactions', 'Scan Receipt']
       );
       assert.deepEqual(
         nav.workspace.map((i) => i.view),
@@ -45,27 +51,24 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       assert.equal(nav.admin, null, 'Ordinary users must never see Administration section');
     });
 
-    it('renders both Workspace and Administration (Knowledge Base, AI Usage) for verified admins', () => {
+    it('renders only Administration (Knowledge Base, AI Usage) and hides Workspace for verified admins', () => {
       const nav = getSidebarNavigation(adminUser);
 
       assert.equal(getUserRole(adminUser), 'admin');
-      assert.deepEqual(
-        nav.workspace.map((i) => i.label),
-        ['Transactions', 'Receipts']
-      );
+      assert.equal(nav.workspace, null, 'Admins must not see User Workspace navigation items');
       assert.deepEqual(
         nav.admin.map((i) => i.label),
         ['Knowledge Base', 'AI Usage']
       );
       assert.deepEqual(
         nav.admin.map((i) => i.path),
-        [APP_ROUTES.ADMIN_KNOWLEDGE, APP_ROUTES.ADMIN_ANALYTICS]
+        [APP_ROUTES.ADMIN_KNOWLEDGE_BASE, APP_ROUTES.ADMIN_AI_USAGE]
       );
     });
 
     it('keeps navigation groups and items stable across all routes for the same role', () => {
       const adminNav = getSidebarNavigation(adminUser);
-      assert.deepEqual(adminNav.workspace, WORKSPACE_NAV_ITEMS);
+      assert.equal(adminNav.workspace, null);
       assert.deepEqual(adminNav.admin, ADMIN_NAV_ITEMS);
 
       const userNav = getSidebarNavigation(regularUser);
@@ -90,7 +93,7 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
     it('highlights the active route for Workspace and Administration items', () => {
       const [txItem, receiptItem] = WORKSPACE_NAV_ITEMS;
       const kbItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'knowledge');
-      const aiItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'analytics');
+      const aiItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'ai-usage');
 
       // /expense: the active view selects the matching workspace item
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.EXPENSE, 'transactions'), true);
@@ -106,15 +109,15 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.HOME), false);
 
       // /admin/knowledge-base
-      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_KNOWLEDGE), true);
-      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_KNOWLEDGE), false);
-      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_KNOWLEDGE, 'knowledge'), false);
-      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.ADMIN_KNOWLEDGE, 'knowledge'), false);
+      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE), true);
+      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE), false);
+      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE, 'knowledge'), false);
+      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE, 'knowledge'), false);
 
-      // /admin/analytics
-      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_ANALYTICS), true);
-      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_ANALYTICS), false);
-      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_ANALYTICS, 'analytics'), false);
+      // /admin/ai-usage
+      assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_AI_USAGE), true);
+      assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_AI_USAGE), false);
+      assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_AI_USAGE, 'analytics'), false);
 
       // Legacy /admin, /analytics and /workspace are not routes and highlight nothing
       for (const legacyPath of ['/admin', '/analytics', '/workspace']) {
@@ -125,7 +128,7 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
       // Missing items never throw or highlight
       assert.equal(isWorkspaceItemActive(undefined, APP_ROUTES.EXPENSE), false);
-      assert.equal(isAdminItemActive(undefined, APP_ROUTES.ADMIN_KNOWLEDGE), false);
+      assert.equal(isAdminItemActive(undefined, APP_ROUTES.ADMIN_KNOWLEDGE_BASE), false);
     });
   });
 
@@ -174,17 +177,17 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
     it('maps defaultTab appropriately for canonical and legacy admin routes', () => {
       const resolveAdminView = (pathname, defaultTab) => {
-        const activeView = (pathname === APP_ROUTES.ADMIN_KNOWLEDGE) ? 'knowledge' : 'analytics';
+        const activeView = (pathname === APP_ROUTES.ADMIN_KNOWLEDGE_BASE) ? 'knowledge' : 'analytics';
         const pageTitle = activeView === 'analytics' ? 'AI Usage Analytics' : 'Knowledge Base';
         return { activeView, pageTitle, tab: defaultTab };
       };
 
-      const adminRoute = resolveAdminView(APP_ROUTES.ADMIN_KNOWLEDGE, ADMIN_TABS.KNOWLEDGE);
+      const adminRoute = resolveAdminView(APP_ROUTES.ADMIN_KNOWLEDGE_BASE, ADMIN_TABS.KNOWLEDGE);
       assert.equal(adminRoute.activeView, 'knowledge');
       assert.equal(adminRoute.pageTitle, 'Knowledge Base');
       assert.equal(adminRoute.tab, ADMIN_TABS.KNOWLEDGE);
 
-      const analyticsRoute = resolveAdminView(APP_ROUTES.ADMIN_ANALYTICS, ADMIN_TABS.ANALYTICS);
+      const analyticsRoute = resolveAdminView(APP_ROUTES.ADMIN_AI_USAGE, ADMIN_TABS.ANALYTICS);
       assert.equal(analyticsRoute.activeView, 'analytics');
       assert.equal(analyticsRoute.pageTitle, 'AI Usage Analytics');
       assert.equal(analyticsRoute.tab, ADMIN_TABS.ANALYTICS);
@@ -193,15 +196,47 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
 
   describe('3. Post-Auth Routing Protection', () => {
     it('ensures post-auth path never leaks admin routes to regular users', () => {
-      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.HOME);
-      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.HOME);
+      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_KNOWLEDGE_BASE), APP_ROUTES.HOME);
+      assert.equal(getPostAuthPath('user', APP_ROUTES.ADMIN_AI_USAGE), APP_ROUTES.HOME);
       assert.equal(getPostAuthPath('user'), APP_ROUTES.HOME);
     });
 
     it('routes admins directly to home by default or requested admin sub-route', () => {
       assert.equal(getPostAuthPath('admin'), APP_ROUTES.HOME);
-      assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_KNOWLEDGE), APP_ROUTES.ADMIN_KNOWLEDGE);
-      assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_ANALYTICS), APP_ROUTES.ADMIN_ANALYTICS);
+      assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_KNOWLEDGE_BASE), APP_ROUTES.ADMIN_KNOWLEDGE_BASE);
+      assert.equal(getPostAuthPath('admin', APP_ROUTES.ADMIN_AI_USAGE), APP_ROUTES.ADMIN_AI_USAGE);
+      assert.equal(getPostAuthPath('admin', APP_ROUTES.EXPENSE_TRANSACTIONS), APP_ROUTES.HOME);
+    });
+  });
+
+  describe('4. Role-Separated Sidebar, Home Content & Assistant Rendering', () => {
+    it('WorkspaceSidebar conditionally renders Workspace section only when workspace items exist', () => {
+      const sidebarSource = readClientFile('layouts/WorkspaceSidebar.jsx');
+      assert.match(sidebarSource, /\{workspace\s*&&\s*workspace\.length\s*>\s*0\s*&&\s*\(/);
+      assert.match(sidebarSource, /label="Home"/);
+      assert.match(sidebarSource, /<SidebarSectionLabel>Administration<\/SidebarSectionLabel>/);
+    });
+
+    it('HomePage removes personal finance claims from Admin copy while preserving User copy', () => {
+      const homeSource = readClientFile('features/home/HomePage.jsx');
+      const adminBranchMatches = homeSource.match(/isAdmin\s*\?\s*'[^']+'/g) || [];
+      assert.ok(adminBranchMatches.length >= 2, 'HomePage must have Admin-specific copy for header and body');
+      for (const copy of adminBranchMatches) {
+        assert.equal(/personal finance|transaction/i.test(copy), false, `Admin copy must not advertise personal finance: ${copy}`);
+      }
+      assert.match(homeSource, /Track personal spending, scan receipts with multimodal AI/);
+    });
+
+    it('App.jsx renders WorkspaceExpenseAssistant only for authenticated users and guards /expense/*', () => {
+      const appSource = readClientFile('app/App.jsx');
+      assert.match(
+        appSource,
+        /getUserRole\(auth\.user\)\s*===\s*'user'\s*\?\s*\(\s*<Suspense fallback=\{null\}>\s*<WorkspaceExpenseAssistant userId=\{auth\.user\.id\} \/>/
+      );
+      assert.match(
+        appSource,
+        /<Route\s+path=\{APP_ROUTES\.EXPENSE\}\s+element=\{\s*<RoleRouteGuard allowedRole="user"/
+      );
     });
   });
 });
