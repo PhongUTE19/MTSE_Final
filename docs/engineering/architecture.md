@@ -36,7 +36,7 @@ flowchart TD
     subgraph AI["AI Provider Integrations (Google Gemini)"]
         GeminiFlash["Gemini Multimodal (Receipt OCR & Field Extraction)"]
         GeminiAgent["Gemini Tool-Calling Agent (Search, Summarize, Expense Proposals)"]
-        GeminiRAG["Gemini Grounded RAG (Hybrid Search with Xenova Embeddings)"]
+        GeminiRAG["Gemini Grounded RAG (gemini-embedding-001 + Qdrant spendwise_active)"]
     end
 
     Client -->|REST API with Bearer JWT| Server
@@ -51,7 +51,7 @@ flowchart TD
 
 1. **Strict 6-Layer Frontend Architecture:** The client code is structured into six strictly isolated layers: `app/`, `primitives/`, `composites/`, `features/`, `layouts/`, and `shared/`. Dependency flow is strictly unidirectional downwards.
 2. **Single-Currency VND Ledger:** `public.expense_transactions` stores all currency amounts in **VND**. Non-VND receipts extracted by Gemini must never be silently converted or persisted; they trigger explicit human confirmation and mandatory currency conversion review before persisting.
-3. **Immutable Applied RPC Contracts:** Applied PostgreSQL migrations in `supabase/migrations/` and RPC signatures (`create_receipt_upload`, `start_receipt_processing`, `server_complete_receipt_extraction`, `server_mark_receipt_failed`, `retry_receipt_processing`, `confirm_receipt_transaction`, `begin_receipt_delete`, `finalize_receipt_delete`, `authorize_receipt_preview`) remain immutable and secure.
+3. **Immutable Applied RPC Contracts:** Historical PostgreSQL migrations in `supabase/migrations/` remain immutable. Active receipt confirmation uses the `confirm_staged_receipt_transaction` RPC (`202611170009`, marked `LOCAL ONLY` pending remote audit), and streaming chat turns use `begin_chat_stream_turn` (`202611170012` / `202611170013`, `LOCAL ONLY`). Legacy receipt lifecycle RPCs and `public.transaction_drafts` are retired (`202611170011`).
 4. **Stable REST API Contracts:** All public endpoints maintain backwards-compatible JSON response envelopes and standard HTTP status semantics.
 5. **Private Storage & Time-Bound Previews:** Receipts are uploaded to a private Supabase Storage bucket with public access revoked. Previews require short-lived, signed URLs generated via PostgreSQL RPC authorization.
 6. **Client-Side IndexedDB Drafts & Atomic Confirmation:** Unconfirmed candidate transactions (from stateless receipt OCR `POST /api/receipt/upload` and stateless assistant proposals) are staged locally per user in IndexedDB (`client/src/features/transactionDraft/draftStorage.js`). Confirmation commits atomically to `public.expense_transactions` (and `public.receipts` via `confirm_staged_receipt_transaction` for receipts). Legacy `public.transaction_drafts`, `public.receipt_extractions`, and `/api/transaction-draft` are retired in `202611170011_retire_legacy_drafts_and_extractions.sql` (static SQL reviewed; unexecuted against live DB).
@@ -73,7 +73,8 @@ client/src/
 │   ├── App.jsx                         # Root router, global providers, and layout wiring
 │   ├── guards/                         # Route security wrappers
 │   │   ├── AuthenticatedRouteGuard.jsx # Enforces active Supabase session
-│   │   └── AdminRouteGuard.jsx         # Enforces admin role access
+│   │   ├── AdminRouteGuard.jsx         # Enforces admin role access
+│   │   └── RoleRouteGuard.jsx          # Enforces role-scoped workspace access ('user' vs 'admin')
 │   └── providers/                      # Global UI context providers
 │       ├── ConfirmProvider.jsx         # Promise-based confirmation dialog context
 │       ├── ToastProvider.jsx           # Notification toast dispatch context
@@ -724,16 +725,13 @@ Future contributors and automated agents must adhere to the following rules when
 1. **Full Automated Test Suite:** `npm test` passed **719/719 tests across 209 suites** (`0` failed, `0` skipped) using mocked external services.
 2. **Frontend Production Build:** `npm --prefix client run build` executed cleanly with exit code `0` (`vite v6.4.4`, `269` modules transformed).
 
-### 12.2 Known Limitations & Unapplied Remote Migrations
-1. **Local-Only Phase 2 Migrations:** Migrations `202611170009` through `202611170014` are marked `LOCAL ONLY` in `supabase/migrations/` and have not been applied to a live remote Supabase instance during offline verification.
+### 12.2 Known Limitations & Operational Constraints
+1. **Local-Only Phase 2 Migrations (`009`–`014`):** Migrations `202611170009` through `202611170014` are marked `LOCAL ONLY` in `supabase/migrations/`; remote Supabase application status and schema equivalence remain **UNKNOWN / NOT VERIFIED**.
 2. **`cachedTokens` Persistence Limitation:** `cachedTokens` is captured in-memory during provider usage normalization (`telemetry.js` / `usageTracker.js`), but `public.ai_usage_analytics` does not currently have a `cached_tokens` column, so `cachedTokens` is not persisted to PostgreSQL.
 3. **Browser-Local Draft Synchronization:** Unconfirmed `TransactionDraft`s (and temporary receipt `Blob`s) live in browser IndexedDB (`spendwise_transaction_drafts`) and do not synchronize across devices until confirmed.
-4. **No Live Cloud E2E in Offline Runs:** End-to-end tests against live Supabase Auth/DB, live Qdrant Cloud, and live Gemini API require valid credentials and are separate from offline `npm test`.
-
----
-
-> [!NOTE]
-> For historical audits, baseline reports, and pre-refactoring component inventories, see [`docs/engineering/audits/`](./audits/).
+4. **PostgREST Literal `*` Search Limitation:** `encodePostgrestIlikeTerm()` escapes `*` as `\\*` to prevent unbounded wildcard broadening, but exact literal `*` matching is not guaranteed under PostgREST `*` → `%` translation without a dedicated PostgreSQL RPC.
+5. **In-Process Qdrant Reindex Locking:** Shadow-collection reindexing uses an in-process lock; distributed locking for multi-instance deployments remains a separate concern.
+6. **Live Infrastructure Verification:** Live Docker image builds, `nginx:alpine` BusyBox `awk` execution of `40-runtime-config.sh`, and live cloud E2E runs against Supabase/Qdrant/Gemini require an active Docker daemon and live credentials.
 
 ---
 

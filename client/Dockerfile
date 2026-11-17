@@ -6,21 +6,18 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Copy client source and public build-time environment configuration.
+# Copy client source without requiring a developer-local .env file.
 COPY . .
-
-# Validate required public Supabase configuration.
-RUN grep -Eq '^VITE_SUPABASE_URL=.+$' .env \
-    && grep -Eq '^VITE_SUPABASE_ANON_KEY=.+$' .env \
-    || (echo "Error: client/.env must define VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY." >&2; exit 1)
 
 RUN npm run build
 
-# Stage 2: Serve with lightweight Nginx
+# Stage 2: Serve with lightweight Nginx and runtime public config injection
 FROM nginx:alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY docker-entrypoint.d/40-runtime-config.sh /docker-entrypoint.d/40-runtime-config.sh
+RUN chmod +x /docker-entrypoint.d/40-runtime-config.sh
 
 EXPOSE 80
 

@@ -1,6 +1,10 @@
 import { API_ENDPOINTS } from '../../shared/constants/index.js';
-import { apiJsonRequest, apiRequest } from '../../shared/services/apiClient.js';
-import { getAccessToken } from '../../shared/services/supabaseAuth.js';
+import {
+  apiJsonRequest,
+  apiRequest,
+  authenticatedFetch,
+  handleUnauthorized,
+} from '../../shared/services/apiClient.js';
 import { parseSSEStream } from './sseParser.js';
 
 /**
@@ -27,18 +31,12 @@ export async function sendChatMessageStream(
   history = [],
   { conversationId, requestId, userMessageId, retryOfMessageId, signal, onEvent } = {}
 ) {
-  const token = await getAccessToken();
-  const headers = new Headers({
-    'Content-Type': 'application/json',
-    Accept: 'text/event-stream',
-  });
-  if (token) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const response = await fetch(`${API_ENDPOINTS.CHAT_ASSISTANT}/stream`, {
+  const response = await authenticatedFetch(`${API_ENDPOINTS.CHAT_ASSISTANT}/stream`, {
     method: 'POST',
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'text/event-stream',
+    },
     signal,
     body: JSON.stringify({
       message,
@@ -51,6 +49,9 @@ export async function sendChatMessageStream(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      await handleUnauthorized();
+    }
     let errorMessage = 'Failed to stream response from the Assistant.';
     try {
       const errData = await response.json();
@@ -58,7 +59,10 @@ export async function sendChatMessageStream(
     } catch {
       // Ignore non-JSON error body
     }
-    throw new Error(errorMessage);
+    const error = new Error(errorMessage);
+    error.status = response.status;
+    error.statusCode = response.status;
+    throw error;
   }
 
   await parseSSEStream(response.body, { onEvent, signal });

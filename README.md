@@ -113,8 +113,10 @@ npm run dev
 
 To build and run SpendWise in isolated Docker containers from the repository root:
 
-### Step 1: Ensure Environment Files Exist
-Confirm that `server/.env` contains your verified API keys and configuration, and `client/.env` defines `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` for the client container build.
+### Step 1: Configure Environment Variables
+Confirm that `server/.env` contains your verified server-side API keys and configuration (`CORS_ORIGIN`, `TRUST_PROXY`, `SUPABASE_*`, `GEMINI_API_KEY`). For the `client` container, `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` are injected at container startup into `/runtime-config.js` (no `client/.env` is required during `docker compose build`; `client/.env` is only needed for standalone local Vite dev).
+
+Before deploying to a remote Supabase project, follow the [Deployment & Supabase Migration Checklist](docs/engineering/deployment-checklist.md) to verify and apply required migrations (`202611170009` through `202611170014`).
 
 ### Step 2: Validate Docker Compose Configuration
 ```bash
@@ -225,19 +227,22 @@ The SpendWise documentation is strictly partitioned between canonical engineerin
 
 ### Engineering Documentation (`docs/engineering/`)
 * [docs/engineering/architecture.md](docs/engineering/architecture.md): Canonical engineering architecture reference covering the 6-layer frontend design, dependency rules, component architecture, data flow, styling, and testing harness.
+* [docs/engineering/api-reference.md](docs/engineering/api-reference.md): Authoritative Express 4 REST and SSE API reference.
+* [docs/engineering/database-and-data-lifecycle.md](docs/engineering/database-and-data-lifecycle.md): Local PostgreSQL schema baseline, RLS/RPCs, and browser IndexedDB staging boundary.
+* [docs/engineering/deployment-checklist.md](docs/engineering/deployment-checklist.md): Controlled Docker and Supabase migration deployment checklist.
 * [docs/engineering/refactoring-plan.md](docs/engineering/refactoring-plan.md): Single master refactoring plan and living engineering backlog (`TECH-01` through `TECH-05`).
 * [docs/engineering/progress.md](docs/engineering/progress.md): Chronological verification history and milestone matrix.
 * [docs/engineering/implementation-guidelines.md](docs/engineering/implementation-guidelines.md): Technical invariants, VND ledger rules, and bootstrap DDL.
-* [docs/engineering/adrs/](docs/engineering/adrs/): Significant engineering Architecture Decision Records (`adr-0001` through `adr-0006`).
-* [docs/engineering/audits/](docs/engineering/audits/): Dated historical audit snapshots (`2026-11-08`, `2026-11-14`).
+* [docs/engineering/adrs/](docs/engineering/adrs/): Significant engineering Architecture Decision Records (`adr-0001` through `adr-0009`).
+* [docs/engineering/documentation-maintenance.md](docs/engineering/documentation-maintenance.md): Canonical documentation structure, consolidated decisions, and maintenance guidelines.
 
 ### Academic & Course Deliverables (`docs/academic/`)
+* [docs/academic/SRS/](docs/academic/SRS/README.md): Complete academic Software Requirements Specification package (Scope & Roles, Business Rules, Use Cases, System Architecture, ERD, Sequence Diagrams).
 * [docs/academic/architecture.md](docs/academic/architecture.md): Evaluator-facing multi-service system design, Docker deployment, and request flows.
 * [docs/academic/user-stories.md](docs/academic/user-stories.md): Milestone 1 User Stories (US-01 through US-14) with acceptance criteria and traceability matrix.
 * [docs/academic/adrs/](docs/academic/adrs/): Academic ADRs for authentication, multimodal receipt extraction, and agent confirmation gates.
 * [docs/academic/ai-usage.md](docs/academic/ai-usage.md): Course AI usage disclosure, prompt transcripts, and human review log.
 * [docs/academic/ai-data-flows/](docs/academic/ai-data-flows/): Source-traceable AI architecture and data-flow specifications.
-* [docs/academic/ai-receipts/](docs/academic/ai-receipts/): Multimodal receipt scanning implementation reports.
 
 ### AI Coding Agent Guidelines
 * [AGENTS.md](AGENTS.md): Repository-wide coding-agent instructions, conventions, verification commands, and task-to-documentation lookup table.

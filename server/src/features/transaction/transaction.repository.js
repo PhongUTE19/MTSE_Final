@@ -30,8 +30,35 @@ function notFound() {
   return new AppError(TRANSACTION_MESSAGES.TRANSACTION_NOT_FOUND, HTTP_STATUS.NOT_FOUND);
 }
 
-function escapeSearch(value) {
-  return value.replace(/[,%()]/g, '\\$&');
+/**
+ * Encodes a user-supplied substring for safe interpolation inside a double-quoted
+ * PostgREST `.or()` `ilike` filter value (`"..."`).
+ *
+ * Layer A (PostgREST filter grammar):
+ * - Enclosing in `"..."` keeps `,`, `(`, `)`, `.`, and `:` literal inside the value.
+ * - Escapes `"` as `\"` so user input cannot close the quoted literal and inject predicates.
+ * - Doubles backslashes (`\` -> `\\\\`) so PostgREST's quoted-string unescaping yields `\\`
+ *   for PostgreSQL `ILIKE`.
+ *
+ * Layer B (PostgreSQL `ILIKE` pattern semantics & PostgREST `*` alias):
+ * - Escapes SQL `ILIKE` wildcards (`%`, `_`) so they match literally.
+ * - Escapes PostgREST's `*` wildcard alias (`\\*`) so `*` cannot broaden the search
+ *   into an unescaped `%` wildcard.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+export function encodePostgrestIlikeTerm(value) {
+  if (typeof value !== 'string') return '';
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const escaped = trimmed
+    .replace(/\\/g, '\\\\\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/%/g, '\\\\%')
+    .replace(/_/g, '\\\\_')
+    .replace(/\*/g, '\\\\*');
+  return `"%${escaped}%"`;
 }
 
 export async function queryTransactionsPage(user, query) {
@@ -43,9 +70,9 @@ export async function queryTransactionsPage(user, query) {
   if (to) request = request.lte('transaction_date', to);
   if (minAmount !== undefined) request = request.gte('amount', minAmount);
   if (maxAmount !== undefined) request = request.lte('amount', maxAmount);
-  if (search) {
-    const term = `%${escapeSearch(search)}%`;
-    request = request.or(`merchant.ilike.${term},note.ilike.${term}`);
+  const quotedTerm = encodePostgrestIlikeTerm(search);
+  if (quotedTerm) {
+    request = request.or(`merchant.ilike.${quotedTerm},note.ilike.${quotedTerm}`);
   }
   const column = sortBy === 'amount' ? 'amount' : 'transaction_date';
   const start = (page - 1) * pageSize;

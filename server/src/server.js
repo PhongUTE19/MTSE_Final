@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { config, validateProviderConfig } from './config.js';
+import { config, validateProviderConfig, logStartupDiagnostics } from './config.js';
 import { initVectorStore, getVectorStoreCount } from './features/knowledgeBase/vectorStore.js';
 import adminRouter from './routes/adminRoute.js';
 import chatAssistantRouter from './features/chatAssistant/chatAssistant.route.js';
@@ -10,22 +10,35 @@ import transactionRouter from './features/transaction/transaction.route.js';
 import receiptRouter from './features/receipt/receipt.route.js';
 import expenseAssistantRouter from './features/expenseAssistant/expenseAssistant.route.js';
 import { STATUS_KEYS, HTTP_STATUS } from './constants/index.js';
+import { createShutdownManager } from './shared/lifecycle.js';
 import {
   errorHandler,
   notFoundHandler,
   apiRateLimiter,
+  resolveTrustProxy,
+  createCorsOptions,
+  createHealthHandler,
+  createLiveHealthHandler,
 } from './shared/middleware/index.js';
 
 validateProviderConfig();
+logStartupDiagnostics(config);
 
 const app = express();
+
+app.set('trust proxy', resolveTrustProxy({ trustProxyEnv: config.trustProxy }));
 
 // Security headers and request parsing middleware
 app.use(helmet({
   crossOriginResourcePolicy: { policy: 'cross-origin' },
   contentSecurityPolicy: false,
 }));
-app.use(cors());
+app.use(cors(createCorsOptions({
+  corsOrigin: config.corsOrigin,
+  onMissingProdConfig: () => {
+    console.warn('[Server] CORS_ORIGIN is not configured in production; cross-origin browser requests will be rejected.');
+  },
+})));
 app.use(express.json({ limit: '5mb' }));
 
 // Apply general rate limiter across API routes
@@ -39,22 +52,11 @@ app.use('/api', transactionRouter);
 app.use('/api/receipt', receiptRouter);
 app.use('/api/expense-assistant', expenseAssistantRouter);
 
+// Liveness endpoint (independent of optional Qdrant availability)
+app.get('/api/health/live', createLiveHealthHandler());
+
 // Health check endpoint (queries vector database count)
-app.get('/api/health', async (req, res) => {
-  try {
-    const indexedChunks = await getVectorStoreCount();
-    res.json({
-      status: STATUS_KEYS.OK,
-      indexedChunks,
-    });
-  } catch (error) {
-    console.error('[Server] Health check error:', error.message);
-    res.status(HTTP_STATUS.INTERNAL_SERVER_ERROR).json({
-      status: STATUS_KEYS.ERROR,
-      detail: error.message,
-    });
-  }
-});
+app.get('/api/health', createHealthHandler({ getVectorStoreCount }));
 
 // 404 handler for unmatched API routes
 app.use(notFoundHandler);
@@ -73,6 +75,10 @@ initVectorStore()
     console.warn('[Server] Qdrant initialization warning:', err.message);
   });
 
-app.listen(config.port, '0.0.0.0', () => {
+const server = app.listen(config.port, '0.0.0.0', () => {
   console.log(`[Server] SpendWise Assistant running at http://localhost:${config.port}`);
 });
+
+const shutdownManager = createShutdownManager({ server });
+app.locals.trackSseConnection = shutdownManager.trackSseConnection;
+shutdownManager.registerSignalHandlers();

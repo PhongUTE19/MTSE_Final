@@ -29,6 +29,8 @@ export const SUPPORTED_VECTOR_PROVIDERS = Object.freeze(['qdrant']);
 
 export const config = {
   port: parseInt(process.env.PORT || SERVER_CONFIG_DEFAULTS.DEFAULT_PORT_STR, 10),
+  corsOrigin: process.env.CORS_ORIGIN || '',
+  trustProxy: process.env.TRUST_PROXY ?? '',
   chatStrategy: (process.env.CHAT_STRATEGY?.trim() || SERVER_CONFIG_DEFAULTS.CHAT_STRATEGY || 'unified').toLowerCase(),
 
   // AI provider selection & model configuration
@@ -144,4 +146,55 @@ export function validateProviderConfig(cfg = config) {
       `Invalid VECTOR_PROVIDER "${cfg.vectorProvider}". Supported providers: [${SUPPORTED_VECTOR_PROVIDERS.join(', ')}].`
     );
   }
+}
+
+/**
+ * Inspects startup configuration, distinguishing required credentials from optional integrations.
+ * Never returns or logs secret values.
+ *
+ * @param {typeof config} [cfg=config]
+ */
+export function inspectStartupConfig(cfg = config) {
+  const missingRequired = [];
+  const unconfiguredOptional = [];
+
+  if ((cfg.aiProvider === 'gemini' || cfg.embeddingProvider === 'gemini') && !cfg.geminiApiKey) {
+    missingRequired.push('GEMINI_API_KEY');
+  }
+  if (cfg.dbProvider === 'supabase') {
+    if (!cfg.supabaseUrl) missingRequired.push('SUPABASE_URL');
+    if (!cfg.supabaseAnonKey) missingRequired.push('SUPABASE_ANON_KEY');
+    if (!cfg.supabaseServiceKey) missingRequired.push('SUPABASE_SECRET_KEY');
+  }
+
+  if (!cfg.qdrantUrl) {
+    unconfiguredOptional.push('QDRANT_URL');
+  }
+  if (!cfg.trustProxy) {
+    unconfiguredOptional.push('TRUST_PROXY');
+  }
+  if (!cfg.corsOrigin && process.env.NODE_ENV !== 'production') {
+    unconfiguredOptional.push('CORS_ORIGIN');
+  }
+
+  return { missingRequired, unconfiguredOptional };
+}
+
+/**
+ * Logs concise startup configuration diagnostics without exposing secrets or failing on optional services.
+ *
+ * @param {typeof config} [cfg=config]
+ * @param {Pick<Console, 'info' | 'warn'>} [logger=console]
+ */
+export function logStartupDiagnostics(cfg = config, logger = console) {
+  const result = inspectStartupConfig(cfg);
+  if (result.missingRequired.length > 0) {
+    logger.warn(`[Startup] Missing required configuration: ${result.missingRequired.join(', ')}`);
+  }
+  if (result.unconfiguredOptional.length > 0) {
+    logger.info(
+      `[Startup] Optional configuration not set (using defaults/degraded mode): ${result.unconfiguredOptional.join(', ')}`
+    );
+  }
+  return result;
 }

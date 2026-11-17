@@ -35,11 +35,14 @@ SpendWise/
 │   │
 │   └── engineering/                    # Canonical engineering documentation
 │       ├── architecture.md             # Implemented 6-layer architecture reference
+│       ├── api-reference.md            # Authoritative Express 4 REST & SSE API reference
+│       ├── database-and-data-lifecycle.md # Local PostgreSQL baseline & IndexedDB boundary
+│       ├── deployment-checklist.md     # Controlled Docker & Supabase migration checklist
+│       ├── documentation-maintenance.md# Canonical documentation map & maintenance rules
 │       ├── refactoring-plan.md         # Master refactoring backlog & tech tasks
 │       ├── progress.md                 # Chronological verification log
 │       ├── implementation-guidelines.md# Agent guidelines, invariants & bootstrap DDL
-│       ├── adrs/                       # Engineering ADRs (0001–0006)
-│       └── audits/                     # Dated historical audit snapshots
+│       └── adrs/                       # Engineering ADRs (0001–0009)
 │
 ├── client/                             # React 18 SPA frontend
 │   └── src/
@@ -138,8 +141,8 @@ When assigned a specific task, consult the authoritative documentation below:
 | **Verification & Progress History** | [`docs/engineering/progress.md`](docs/engineering/progress.md) |
 | **Technical Invariants & Bootstrap DDL**| [`docs/engineering/implementation-guidelines.md`](docs/engineering/implementation-guidelines.md) |
 | **Architecture Decision Records (ADRs)**| [`docs/engineering/adrs/`](docs/engineering/adrs/) |
-| **Historical Baseline / Audit Trails** | Relevant files in [`docs/engineering/audits/`](docs/engineering/audits/) |
-| **Academic Evaluation & User Stories** | [`docs/academic/`](docs/academic/) (`architecture.md`, `user-stories.md`, `ai-usage.md`) |
+| **Documentation Map & Maintenance** | [`docs/engineering/documentation-maintenance.md`](docs/engineering/documentation-maintenance.md) |
+| **Academic Evaluation & SRS** | [`docs/academic/SRS/`](docs/academic/SRS/README.md), [`docs/academic/`](docs/academic/) (`architecture.md`, `user-stories.md`, `ai-usage.md`) |
 | **Source-Level AI Data Flows** | [`docs/academic/ai-data-flows/`](docs/academic/ai-data-flows/) |
 
 ---

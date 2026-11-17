@@ -2,7 +2,7 @@ import { getAccessToken, signOut } from './supabaseAuth.js';
 
 let isHandlingUnauthorized = false;
 
-async function handleUnauthorized() {
+export async function handleUnauthorized() {
   if (isHandlingUnauthorized) return;
   isHandlingUnauthorized = true;
   try {
@@ -13,10 +13,38 @@ async function handleUnauthorized() {
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('spendwise:unauthorized'));
     }
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       isHandlingUnauthorized = false;
     }, 1000);
+    timer.unref?.();
   }
+}
+
+/** @internal Test-only reset for debounced unauthorized handler state. */
+export function resetUnauthorizedHandlerForTests() {
+  isHandlingUnauthorized = false;
+}
+
+/**
+ * Executes a fetch call with shared Authorization and JSON Content-Type headers.
+ *
+ * @param {string} url - Request URL
+ * @param {RequestInit} [options={}] - Fetch options
+ * @returns {Promise<Response>}
+ */
+export async function authenticatedFetch(url, options = {}) {
+  const token = await getAccessToken();
+  const headers = new Headers(options.headers);
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (options.body !== undefined && !isFormData && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+
+  return fetch(url, { ...options, headers });
 }
 
 /**
@@ -34,18 +62,7 @@ async function handleUnauthorized() {
  * @returns {Promise<any>} Parsed JSON response body
  */
 export async function apiRequest(url, options = {}, fallbackError) {
-  const token = await getAccessToken();
-  const headers = new Headers(options.headers);
-  if (token && !headers.has('Authorization')) {
-    headers.set('Authorization', `Bearer ${token}`);
-  }
-
-  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
-  if (options.body !== undefined && !isFormData && !headers.has('Content-Type')) {
-    headers.set('Content-Type', 'application/json');
-  }
-
-  const res = await fetch(url, { ...options, headers });
+  const res = await authenticatedFetch(url, options);
   const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {

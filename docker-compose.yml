@@ -12,6 +12,13 @@ services:
       - "3000:3000"
     environment:
       KNOWLEDGE_DIR: /app/data/knowledge
+    healthcheck:
+      # Uses Node's built-in fetch against /api/health/live so optional Qdrant degraded mode does not block startup.
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   client:
     image: spendwise-client:latest
@@ -22,6 +29,16 @@ services:
     restart: unless-stopped
     ports:
       - "5173:80"
+    environment:
+      # Public client-only configuration injected at container startup into /runtime-config.js
+      VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+      VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ | grep -q 'id=\"root\"' && wget -qO- http://127.0.0.1:80/runtime-config.js | grep -q '__SPENDWISE_RUNTIME_CONFIG__'"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
     depends_on:
       server:
-        condition: service_started
+        condition: service_healthy

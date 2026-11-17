@@ -64,6 +64,7 @@ export async function chatStream(req, res, next) {
   }
 
   const abortController = new AbortController();
+  req.app?.locals?.trackSseConnection?.(res, abortController);
 
   res.on('close', () => {
     if (!res.writableEnded && !abortController.signal.aborted) {

@@ -12,7 +12,7 @@ SpendWise is an AI-assisted personal expense tracking web application. It combin
 
 In accordance with approved Milestone 1 requirements, the system implements three specific AI capabilities:
 * **Capability B (Tool-Using Agent)**: Natural-language conversational agent using Google Gemini function calling to query transaction statistics in SQL and draft expense proposals.
-* **Capability C (Structured Output)**: Receipt OCR extraction constrained to a strict, validated JSON schema via Gemini's `responseJsonSchema` and backend Zod schemas (`server/src/features/expenses/receipt.schemas.js`).
+* **Capability C (Structured Output)**: Receipt OCR extraction constrained to a strict, validated JSON schema via Gemini's `responseJsonSchema` and backend Zod schemas (`server/src/features/receipt/receipt.schema.js`).
 * **Capability D (Multimodal Input)**: Direct ingestion of physical receipt images (JPEG, PNG, WebP) into Gemini 3.5 Flash vision models without external OCR engines.
 
 ### 1.2. Scope Classification
@@ -21,7 +21,7 @@ To avoid ambiguity during evaluation, capabilities are categorized into three ti
 
 | Tier | Status | Components Included |
 |---|---|---|
-| **Implemented Capabilities** | Committed & Active | User Authentication (Supabase GoTrue), Transaction CRUD, Spending Breakdown Charts, Multimodal Receipt Extraction, Tool-Using Expense Assistant with Proposal-Confirmation Gate, AI Usage Telemetry, Admin Analytics Dashboard, and System Prompt Management. |
+| **Implemented Capabilities** | Committed & Active | User Authentication (Supabase GoTrue), Transaction CRUD, Spending Breakdown Charts, Stateless Multimodal Receipt Extraction + Browser IndexedDB Draft Confirmation, Unified Tool-Using & RAG Chat Assistant (SSE + Server-Authoritative Chat History), AI Usage Telemetry, Admin Analytics Dashboard, and Read-Only Git-Managed System Prompt & Knowledge Base Inspection. |
 | **Optional Infrastructure** | Operational Platform Code | Knowledge Base chunking (`data/knowledge/`), Qdrant Cloud vector indexing, and Cosine similarity document retrieval. These support platform documentation Q&A, but RAG is not a committed Milestone 1 User Story. |
 | **Future / Planned Work** | Out of Scope for M1 | Autonomous unconfirmed database writes, multi-agent coordination frameworks, bank API sync, and custom category budget threshold alerts. |
 
@@ -46,14 +46,14 @@ flowchart TB
         SupabaseDB["Supabase PostgreSQL 15\n• public.expense_transactions\n• Row-Level Security (auth.uid = user_id)\n• ai_usage_analytics Table"]
         SupabaseStorage["Supabase Storage\n• Private 'receipts' Bucket\n• Uploaded Receipt Image Files"]
         GeminiAPI["Google Gemini API\n• gemini-3.5-flash-lite (Agent & OCR)\n• gemini-embedding-001 (Docs)\n• Function Tools & JSON Schemas"]
-        QdrantCloud["Qdrant Cloud Vector Store\n• 'spendwise' Collection\n• 3072-dim Cosine Document Index"]
+        QdrantCloud["Qdrant Cloud Vector Store\n• 'spendwise_active' Alias (Shadow-Switched)\n• 3072-dim Cosine Document Index"]
     end
 
     ClientUI -- "Direct Auth / Refresh" --> SupabaseAuth
-    ClientUI -- "Direct Receipt Upload" --> SupabaseStorage
     ClientUI -- "HTTP REST & SSE (/api/*)" --> ExpressApp
 
     ExpressApp -- "Verify Bearer JWT & RLS Client" --> SupabaseDB
+    ExpressApp -- "Upload Confirmed Receipt & Signed URL" --> SupabaseStorage
     ExpressApp -- "Batch Usage Telemetry" --> SupabaseDB
     ExpressApp -- "Agent Tools & Vision OCR" --> GeminiAPI
     ExpressApp -- "Vector Embedding Search" --> QdrantCloud
@@ -64,12 +64,12 @@ flowchart TB
 ## 3. Component Responsibilities & Rationale
 
 ### 3.1. Frontend Client (`client/`)
-* **Technology**: React 18, Vite 6, Nginx (Alpine-based Docker container on port `5173`).
-* **Responsibility**: Renders the responsive user interface, manages client-side authentication state, displays live spending charts, provides receipt upload previews, and renders interactive proposal cards.
-* **Why It Exists**: Delivers a fast, zero-latency single-page application (SPA) experience with client-side routing while keeping sensitive backend database keys out of the browser.
+* **Technology**: React 18, Vite 6, Nginx (Alpine-based Docker container on port `5173`, injecting public Supabase config at startup via `/runtime-config.js`).
+* **Responsibility**: Renders the responsive user interface, manages client-side authentication state, stages unconfirmed `TransactionDraft`s in browser IndexedDB, displays live spending charts, provides receipt upload previews, and renders interactive proposal cards.
+* **Why It Exists**: Delivers a fast, zero-latency single-page application (SPA) experience with client-side routing while keeping sensitive backend database keys out of the browser and decoupling the Docker build from local `.env` files.
 
 ### 3.2. Backend Server (`server/`)
-* **Technology**: Node.js 20+, Express 4/5 (Docker container on port `3000`).
+* **Technology**: Node.js 20+, Express 4 (`express@^4.21.2`, Docker container on port `3000` with `/api/health/live` liveness probe and graceful `SIGTERM`/`SIGINT` shutdown).
 * **Responsibility**: Exposes feature-first REST endpoints, validates input payloads using Zod schemas, authenticates caller identity via Supabase JWTs, coordinates AI provider interactions, and buffers AI telemetry records.
 * **Why It Exists**: Serves as the central API gateway and business logic coordinator, ensuring security policies are enforced on every request before touching database tables or calling external AI models.
 

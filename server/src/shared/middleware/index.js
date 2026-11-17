@@ -4,6 +4,13 @@ export { authenticate, optionalAuthenticate } from './authenticate.js';
 export { authorize, requireRole } from './authorize.js';
 export { notFoundHandler } from './notFoundHandler.js';
 export {
+  resolveTrustProxy,
+  parseCorsOrigins,
+  createCorsOptions,
+  createHealthHandler,
+  createLiveHealthHandler,
+} from './appSecurity.js';
+export {
   apiRateLimiter,
   chatRateLimiter,
   expenseAssistantRateLimiter,

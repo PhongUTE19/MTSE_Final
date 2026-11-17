@@ -2,7 +2,7 @@
 
 > **Status:** Canonical Living Backlog  
 > **Last Updated:** 2026-11-16  
-> **Related Documents:** [`architecture.md`](./architecture.md), [`progress.md`](./progress.md), [`implementation-guidelines.md`](./implementation-guidelines.md), [`adrs/`](./adrs/), [`audits/`](./audits/)
+> **Related Documents:** [`architecture.md`](./architecture.md), [`progress.md`](./progress.md), [`implementation-guidelines.md`](./implementation-guidelines.md), [`adrs/`](./adrs/), [`documentation-maintenance.md`](./documentation-maintenance.md)
 
 ---
 
@@ -13,7 +13,7 @@ This document is the **single source of truth** for all active and completed eng
 ### Maintenance Principles
 1. **Single Living Backlog:** No competing or parallel refactoring roadmaps may exist. All frontend and fullstack refactoring tasks are tracked here.
 2. **Verified Completion Record:** Completed tasks are never deleted. They are preserved in Section 2 with their verified scope, observed test counts, and artifact references.
-3. **Immutable Audits:** Comprehensive audit snapshots belong in [`docs/engineering/audits/`](./audits/). New findings discovered during development or evaluation are distilled and prioritized in Section 3 of this document.
+3. **Consolidated Findings:** New findings discovered during development or evaluation are distilled and prioritized in Section 3 of this document, with accepted architecture decisions recorded in [`docs/engineering/adrs/`](./adrs/).
 4. **Evidence-Based Status:** Tasks are marked complete only after running the actual test suite (`npm test`) and production build (`npm --prefix client run build`) and observing clean exit code `0`.
 
 ---

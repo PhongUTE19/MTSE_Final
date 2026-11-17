@@ -1,10 +1,45 @@
 import { createClient } from '@supabase/supabase-js';
 import { APP_ROUTES, ALLOWED_AUTH_DESTINATIONS } from '../constants/routes.js';
 
-const supabaseUrl = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_SUPABASE_URL : undefined;
-const supabaseAnonKey = typeof import.meta !== 'undefined' ? import.meta.env?.VITE_SUPABASE_ANON_KEY : undefined;
+function isValidHttpUrl(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try {
+    const parsed = new URL(value.trim());
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+/**
+ * Resolves public Supabase client configuration from container runtime config
+ * (`window.__SPENDWISE_RUNTIME_CONFIG__`) with fallback to Vite `import.meta.env`.
+ * Never reads or exposes server-side secrets.
+ */
+export function resolvePublicSupabaseConfig({
+  runtimeConfig = typeof window !== 'undefined'
+    ? window.__SPENDWISE_RUNTIME_CONFIG__
+    : globalThis.__SPENDWISE_RUNTIME_CONFIG__,
+  env = typeof import.meta !== 'undefined' ? import.meta.env : undefined,
+} = {}) {
+  const rawUrl = (runtimeConfig?.supabaseUrl || env?.VITE_SUPABASE_URL || '').trim();
+  const rawAnonKey = (runtimeConfig?.supabaseAnonKey || env?.VITE_SUPABASE_ANON_KEY || '').trim();
+  const validUrl = isValidHttpUrl(rawUrl) ? rawUrl : '';
+  const validAnonKey = rawAnonKey || '';
+  return {
+    supabaseUrl: validUrl,
+    supabaseAnonKey: validAnonKey,
+    isConfigured: Boolean(validUrl && validAnonKey),
+  };
+}
+
+const {
+  supabaseUrl,
+  supabaseAnonKey,
+  isConfigured: isSupabaseConfigured,
+} = resolvePublicSupabaseConfig();
+
+export { isSupabaseConfigured };
 
 // This client intentionally receives only the public anon key. Authorization is
 // ultimately enforced by the API and database RLS, never by this browser state.

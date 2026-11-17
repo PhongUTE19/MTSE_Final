@@ -2,7 +2,7 @@
 
 > **Last Updated:** 2026-11-16  
 > **Current Phase:** Frontend Fixes, Refactoring, Behavioral Testing, Documentation Consolidation, and Tailwind CSS Exclusive Migration (`FE-FIX-01`..`FE-DOC-09`, `FE-REF-11`) Complete & Fully Verified  
-> **Related Documents:** [`architecture.md`](./architecture.md), [`refactoring-plan.md`](./refactoring-plan.md), [`implementation-guidelines.md`](./implementation-guidelines.md), [`adrs/`](./adrs/), [`audits/`](./audits/)
+> **Related Documents:** [`architecture.md`](./architecture.md), [`refactoring-plan.md`](./refactoring-plan.md), [`implementation-guidelines.md`](./implementation-guidelines.md), [`adrs/`](./adrs/), [`documentation-maintenance.md`](./documentation-maintenance.md)
 
 ---
 
