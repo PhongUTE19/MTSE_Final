@@ -8,6 +8,8 @@ export {
   deleteDraft,
   clearUserDrafts,
   isIndexedDBAvailable,
+  isReceiptDraft,
+  getDraftSourceLabel,
   resetMemoryDraftStorageForTests,
 } from './draftStorage.js';
 export { createPreviewUrlManager } from './previewUrlManager.js';

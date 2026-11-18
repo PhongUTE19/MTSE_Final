@@ -30,6 +30,21 @@ export function assertValidUserId(userId) {
   return userId.trim();
 }
 
+export function isReceiptDraft(draft) {
+  if (!draft || typeof draft !== 'object') return false;
+  if (draft.sourceType === 'receipt_extraction' || draft.sourceType === 'receipt') {
+    return true;
+  }
+  if (!draft.sourceType) {
+    return Boolean(draft.receiptBlob || draft.fileMeta);
+  }
+  return false;
+}
+
+export function getDraftSourceLabel(draft) {
+  return isReceiptDraft(draft) ? 'Receipt' : 'Manual';
+}
+
 export function isValidDraftRecord(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     return false;
@@ -285,11 +300,21 @@ function applyDraftPatch(existing, patch) {
     id: existing.id,
     userId: existing.userId,
     createdAt: existing.createdAt,
+    sourceType:
+      typeof patch.sourceType === 'string' && patch.sourceType.trim()
+        ? patch.sourceType.trim()
+        : existing.sourceType,
     sourceRef: patch.sourceRef !== undefined ? patch.sourceRef : existing.sourceRef,
+    originalData:
+      patch.originalData !== undefined && patch.originalData && typeof patch.originalData === 'object'
+        ? { ...patch.originalData }
+        : existing.originalData,
     reviewedData: nextReviewedData,
     warnings: patch.warnings !== undefined ? [...patch.warnings] : existing.warnings,
     receiptBlob: nextReceiptBlob ?? null,
     fileMeta: patch.fileMeta !== undefined ? patch.fileMeta : existing.fileMeta,
+    aiModel: patch.aiModel !== undefined ? patch.aiModel : existing.aiModel,
+    promptVersion: patch.promptVersion !== undefined ? patch.promptVersion : existing.promptVersion,
     status: typeof patch.status === 'string' && patch.status.trim() ? patch.status : existing.status,
     transactionId: patch.transactionId !== undefined ? patch.transactionId : existing.transactionId,
     updatedAt: new Date().toISOString(),

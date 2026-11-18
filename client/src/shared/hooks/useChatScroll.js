@@ -42,9 +42,18 @@ export function useChatScroll(dependencies = [], { threshold = 60 } = {}) {
     if (!el) return;
     if (force) {
       userScrolledUpRef.current = false;
+    } else if (userScrolledUpRef.current) {
+      return;
+    }
+
+    const applyScroll = () => {
+      if (!force && userScrolledUpRef.current) return;
       el.scrollTop = el.scrollHeight;
-    } else if (!userScrolledUpRef.current) {
-      el.scrollTop = el.scrollHeight;
+    };
+
+    applyScroll();
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(applyScroll);
     }
   }, []);
 

@@ -11,12 +11,13 @@ import Text from '../../primitives/typography/Text.jsx';
  * markdown formatting, and an extensible tool result rendering slot.
  */
 const CHAT_MESSAGE_VARIANTS = {
-  user: 'flex flex-col gap-1 max-w-chat-bubble self-end items-end shrink-0',
-  assistant: 'flex flex-col gap-1 max-w-chat-bubble self-start items-start shrink-0',
+  user: 'flex flex-col gap-1.5 max-w-chat-bubble self-end items-end shrink-0',
+  assistant: 'flex flex-col gap-1.5 max-w-chat-bubble self-start items-start shrink-0',
+  'assistant-wide': 'flex flex-col gap-1.5 w-full max-w-full self-start items-start shrink-0',
 };
 
 const BUBBLE_BASE_CLASSES =
-  'max-w-full p-2.5 px-3 rounded-lg text-sm leading-relaxed break-words';
+  'max-w-full p-3 px-3.5 rounded-lg text-sm leading-relaxed break-words';
 
 /**
  * Generic message renderer for the Chat conversation stream.
@@ -39,15 +40,45 @@ export default function ChatMessageItem({
 }) {
   const isUser = variant === 'user';
   const isThinking = item?.id === 'thinking' || (item?.isStreaming && !item?.text);
-  const messageClass = CHAT_MESSAGE_VARIANTS[variant] || CHAT_MESSAGE_VARIANTS.assistant;
+  const hasWideToolContent = !isUser && Boolean(item?.toolName === 'propose_transaction' || item?.result?.draft);
+  const messageClass = hasWideToolContent
+    ? CHAT_MESSAGE_VARIANTS['assistant-wide']
+    : CHAT_MESSAGE_VARIANTS[variant] || CHAT_MESSAGE_VARIANTS.assistant;
   const isAborted = item?.status === 'aborted';
   const isFailed = item?.status === 'failed';
+  const receiptAttachment =
+    item?.attachment?.type === 'receipt'
+      ? item.attachment
+      : item?.toolName === 'receipt_attachment' || item?.result?.attachmentType === 'receipt'
+        ? {
+            type: 'receipt',
+            filename: item?.result?.filename || 'Receipt image',
+            size: item?.result?.size ?? null,
+            previewUrl: item?.attachment?.previewUrl || null,
+          }
+        : null;
 
   return (
     <article className={messageClass} key={item?.id}>
       {isUser ? (
         <div className={`${BUBBLE_BASE_CLASSES} border shadow-card flex flex-col gap-1.5 min-w-0 bg-brand border-brand text-content-inverse`}>
-          <Text as="p" size="sm" color="inverse">{item?.text}</Text>
+          {receiptAttachment && (
+            <div className="flex flex-col gap-1.5">
+              {receiptAttachment.previewUrl && (
+                <img
+                  src={receiptAttachment.previewUrl}
+                  alt={receiptAttachment.filename || 'Uploaded receipt'}
+                  className="max-h-48 w-auto max-w-full rounded-md object-contain bg-white/10"
+                />
+              )}
+              <Text as="span" size="xs" color="inverse">
+                📎 {receiptAttachment.filename || 'Receipt image'}
+              </Text>
+            </div>
+          )}
+          {item?.text && (
+            <FormattedMessageText text={item.text} isStreaming={false} animate={false} inverse />
+          )}
         </div>
       ) : (
         <div className="flex gap-2 items-start w-full justify-start">
@@ -61,6 +92,9 @@ export default function ChatMessageItem({
               <>
                 <FormattedMessageText
                   text={item?.text}
+                  isStreaming={Boolean(item?.isStreaming)}
+                  streamed={Boolean(item?.streamed)}
+                  isInterrupted={isAborted || isFailed}
                   animate={Boolean(item?.isNew) && !item?.streamed && !item?.isStreaming}
                   onComplete={() => onRevealComplete?.(item?.id)}
                 />

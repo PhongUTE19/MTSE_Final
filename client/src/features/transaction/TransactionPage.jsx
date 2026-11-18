@@ -16,7 +16,13 @@ import { useConfirm, useToast, useWorkspace } from '../../app/providers/index.js
  * Owns transaction query state, summary metrics, manual entry modal coordination,
  * transaction details inspection (with linked receipt preview), and live refresh.
  */
-export default function TransactionPage({ onPreviewReceipt }) {
+export default function TransactionPage({
+  onPreviewReceipt,
+  onAddTransactionConfirm,
+  onAddTransactionFormChange,
+  onAddTransactionReceiptSelect,
+  onAddTransactionClose,
+}) {
   const { confirm } = useConfirm();
   const { toast } = useToast();
   const { transactionsVersion } = useWorkspace();
@@ -109,11 +115,21 @@ export default function TransactionPage({ onPreviewReceipt }) {
     if (editingTransaction?.id) {
       await transactionApi.update(editingTransaction.id, transaction);
       toast.success('Transaction updated.');
+    } else if (onAddTransactionConfirm) {
+      await onAddTransactionConfirm(transaction);
+      toast.success('Transaction confirmed.');
     } else {
       await transactionApi.create(transaction);
       toast.success('Transaction created.');
     }
     await loadTransactions();
+  }
+
+  async function handleCloseManualEntry() {
+    if (!editingTransaction?.id) {
+      await onAddTransactionClose?.();
+    }
+    setEditingTransaction(null);
   }
 
   async function deleteTransaction(transaction) {
@@ -146,7 +162,7 @@ export default function TransactionPage({ onPreviewReceipt }) {
           variant="primary"
           onClick={() => setEditingTransaction(INITIAL_TRANSACTION)}
         >
-          Enter manually
+          Add Transaction
         </Button>
       </Inline>
 
@@ -165,7 +181,9 @@ export default function TransactionPage({ onPreviewReceipt }) {
         <ManualEntry
           transaction={editingTransaction.id ? editingTransaction : null}
           onSave={saveTransaction}
-          onClose={() => setEditingTransaction(null)}
+          onFormChange={editingTransaction.id ? undefined : onAddTransactionFormChange}
+          onReceiptFileSelect={editingTransaction.id ? undefined : onAddTransactionReceiptSelect}
+          onClose={handleCloseManualEntry}
         />
       )}
 

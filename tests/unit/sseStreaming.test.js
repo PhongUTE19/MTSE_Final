@@ -212,9 +212,10 @@ describe('P2-T13 Provider Streaming, Persistence, SSE Parser & Controller Suite'
       assert.equal(msgs.filter((m) => m.role === 'user').length, 1);
       assert.equal(seenRequests[0].userMessageId, seenRequests[1].userMessageId);
       assert.notEqual(seenRequests[0].requestId, seenRequests[1].requestId);
-      assert.equal(msgs[2].status, 'completed');
-      assert.equal(msgs[2].text, 'Partial complete.');
-      assert.equal(msgs[2].sources[0].title, 'Policy');
+      assert.equal(msgs.length, 2);
+      assert.equal(msgs[1].status, 'completed');
+      assert.equal(msgs[1].text, 'Partial complete.');
+      assert.equal(msgs[1].sources[0].title, 'Policy');
     });
   });
 

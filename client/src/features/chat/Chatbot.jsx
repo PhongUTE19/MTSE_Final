@@ -39,6 +39,7 @@ export default function Chatbot({
     conversations,
     active,
     newConversation,
+    renameConversation,
     removeConversation,
   } = assistant;
 
@@ -48,7 +49,7 @@ export default function Chatbot({
     <div
       className={`fixed pointer-events-none flex flex-col items-end ${
         open
-          ? 'top-0 right-0 bottom-0 z-mobile-assistant gap-0 max-tablet:left-0'
+          ? 'top-0 right-0 bottom-0 h-dvh z-mobile-assistant gap-0 max-tablet:left-0'
           : 'right-4 bottom-4 z-assistant gap-2.5'
       }`}
     >
@@ -74,7 +75,7 @@ export default function Chatbot({
           ariaLabel={title}
           maximized={maximized}
           header={
-            <div className="shrink-0">
+            <div className="shrink-0 px-4 py-3 border-b border-border bg-gradient-to-b from-surface to-surface-subtle max-tablet:px-3">
               <CardHeader as="header">
                 <Inline justify="between" align="center" fullWidth>
                   <Inline gap="sm" align="center">
@@ -120,7 +121,7 @@ export default function Chatbot({
             </div>
           }
         >
-          <div className="shrink-0">
+          <div className="shrink-0 px-4 py-2 border-b border-border bg-surface max-tablet:px-3">
             <Inline as="nav" gap="xs" role="tablist">
               <Button
                 type="button"
@@ -144,14 +145,17 @@ export default function Chatbot({
           </div>
 
           {tab === 'history' ? (
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 flex flex-col gap-2.5">
+            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden p-4 flex flex-col gap-3 max-tablet:p-3">
               <ChatHistoryTab
-                conversations={conversations}
+                conversations={conversations.filter(
+                  (item) => Boolean(item?.persisted) || (Array.isArray(item?.messages) && item.messages.length > 0)
+                )}
                 activeId={active?.id}
                 onSelectConversation={(id) => {
                   assistant.setActiveId(id);
                   setTab('chat');
                 }}
+                onRenameConversation={renameConversation}
                 onRemoveConversation={(id) => removeConversation(id, deleteConfirmPrompt)}
                 onNewConversation={newConversation}
               />

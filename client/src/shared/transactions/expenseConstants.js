@@ -44,12 +44,14 @@ export const INITIAL_TRANSACTION_FILTERS = Object.freeze({
 
 export const EXPENSE_VIEWS = Object.freeze({
   TRANSACTIONS: 'transactions',
+  DRAFTS: 'drafts',
   RECEIPT: 'receipt',
   CATEGORIES: 'categories',
 });
 
 export const EXPENSE_VIEW_TITLES = Object.freeze({
   [EXPENSE_VIEWS.TRANSACTIONS]: 'Transactions',
+  [EXPENSE_VIEWS.DRAFTS]: 'Drafts',
   [EXPENSE_VIEWS.RECEIPT]: 'Scan a receipt',
   [EXPENSE_VIEWS.CATEGORIES]: 'Categories',
 });

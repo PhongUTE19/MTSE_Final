@@ -113,8 +113,8 @@ export default function TransactionTable({
                 <TableRow key={transaction.id}>
                   <TableCell>
                     <Stack gap="2xs">
-                      <Text as="strong" variant="body-sm" weight="semibold">{transaction.merchant}</Text>
-                      <Text as="small" variant="caption">{transaction.note || transaction.type}</Text>
+                      <Text as="strong" variant="body-sm" weight="semibold" truncate>{transaction.merchant}</Text>
+                      <Text as="small" variant="caption" truncate>{transaction.note || transaction.type}</Text>
                     </Stack>
                   </TableCell>
                   <TableCell>

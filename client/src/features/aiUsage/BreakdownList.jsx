@@ -5,6 +5,7 @@ import ChartLoadingState from './ChartLoadingState.jsx';
 import EmptyState from '../../composites/dataDisplay/EmptyState.jsx';
 import { Inline, Stack } from '../../primitives/layout/index.js';
 import ChartBar from '../../primitives/display/ChartBar.jsx';
+import OverflowText from '../../primitives/typography/OverflowText.jsx';
 
 const { COLORS } = AI_USAGE_CHART_CONFIG;
 
@@ -26,9 +27,11 @@ export default function BreakdownList({ items = [], emptyText = 'No data recorde
     <Stack gap="xs">
       {items.map((item, idx) => (
         <Inline key={item.name} gap="sm" align="center" fullWidth>
-          <span className="w-36 shrink-0 truncate text-xs text-content-secondary" title={item.name}>
-            {item.name}
-          </span>
+          <div className="w-36 shrink-0 min-w-0">
+            <OverflowText as="span" size="xs" color="secondary" title={item.name}>
+              {item.name}
+            </OverflowText>
+          </div>
           <ChartBar
             percentage={item.percentage}
             fillColor={colors[idx % colors.length]}

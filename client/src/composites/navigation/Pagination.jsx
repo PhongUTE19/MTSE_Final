@@ -117,7 +117,7 @@ export default function Pagination({
       <Inline gap="sm" align="center" wrap>
         <Button
           type="button"
-          variant="secondary"
+          variant="primary"
           disabled={!canPrev}
           onClick={() => onPageChange && onPageChange(safePage - 1)}
           aria-label={UI_LABELS.COMMON.PREVIOUS || 'Previous page'}
@@ -151,7 +151,7 @@ export default function Pagination({
 
         <Button
           type="button"
-          variant="secondary"
+          variant="primary"
           disabled={!canNext}
           onClick={() => onPageChange && onPageChange(safePage + 1)}
           aria-label={UI_LABELS.COMMON.NEXT || 'Next page'}

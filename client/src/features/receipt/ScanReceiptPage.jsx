@@ -20,6 +20,7 @@ export default function ScanReceiptPage({
   drafts = [],
   onConfirmDraft,
   onRejectDraft,
+  onSaveDraft,
   reloadDrafts,
   draftsLoading = false,
   draftsHook = null,
@@ -46,12 +47,14 @@ export default function ScanReceiptPage({
     resumeDraftReview,
     discardDraft,
     retryFailedReceipt,
+    handleReviewChange,
     handleReviewConfirm,
     handleReviewDiscard,
   } = useScanReceiptWorkflow({
     drafts,
     onConfirmDraft,
     onRejectDraft,
+    onSaveDraft,
     reloadDrafts,
     draftsHook,
     receiptsVersion,
@@ -88,6 +91,7 @@ export default function ScanReceiptPage({
           <TransactionDraftReview
             key={activeReview.id}
             draft={activeReview.draft}
+            onChange={handleReviewChange}
             previewUrl={activeReview.previewUrl}
             fileName={activeReview.fileName}
             fileSize={activeReview.fileSize}

@@ -204,6 +204,21 @@ export function useTextReveal(
 
   // Ingest incoming text chunks and manage queue lifecycle
   useEffect(() => {
+    // Case 0: Instant display when animation/streaming is disabled (e.g., user messages)
+    if (!isStreaming && !animate) {
+      clearScheduledTimer();
+      pendingQueueRef.current = [];
+      fragmentsRef.current = [];
+      processedLengthRef.current = targetText.length;
+      hasRevealedInitialRef.current = true;
+      setDisplayedText(targetText);
+      setStableText(targetText);
+      setStreamingFragments([]);
+      setIsRevealing(false);
+      setIsComplete(Boolean(targetText));
+      return;
+    }
+
     // Case 1: Interrupted (cancellation or error) -> halt typing and preserve received partial text
     if (isInterrupted) {
       clearScheduledTimer();

@@ -276,4 +276,73 @@ describe('P2-T12 Unified Assistant & RAG Integration Unit Suite', () => {
       );
     });
   });
+
+  describe('5. User-Facing Retrieval Status Separation & Casual Conversation Handling', () => {
+    it('routes casual greetings to CONVERSATIONAL without KB retrieval while keeping docs queries RAG-grounded', () => {
+      for (const greeting of ['hihihihi', 'hi', 'hello', 'Thanks!']) {
+        const policy = evaluateRequestPolicy({ message: greeting });
+        assert.equal(policy.allowed, true);
+        assert.equal(policy.capability, CAPABILITIES.CONVERSATIONAL);
+        assert.equal(policy.requiresKbEvidence, false);
+        assert.deepEqual(policy.allowedTools, []);
+      }
+
+      const docsPolicy = evaluateRequestPolicy({ message: 'What is the SpendWise receipt retention policy?' });
+      assert.equal(docsPolicy.capability, CAPABILITIES.KB_DOCS);
+      assert.equal(docsPolicy.requiresKbEvidence, true);
+      assert.ok(docsPolicy.allowedTools.includes(TOOL_NAMES.SEARCH_KNOWLEDGE_BASE));
+    });
+
+    it('keeps internal retrieval status in metadata while stripping internal markers from user-facing answers', async () => {
+      let round = 0;
+      const insufficientRes = await orchestrateUnifiedChat(USER, 'Tell me about SpendWise quantum sync feature', {
+        retrieverFn: async () => [{ id: 'c1', content: 'Unrelated doc', score: 0.2 }],
+        similarityThreshold: 0.6,
+        toolTurnRunner: async () => {
+          round += 1;
+          if (round === 1) {
+            return { functionCalls: [{ name: 'search_knowledge_base', args: { query: 'quantum sync' } }] };
+          }
+          return {
+            text: 'SpendWise documentation does not cover that topic or has insufficient information [INSUFFICIENT_EVIDENCE].',
+          };
+        },
+      });
+
+      assert.equal(insufficientRes.retrievalStatus, 'INSUFFICIENT_EVIDENCE');
+      assert.equal(insufficientRes.retrieval?.status, 'INSUFFICIENT_EVIDENCE');
+      assert.doesNotMatch(insufficientRes.answer, /\[INSUFFICIENT_EVIDENCE\]|\[NO_RESULTS\]|\[RETRIEVAL_UNAVAILABLE\]/);
+
+      // Distinct internal statuses for NO_RESULTS vs RETRIEVAL_UNAVAILABLE
+      let noResultsRound = 0;
+      const noResultsRes = await orchestrateUnifiedChat(USER, 'What is SpendWise dark mode policy?', {
+        retrieverFn: async () => [],
+        toolTurnRunner: async () => {
+          noResultsRound += 1;
+          if (noResultsRound === 1) {
+            return { functionCalls: [{ name: 'search_knowledge_base', args: { query: 'dark mode' } }] };
+          }
+          return { text: 'No documentation found [NO_RESULTS].' };
+        },
+      });
+      assert.equal(noResultsRes.retrievalStatus, 'NO_RESULTS');
+      assert.doesNotMatch(noResultsRes.answer, /\[NO_RESULTS\]/);
+
+      let unavailRound = 0;
+      const unavailRes = await orchestrateUnifiedChat(USER, 'What is SpendWise backup policy?', {
+        retrieverFn: async () => {
+          throw new Error('Vector DB offline');
+        },
+        toolTurnRunner: async () => {
+          unavailRound += 1;
+          if (unavailRound === 1) {
+            return { functionCalls: [{ name: 'search_knowledge_base', args: { query: 'backup' } }] };
+          }
+          return { text: 'Documentation search is temporarily unavailable [RETRIEVAL_UNAVAILABLE].' };
+        },
+      });
+      assert.equal(unavailRes.retrievalStatus, 'RETRIEVAL_UNAVAILABLE');
+      assert.doesNotMatch(unavailRes.answer, /\[RETRIEVAL_UNAVAILABLE\]/);
+    });
+  });
 });

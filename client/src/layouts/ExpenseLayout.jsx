@@ -13,6 +13,10 @@ const EXPENSE_ROUTE_META = Object.freeze({
     title: EXPENSE_VIEW_TITLES[EXPENSE_VIEWS.TRANSACTIONS],
     description: 'Track income and expenses, filter history, and review page totals.',
   },
+  [APP_ROUTES.EXPENSE_DRAFTS]: {
+    title: EXPENSE_VIEW_TITLES[EXPENSE_VIEWS.DRAFTS],
+    description: 'Review, edit, and confirm saved receipt and manual transaction drafts.',
+  },
   [APP_ROUTES.EXPENSE_RECEIPTS]: {
     title: EXPENSE_VIEW_TITLES[EXPENSE_VIEWS.RECEIPT],
     description: 'Upload a receipt image to extract details and review before saving.',

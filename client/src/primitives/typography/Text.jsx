@@ -1,5 +1,6 @@
 import React, { forwardRef } from 'react';
 import { omitProps } from '../../shared/utils/domProps.js';
+import { useOverflowFade } from '../../shared/hooks/useOverflowFade.js';
 
 const VARIANT_CONFIG = {
   body: { size: 'text-base', color: 'text-content-primary', extra: 'leading-normal' },
@@ -175,12 +176,17 @@ const Text = forwardRef(function Text(
   ref
 ) {
   const domProps = omitProps(rest);
+  const textContent = typeof children === 'string' || typeof children === 'number' ? String(children) : undefined;
+  const { ref: overflowRef, isOverflowing } = useOverflowFade(ref, Boolean(truncate), textContent);
 
   const variantDef = VARIANT_CONFIG[variant] || VARIANT_CONFIG.body;
   const resolvedSize = size ? SIZE_CLASSES[size] : variantDef.size;
   const resolvedWeight = weight ? WEIGHT_CLASSES[weight] : variantDef.weight;
   const resolvedColor = color ? COLOR_CLASSES[color] : variantDef.color;
   const resolvedFont = variantDef.mono ? null : 'font-sans';
+  const truncateClass = truncate
+    ? (isOverflowing ? 'min-w-0 text-overflow-fade-active' : 'min-w-0 text-overflow-fade')
+    : null;
 
   const classes = [
     'm-0',
@@ -190,7 +196,7 @@ const Text = forwardRef(function Text(
     resolvedColor,
     variantDef.extra,
     align ? ALIGN_CLASSES[align] : null,
-    truncate ? 'truncate' : null,
+    truncateClass,
     clamp ? CLAMP_CLASSES[clamp] : null,
     preserveWhitespace ? 'whitespace-pre-wrap' : null,
     nowrap ? 'whitespace-nowrap' : null,
@@ -200,8 +206,10 @@ const Text = forwardRef(function Text(
     .filter(Boolean)
     .join(' ');
 
+  const resolvedTitle = domProps.title || (truncate && isOverflowing ? textContent : undefined);
+
   return (
-    <Component ref={ref} className={classes} {...domProps}>
+    <Component ref={truncate ? overflowRef : ref} className={classes} {...domProps} title={resolvedTitle}>
       {children}
     </Component>
   );

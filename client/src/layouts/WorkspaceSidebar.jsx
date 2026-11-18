@@ -4,6 +4,7 @@ import Button from '../primitives/buttons/Button.jsx';
 import { Inline, Stack } from '../primitives/layout/index.js';
 import Avatar from '../primitives/display/Avatar.jsx';
 import Text from '../primitives/typography/Text.jsx';
+import OverflowText from '../primitives/typography/OverflowText.jsx';
 import { APP_ROUTES } from '../shared/constants/routes.js';
 import HealthBadge from '../composites/feedback/HealthBadge.jsx';
 import {
@@ -32,7 +33,7 @@ export function SidebarNavigationItem({ label, isActive, onClick }) {
       aria-current={isActive ? 'page' : undefined}
       data-active={isActive ? 'true' : undefined}
     >
-      <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">{label}</span>
+      <OverflowText as="span" fullWidth title={label}>{label}</OverflowText>
     </Button>
   );
 }

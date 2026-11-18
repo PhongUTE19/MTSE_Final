@@ -18,6 +18,7 @@ export const SCOPE_STATES = Object.freeze({
 export const CAPABILITIES = Object.freeze({
   NONE: 'none',
   UNCLASSIFIED: 'unclassified',
+  CONVERSATIONAL: 'conversational',
   KB_DOCS: 'kb_docs',
   FINANCE_READ: 'finance_read',
   TRANSACTION_PROPOSAL: 'transaction_proposal',
@@ -40,6 +41,7 @@ const FINANCE_READ_PATTERN = /\b(spend|spent|spending|summary|total|balance|inco
 const QUESTION_QUERY_PREFIX = /^\s*(what|how|did|do|does|show|list|find|search|when|where|which|total|summary)\b/i;
 const PROPOSAL_INTENT_PATTERN = /\b(log|record|add|create|save|propose|enter|track)\b.*\b(\d+|vnd|đ|₫|k|coffee|lunch|dinner|grab|taxi|salary|expense|income|transaction)\b|\b(bought|spent|paid|received|earned)\b.*\b\d+(?:[.,]\d+)?\s*(?:k|m|vnd|đ|₫)?\b/i;
 const KB_DOCS_PATTERN = /\b(what\s+is\s+spendwise|how\s+does\s+spendwise|documentation|docs|policy|policies|rule|rules|feature|features|faq|help|guide|receipt\s+scanner|retention|privacy|admin|knowledge\s+base)\b/i;
+const CASUAL_CONVERSATION_PATTERN = /^(?:(?:(?:hi)+i*|hello+|hey+|helo+|(?:ha)+h*|yo+|hola+|chao+|xin\s+chao)(?:\s+(?:there|spendwise|assistant|bot))?|good\s+(?:morning|afternoon|evening|night)|how\s+are\s+you(?:\s+doing)?|what'?s\s+up|thanks?(?:\s+you)?|thank\s+you(?:\s+so\s+much|very\s+much)?|bye+|goodbye|see\s+you|ok(?:ay)?|cool|great|nice)[!.,?\s]*$/i;
 
 /**
  * Sanitizes client-supplied conversation history.
@@ -250,6 +252,19 @@ export function evaluateRequestPolicy({ message, history = [], trustedHistory = 
       scopeState: SCOPE_STATES.IN_SCOPE,
       capability: CAPABILITIES.FINANCE_READ,
       allowedTools: [TOOL_NAMES.SEARCH_TRANSACTIONS, TOOL_NAMES.GET_SPENDING_SUMMARY],
+      requiresKbEvidence: false,
+      sanitizedHistory: resolvedHistory,
+      refusalText: null,
+    };
+  }
+
+  // Casual greetings and simple social messages without policy or finance intent
+  if (!hasPolicyCue && CASUAL_CONVERSATION_PATTERN.test(normalized)) {
+    return {
+      allowed: true,
+      scopeState: SCOPE_STATES.IN_SCOPE,
+      capability: CAPABILITIES.CONVERSATIONAL,
+      allowedTools: [],
       requiresKbEvidence: false,
       sanitizedHistory: resolvedHistory,
       refusalText: null,

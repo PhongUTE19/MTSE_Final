@@ -32,6 +32,7 @@ export default function ExpenseAssistant({
   const imageInputRef = useRef(null);
   const activeIdRef = useRef('');
   const stagedReceiptIdsRef = useRef(new Set());
+  const attachedProcessingFilesRef = useRef(new WeakSet());
 
   const handleReceiptUpload = onReceiptUpload || receiptApi?.upload;
 
@@ -92,6 +93,7 @@ export default function ExpenseAssistant({
   const useUpload = useReceiptUploadProp;
   const {
     receipt,
+    processing,
     closeReceipt,
     uploadFile: handleAttachReceipt,
   } = useUpload
@@ -103,7 +105,30 @@ export default function ExpenseAssistant({
         onUploadStart: () => setBusy(true),
         onUploadSettled: () => setBusy(false),
       })
-    : { receipt: null, closeReceipt: () => {}, uploadFile: () => {} };
+    : { receipt: null, processing: null, closeReceipt: () => {}, uploadFile: () => {} };
+
+  // Append user-side receipt message bubble as soon as upload/processing starts
+  useEffect(() => {
+    const file = processing?.file;
+    if (!file || attachedProcessingFilesRef.current.has(file)) return;
+    attachedProcessingFilesRef.current.add(file);
+    const filename = file.name || 'receipt.png';
+    appendMessage('user', `Uploaded receipt: ${filename}`, {
+      id: crypto.randomUUID(),
+      toolName: 'receipt_attachment',
+      result: {
+        attachmentType: 'receipt',
+        filename,
+        size: file.size ?? null,
+      },
+      attachment: {
+        type: 'receipt',
+        filename,
+        size: file.size ?? null,
+        previewUrl: processing.previewUrl || null,
+      },
+    });
+  }, [processing, appendMessage]);
 
   // Reset in-flight receipt state when switching conversations
   useEffect(() => {

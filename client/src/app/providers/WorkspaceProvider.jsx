@@ -10,6 +10,8 @@ const DEFAULT_WORKSPACE_CONTEXT = {
   notifyTransactionsChanged: () => {},
   receiptsVersion: 0,
   notifyReceiptsChanged: () => {},
+  draftsVersion: 0,
+  notifyDraftsChanged: () => {},
   assistantOpen: false,
   setAssistantOpen: () => {},
 };
@@ -40,6 +42,7 @@ export function WorkspaceProvider({
 
   const [transactionsVersion, setTransactionsVersion] = useState(0);
   const [receiptsVersion, setReceiptsVersion] = useState(0);
+  const [draftsVersion, setDraftsVersion] = useState(0);
 
   const notifyTransactionsChanged = useCallback(() => {
     setTransactionsVersion((v) => v + 1);
@@ -47,6 +50,10 @@ export function WorkspaceProvider({
 
   const notifyReceiptsChanged = useCallback(() => {
     setReceiptsVersion((v) => v + 1);
+  }, []);
+
+  const notifyDraftsChanged = useCallback(() => {
+    setDraftsVersion((v) => v + 1);
   }, []);
 
   const isOffline = Boolean(health?.error);
@@ -62,6 +69,8 @@ export function WorkspaceProvider({
       notifyTransactionsChanged,
       receiptsVersion,
       notifyReceiptsChanged,
+      draftsVersion,
+      notifyDraftsChanged,
       assistantOpen,
       setAssistantOpen,
     }),
@@ -75,6 +84,8 @@ export function WorkspaceProvider({
       notifyTransactionsChanged,
       receiptsVersion,
       notifyReceiptsChanged,
+      draftsVersion,
+      notifyDraftsChanged,
       assistantOpen,
       setAssistantOpen,
     ]

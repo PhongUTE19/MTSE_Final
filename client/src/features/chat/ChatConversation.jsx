@@ -7,6 +7,17 @@ import ChatComposer from './ChatComposer';
 import ChatMessageItem from './ChatMessageItem';
 
 /**
+ * Determines whether the introductory prompt and suggested questions should be shown.
+ * Only visible for conversations with no user messages once authoritative messages are loaded.
+ */
+export function shouldShowConversationIntro(conversation) {
+  if (!conversation) return false;
+  if (conversation.persisted && conversation.messagesLoaded === false) return false;
+  const messages = Array.isArray(conversation.messages) ? conversation.messages : [];
+  return !messages.some((msg) => msg?.role === 'user');
+}
+
+/**
  * Message stream plus composer for the active conversation.
  */
 export default function ChatConversation({
@@ -37,13 +48,13 @@ export default function ChatConversation({
   return (
     <>
       <div
-        className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-3 flex flex-col gap-2.5 bg-gradient-to-b from-surface-subtle to-surface max-tablet:p-2.5"
+        className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden overscroll-contain p-4 pb-5 flex flex-col gap-3.5 bg-gradient-to-b from-surface-subtle to-surface max-tablet:p-3 max-tablet:pb-4"
         ref={conversationRef}
         onScroll={handleScroll}
         role="log"
         aria-live="polite"
       >
-        {!active?.messages.length && (
+        {shouldShowConversationIntro(active) && (
           <div className="mt-auto shrink-0">
             <EmptyState
               as="section"
@@ -98,6 +109,7 @@ export default function ChatConversation({
       </div>
 
       <ChatComposer
+        key={active?.id || 'default'}
         onSendMessage={sendMessage}
         onStop={stopStreaming}
         busy={busy}

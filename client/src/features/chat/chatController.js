@@ -23,14 +23,19 @@ export function createChatController({
   let activeUserId = null;
   let userSeq = 0;
   let selectionSeq = 0;
-  let requestSeq = 0;
-  let activeAbortController = null;
-  let activeStreamingMsgId = null;
-  let activeStreamingConvId = null;
+  let nextReqSeq = 0;
+  const activeGenerations = new Map();
+  const persistingConversations = new Map();
+  const deletingConversations = new Map();
+
+  function isPersistableConversation(conv) {
+    return Boolean(conv?.persisted) || (Array.isArray(conv?.messages) && conv.messages.length > 0);
+  }
 
   let state = {
     conversations: [],
     activeId: '',
+    busyByConversation: {},
     busy: false,
     streaming: false,
     error: '',
@@ -39,11 +44,40 @@ export function createChatController({
   };
 
   function setState(patch) {
-    state = typeof patch === 'function' ? patch(state) : { ...state, ...patch };
+    const next = typeof patch === 'function' ? patch(state) : { ...state, ...patch };
+    const activeGen = next.busyByConversation?.[next.activeId];
+    state = {
+      ...next,
+      busy: Boolean(activeGen?.busy),
+      streaming: Boolean(activeGen?.streaming),
+    };
     if (activeUserId && storage) {
-      saveChatHistory(storage, activeUserId, state.conversations, namespace);
+      saveChatHistory(storage, activeUserId, state.conversations.filter(isPersistableConversation), namespace);
     }
     onStateChange?.(state);
+  }
+
+  function setConversationGenerationState(conversationId, genState) {
+    if (!conversationId) return;
+    setState((prev) => {
+      const nextMap = { ...(prev.busyByConversation || {}) };
+      if (!genState || (!genState.busy && !genState.streaming)) {
+        delete nextMap[conversationId];
+      } else {
+        nextMap[conversationId] = {
+          busy: Boolean(genState.busy),
+          streaming: Boolean(genState.streaming),
+        };
+      }
+      return { ...prev, busyByConversation: nextMap };
+    });
+  }
+
+  function clearAllGenerations() {
+    for (const entry of activeGenerations.values()) {
+      entry?.abortController?.abort();
+    }
+    activeGenerations.clear();
   }
 
   function getActive() {
@@ -56,7 +90,12 @@ export function createChatController({
     const currentUserSeq = userSeq;
     const targetUserId = activeUserId;
 
-    setState((prev) => ({ ...prev, activeId: id, error: '' }));
+    setState((prev) => ({
+      ...prev,
+      conversations: prev.conversations.filter((item) => item.id === id || isPersistableConversation(item)),
+      activeId: id,
+      error: '',
+    }));
 
     const target = state.conversations.find((c) => c.id === id);
     if (!targetUserId || !target?.persisted || target.messagesLoaded) {
@@ -103,6 +142,7 @@ export function createChatController({
       clearChatHistory(storage, prevUserId, namespace);
     }
 
+    clearAllGenerations();
     activeUserId = normalized;
     const currentUserSeq = ++userSeq;
     selectionSeq += 1;
@@ -111,7 +151,9 @@ export function createChatController({
       state = {
         conversations: [],
         activeId: '',
+        busyByConversation: {},
         busy: false,
+        streaming: false,
         error: '',
         historyLoading: false,
         historyError: '',
@@ -196,21 +238,33 @@ export function createChatController({
   async function ensureConversationPersisted(conversationId, initialTitle) {
     const conv = state.conversations.find((c) => c.id === conversationId);
     if (!conv || conv.persisted || !activeUserId) return;
+    if (persistingConversations.has(conversationId)) {
+      return persistingConversations.get(conversationId);
+    }
 
     const currentUserSeq = userSeq;
-    const created = await historyApi.createConversation({
-      id: conversationId,
-      title: initialTitle || conv.title || 'New conversation',
-    });
-    if (currentUserSeq !== userSeq) return;
+    const persistPromise = (async () => {
+      const created = await historyApi.createConversation({
+        id: conversationId,
+        title: initialTitle || conv.title || 'New conversation',
+      });
+      if (currentUserSeq !== userSeq) return;
 
-    updateConversation(conversationId, (item) => ({
-      ...item,
-      title: created?.conversation?.title || item.title,
-      updatedAt: created?.conversation?.updatedAt || item.updatedAt,
-      persisted: true,
-      messagesLoaded: true,
-    }));
+      updateConversation(conversationId, (item) => ({
+        ...item,
+        title: created?.conversation?.title || item.title,
+        updatedAt: created?.conversation?.updatedAt || item.updatedAt,
+        persisted: true,
+        messagesLoaded: true,
+      }));
+    })();
+
+    persistingConversations.set(conversationId, persistPromise);
+    try {
+      await persistPromise;
+    } finally {
+      persistingConversations.delete(conversationId);
+    }
   }
 
   async function appendMessageToConversation(conversationId, role, text, extra = {}, persist = true) {
@@ -266,9 +320,14 @@ export function createChatController({
 
   function newConversation() {
     const active = getActive();
-    if (active && (!active.messages || active.messages.length === 0)) {
+    if (active && !isPersistableConversation(active)) {
       setState((prev) => ({ ...prev, error: '' }));
       return active;
+    }
+    const existingDraft = state.conversations.find((item) => !isPersistableConversation(item));
+    if (existingDraft) {
+      setState((prev) => ({ ...prev, activeId: existingDraft.id, error: '' }));
+      return existingDraft;
     }
     const next = { ...makeConversation(), persisted: false, messagesLoaded: true };
     setState((prev) => ({
@@ -280,26 +339,111 @@ export function createChatController({
     return next;
   }
 
-  async function removeConversation(id) {
+  async function renameConversation(id, title) {
+    const trimmed = typeof title === 'string' ? title.trim() : '';
+    if (!id || !trimmed) return null;
     const target = state.conversations.find((item) => item.id === id);
-    if (target?.persisted && activeUserId) {
-      await historyApi.deleteConversation(id);
+    if (!target) return null;
+
+    updateConversation(id, (item) => ({
+      ...item,
+      title: trimmed,
+      updatedAt: new Date().toISOString(),
+    }));
+
+    if (target.persisted && activeUserId) {
+      try {
+        const updated = await historyApi.updateConversation(id, { title: trimmed });
+        if (updated?.conversation?.title) {
+          updateConversation(id, (item) => ({
+            ...item,
+            title: updated.conversation.title,
+            updatedAt: updated.conversation.updatedAt || item.updatedAt,
+          }));
+        }
+      } catch (err) {
+        updateConversation(id, (item) => ({
+          ...item,
+          title: target.title,
+        }));
+        setState((prev) => ({
+          ...prev,
+          error: err?.message || 'Failed to rename conversation.',
+        }));
+        throw err;
+      }
+    }
+    return state.conversations.find((item) => item.id === id) || null;
+  }
+
+  async function removeConversation(id) {
+    if (!id) return;
+    if (deletingConversations.has(id)) {
+      return deletingConversations.get(id);
     }
 
-    const remaining = state.conversations.filter((item) => item.id !== id);
-    if (id === state.activeId) {
-      const next = remaining[0] || { ...makeConversation(), persisted: false, messagesLoaded: true };
-      setState((prev) => ({
-        ...prev,
-        conversations: remaining.length ? remaining : [next],
-        activeId: next.id,
-        error: '',
-      }));
-      if (next.persisted && !next.messagesLoaded) {
-        await selectConversation(next.id);
+    const currentUserSeq = userSeq;
+    const deletePromise = (async () => {
+      const target = state.conversations.find((item) => item.id === id);
+      if (target?.persisted && activeUserId) {
+        try {
+          await historyApi.deleteConversation(id);
+        } catch (err) {
+          if (currentUserSeq === userSeq) {
+            setState((prev) => ({
+              ...prev,
+              error: err?.message || 'Failed to delete conversation.',
+            }));
+          }
+          throw err;
+        }
       }
-    } else {
-      setState((prev) => ({ ...prev, conversations: remaining }));
+
+      if (currentUserSeq !== userSeq) return;
+
+      // Clean up generation belonging ONLY to the deleted conversation after deletion succeeds.
+      const activeGen = activeGenerations.get(id);
+      if (activeGen) {
+        activeGen.abortController?.abort();
+        activeGenerations.delete(id);
+      }
+
+      setState((prev) => {
+        const nextBusyMap = { ...(prev.busyByConversation || {}) };
+        delete nextBusyMap[id];
+
+        const remaining = prev.conversations.filter((item) => item.id !== id);
+        if (id === prev.activeId) {
+          const existingEmptyDraft = remaining.find((item) => !isPersistableConversation(item));
+          const replacement =
+            existingEmptyDraft || { ...makeConversation(), persisted: false, messagesLoaded: true };
+          const nextConversations = [
+            replacement,
+            ...remaining.filter((item) => item.id !== replacement.id && isPersistableConversation(item)),
+          ];
+          return {
+            ...prev,
+            conversations: nextConversations,
+            activeId: replacement.id,
+            busyByConversation: nextBusyMap,
+            error: '',
+            historyError: '',
+          };
+        }
+
+        return {
+          ...prev,
+          conversations: remaining,
+          busyByConversation: nextBusyMap,
+        };
+      });
+    })();
+
+    deletingConversations.set(id, deletePromise);
+    try {
+      await deletePromise;
+    } finally {
+      deletingConversations.delete(id);
     }
   }
 
@@ -311,21 +455,21 @@ export function createChatController({
     }));
   }
 
-  function stopStreaming() {
-    if (activeAbortController) {
-      activeAbortController.abort();
-      activeAbortController = null;
+  function stopStreaming(targetConvId = state.activeId) {
+    const convId = targetConvId || state.activeId;
+    const activeGen = convId ? activeGenerations.get(convId) : null;
+    if (activeGen) {
+      activeGen.abortController?.abort();
+      if (activeGen.assistantMessageId) {
+        updateMessageInConversation(convId, activeGen.assistantMessageId, (msg) => ({
+          ...msg,
+          status: 'aborted',
+          isStreaming: false,
+        }));
+      }
+      activeGenerations.delete(convId);
     }
-    if (activeStreamingConvId && activeStreamingMsgId) {
-      updateMessageInConversation(activeStreamingConvId, activeStreamingMsgId, (msg) => ({
-        ...msg,
-        status: 'aborted',
-        isStreaming: false,
-      }));
-    }
-    activeStreamingConvId = null;
-    activeStreamingMsgId = null;
-    setState((prev) => ({ ...prev, busy: false, streaming: false }));
+    setConversationGenerationState(convId, null);
   }
 
   async function runStreamAttempt({
@@ -335,39 +479,66 @@ export function createChatController({
     history,
     retryOfMessageId = null,
   }) {
-    const reqSeq = ++requestSeq;
+    const reqSeq = ++nextReqSeq;
     const currentUserSeq = userSeq;
     const requestId = crypto.randomUUID();
     const initialAssistantId = crypto.randomUUID();
     let currentAssistantId = initialAssistantId;
+    let streamFinalized = false;
 
     const abortController = new AbortController();
-    activeAbortController = abortController;
-    activeStreamingConvId = targetConversationId;
-    activeStreamingMsgId = initialAssistantId;
+    activeGenerations.set(targetConversationId, {
+      abortController,
+      assistantMessageId: initialAssistantId,
+      reqSeq,
+    });
 
-    const isStale = () => reqSeq !== requestSeq || currentUserSeq !== userSeq;
+    const isStale = () =>
+      currentUserSeq !== userSeq ||
+      activeGenerations.get(targetConversationId)?.reqSeq !== reqSeq;
 
-    updateConversation(targetConversationId, (item) => ({
-      ...item,
-      persisted: true,
-      updatedAt: new Date().toISOString(),
-      messages: [
-        ...item.messages,
-        {
-          id: initialAssistantId,
-          role: 'assistant',
-          text: '',
-          status: 'streaming',
-          isStreaming: true,
-          streamed: true,
-          replyTo: userMessageId,
-          requestId,
-        },
-      ],
+    updateConversation(targetConversationId, (item) => {
+      const nextAssistantMessage = {
+        id: initialAssistantId,
+        role: 'assistant',
+        text: '',
+        status: 'streaming',
+        isStreaming: true,
+        streamed: true,
+        replyTo: userMessageId,
+        requestId,
+      };
+      const baseMessages = item.messages.filter((m) => m.id !== initialAssistantId);
+      let nextMessages;
+      if (retryOfMessageId) {
+        const retryIndex = baseMessages.findIndex((m) => m.id === retryOfMessageId);
+        if (retryIndex !== -1) {
+          nextMessages = [
+            ...baseMessages.slice(0, retryIndex),
+            nextAssistantMessage,
+            ...baseMessages.slice(retryIndex + 1),
+          ];
+        } else {
+          nextMessages = [...baseMessages, nextAssistantMessage];
+        }
+      } else {
+        nextMessages = [...baseMessages, nextAssistantMessage];
+      }
+      return {
+        ...item,
+        updatedAt: new Date().toISOString(),
+        messages: nextMessages,
+      };
+    });
+
+    setState((prev) => ({
+      ...prev,
+      error: '',
+      busyByConversation: {
+        ...(prev.busyByConversation || {}),
+        [targetConversationId]: { busy: true, streaming: true },
+      },
     }));
-
-    setState((prev) => ({ ...prev, error: '', busy: true, streaming: true }));
 
     try {
       await onSendMessageStream(text, history, {
@@ -380,6 +551,7 @@ export function createChatController({
           if (isStale()) return;
 
           if (eventType === 'meta') {
+            updateConversation(targetConversationId, (item) => (item.persisted ? item : { ...item, persisted: true }));
             if (data?.assistantMessageId && data.assistantMessageId !== currentAssistantId) {
               const nextId = data.assistantMessageId;
               updateMessageInConversation(targetConversationId, currentAssistantId, (msg) => ({
@@ -387,9 +559,13 @@ export function createChatController({
                 id: nextId,
               }));
               currentAssistantId = nextId;
-              activeStreamingMsgId = nextId;
+              const gen = activeGenerations.get(targetConversationId);
+              if (gen && gen.reqSeq === reqSeq) {
+                gen.assistantMessageId = nextId;
+              }
             }
           } else if (eventType === 'delta') {
+            if (streamFinalized) return;
             const chunkText = typeof data?.text === 'string' ? data.text : '';
             if (chunkText) {
               updateMessageInConversation(targetConversationId, currentAssistantId, (msg) => ({
@@ -398,6 +574,7 @@ export function createChatController({
               }));
             }
           } else if (eventType === 'proposal') {
+            if (streamFinalized) return;
             const staged = onProposal
               ? await onProposal(data, { conversationId: targetConversationId })
               : null;
@@ -411,23 +588,37 @@ export function createChatController({
               },
             }));
           } else if (eventType === 'sources') {
+            if (streamFinalized) return;
             const nextSources = Array.isArray(data?.sources) ? data.sources : [];
             updateMessageInConversation(targetConversationId, currentAssistantId, (msg) => ({
               ...msg,
               sources: nextSources,
             }));
           } else if (eventType === 'done') {
-            updateMessageInConversation(targetConversationId, currentAssistantId, (msg) => ({
-              ...msg,
-              text: data?.answer || msg.text || 'Done.',
-              status: 'completed',
-              isStreaming: false,
-              streamed: true,
-              ...(data?.toolName ? { toolName: data.toolName } : {}),
-              ...(data?.toolResult && !msg.result ? { result: data.toolResult } : {}),
-              ...(Array.isArray(data?.sources) ? { sources: data.sources } : {}),
+            if (streamFinalized) return;
+            streamFinalized = true;
+            updateConversation(targetConversationId, (item) => ({
+              ...item,
+              persisted: true,
+              updatedAt: new Date().toISOString(),
+              messages: item.messages.map((msg) =>
+                msg.id === currentAssistantId
+                  ? {
+                      ...msg,
+                      text: typeof data?.answer === 'string' && data.answer.length > 0 ? data.answer : (msg.text || 'Done.'),
+                      status: 'completed',
+                      isStreaming: false,
+                      streamed: true,
+                      ...(data?.toolName ? { toolName: data.toolName } : {}),
+                      ...(data?.toolResult && !msg.result ? { result: data.toolResult } : {}),
+                      ...(Array.isArray(data?.sources) ? { sources: data.sources } : {}),
+                    }
+                  : msg
+              ),
             }));
           } else if (eventType === 'error') {
+            if (streamFinalized) return;
+            streamFinalized = true;
             const errMsg = data?.error || 'Stream failed.';
             updateMessageInConversation(targetConversationId, currentAssistantId, (msg) => ({
               ...msg,
@@ -459,15 +650,14 @@ export function createChatController({
         errorMessage: errMsg,
       }));
       setState((prev) => ({ ...prev, error: errMsg }));
+      if (err && typeof err === 'object') {
+        err.messageAccepted = true;
+      }
       throw err;
     } finally {
-      if (activeAbortController === abortController) {
-        activeAbortController = null;
-      }
-      if (reqSeq === requestSeq) {
-        activeStreamingConvId = null;
-        activeStreamingMsgId = null;
-        setState((prev) => ({ ...prev, busy: false, streaming: false }));
+      if (activeGenerations.get(targetConversationId)?.reqSeq === reqSeq) {
+        activeGenerations.delete(targetConversationId);
+        setConversationGenerationState(targetConversationId, null);
       }
     }
   }
@@ -475,7 +665,7 @@ export function createChatController({
   async function sendMessage(text) {
     const active = getActive();
     const trimmed = (text || '').trim();
-    if (!trimmed || state.busy || !active) return;
+    if (!trimmed || !active || state.busyByConversation?.[active.id]?.busy) return;
     if (trimmed.length > 1000) {
       setState((prev) => ({
         ...prev,
@@ -509,7 +699,14 @@ export function createChatController({
       });
     }
 
-    setState((prev) => ({ ...prev, error: '', busy: true }));
+    setState((prev) => ({
+      ...prev,
+      error: '',
+      busyByConversation: {
+        ...(prev.busyByConversation || {}),
+        [targetConversationId]: { busy: true, streaming: false },
+      },
+    }));
     await appendMessageToConversation(targetConversationId, 'user', trimmed, { id: userMessageId }, true);
 
     try {
@@ -536,19 +733,25 @@ export function createChatController({
         {},
         true
       );
+      if (requestError && typeof requestError === 'object') {
+        requestError.messageAccepted = true;
+      }
       throw requestError;
     } finally {
-      setState((prev) => ({ ...prev, busy: false }));
+      setConversationGenerationState(targetConversationId, null);
     }
   }
 
   async function retryMessage(assistantMessageId) {
     const active = getActive();
-    if (!active || state.busy || typeof onSendMessageStream !== 'function') return;
+    if (!active || state.busyByConversation?.[active.id]?.busy || typeof onSendMessageStream !== 'function') return;
 
     const targetIndex = active.messages.findIndex((m) => m.id === assistantMessageId);
     if (targetIndex === -1) return;
     const failedMsg = active.messages[targetIndex];
+    if (failedMsg.role !== 'assistant' || (failedMsg.status !== 'failed' && failedMsg.status !== 'aborted')) {
+      return;
+    }
 
     let userMsg = failedMsg.replyTo
       ? active.messages.find((m) => m.id === failedMsg.replyTo && m.role === 'user')
@@ -584,7 +787,7 @@ export function createChatController({
         ...prev,
         conversations: typeof updater === 'function' ? updater(prev.conversations) : updater,
       })),
-    setBusy: (busy) => setState((prev) => ({ ...prev, busy })),
+    setBusy: (busy) => setConversationGenerationState(state.activeId, busy ? { busy: true, streaming: false } : null),
     setError: (error) => setState((prev) => ({ ...prev, error })),
     sendMessage,
     stopStreaming,
@@ -592,6 +795,7 @@ export function createChatController({
     appendMessage,
     handleRevealComplete,
     newConversation,
+    renameConversation,
     removeConversation,
   };
 }

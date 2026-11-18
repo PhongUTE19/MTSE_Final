@@ -1,4 +1,4 @@
-import { draftStorage } from './draftStorage.js';
+import { draftStorage, isReceiptDraft } from './draftStorage.js';
 import { createPreviewUrlManager } from './previewUrlManager.js';
 import { receiptApi } from '../receipt/receiptApi.js';
 import { transactionApi } from '../transaction/transactionApi.js';
@@ -87,10 +87,10 @@ export function createTransactionDraftController({
     return created;
   }
 
-  async function saveDraft(id, reviewedData) {
+  async function updateDraft(id, patch) {
     const targetUserId = requireUserId();
     const seq = requestSeq;
-    const updated = await storage.updateDraft(targetUserId, id, { reviewedData });
+    const updated = await storage.updateDraft(targetUserId, id, patch);
     if (seq === requestSeq && activeUserId === targetUserId) {
       setState((prev) => ({
         ...prev,
@@ -98,6 +98,10 @@ export function createTransactionDraftController({
       }));
     }
     return updated;
+  }
+
+  async function saveDraft(id, reviewedData) {
+    return updateDraft(id, { reviewedData });
   }
 
   async function rejectDraft(id) {
@@ -137,7 +141,7 @@ export function createTransactionDraftController({
 
       try {
         let confirmedResult;
-        if (draft.sourceType === 'receipt_extraction') {
+        if (isReceiptDraft(draft)) {
           if (typeof Blob !== 'undefined' && !(draft.receiptBlob instanceof Blob)) {
             throw new Error('Receipt image is missing or corrupted. Please discard and re-upload the receipt.');
           }
@@ -222,6 +226,7 @@ export function createTransactionDraftController({
     setUserId,
     reloadDrafts,
     createDraft,
+    updateDraft,
     saveDraft,
     rejectDraft,
     confirmDraft,

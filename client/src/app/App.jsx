@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback } from 'react';
+import React, { lazy, Suspense, useCallback, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 
 import { APP_ROUTES } from '../shared/constants';
@@ -9,7 +9,9 @@ import Spinner from '../primitives/feedback/Spinner.jsx';
 import { sendChatMessage, sendChatMessageStream } from '../features/chat/chatApi.js';
 import { receiptApi } from '../features/receipt/receiptApi.js';
 import { useReceiptUpload } from '../features/receipt/useReceiptUpload.js';
+import { transactionApi } from '../features/transaction/transactionApi.js';
 import { useTransactionDrafts } from '../features/transactionDraft/index.js';
+import { createDraftAutoSaveSession } from '../features/transactionDraft/draftAutoSaveSession.js';
 
 // Lazy-loaded pages, guards, and overlays
 const AuthenticatedRouteGuard = lazy(() => import('./guards/AuthenticatedRouteGuard'));
@@ -21,7 +23,7 @@ const ResetPasswordPage = lazy(() => import('../features/auth/ResetPasswordPage'
 const HomePage = lazy(() => import('../features/home/HomePage'));
 const ExpenseLayout = lazy(() => import('../layouts/ExpenseLayout'));
 const TransactionPage = lazy(() => import('../features/transaction/TransactionPage'));
-const ScanReceiptPage = lazy(() => import('../features/receipt/ScanReceiptPage'));
+const DraftsPage = lazy(() => import('../features/transactionDraft/DraftsPage'));
 const CategoriesPage = lazy(() => import('../features/category/CategoriesPage'));
 const ExpenseAssistant = lazy(() => import('../features/expenseAssistant/ExpenseAssistant'));
 const AdminPage = lazy(() => import('../features/admin/AdminPage'));
@@ -81,33 +83,84 @@ function WorkspaceExpenseAssistant({ userId }) {
   );
 }
 
-function WorkspaceScanReceipt() {
-  const draftsHook = useTransactionDrafts();
+function WorkspaceTransactions() {
+  const { toast } = useToast();
   const { notifyTransactionsChanged, notifyReceiptsChanged } = useWorkspace();
+  const draftsHook = useTransactionDrafts({ autoFetch: false });
+  const { createDraft, updateDraft, confirmDraft } = draftsHook;
 
-  const handleConfirmDraft = useCallback(
-    async (id, data) => {
-      const res = await draftsHook.confirmDraft(id, data);
+  const sessionRef = useRef(null);
+  if (!sessionRef.current) {
+    sessionRef.current = createDraftAutoSaveSession({
+      createDraft: (...args) => createDraft(...args),
+      updateDraft: (...args) => updateDraft(...args),
+      onError: (err) => {
+        toast.error(err?.message || 'Failed to auto-save draft.');
+      },
+    });
+  }
+
+  useEffect(() => {
+    const session = sessionRef.current;
+    return () => {
+      session.flush().catch(() => {});
+      session.reset();
+    };
+  }, []);
+
+  const handleFormChange = useCallback((nextValues) => {
+    sessionRef.current.recordFieldChange(nextValues).catch(() => {});
+  }, []);
+
+  const handleReceiptSelect = useCallback(async (file, currentForm) => {
+    await sessionRef.current.recordReceiptSelection(file, currentForm);
+    const result = await receiptApi.upload(file);
+    const receipt = result?.receipt;
+    const extraction = receipt?.draft?.originalData || receipt?.extraction || null;
+    if (extraction) {
+      await sessionRef.current.recordOcrExtraction(extraction, {
+        originalData: extraction,
+        warnings: receipt?.warnings || receipt?.draft?.warnings || [],
+        aiModel: receipt?.aiModel || receipt?.draft?.aiModel || null,
+        promptVersion: receipt?.promptVersion || receipt?.draft?.promptVersion || null,
+      });
+    }
+    return {
+      extractedFields: extraction,
+      warnings: receipt?.warnings || receipt?.draft?.warnings || [],
+    };
+  }, []);
+
+  const handleConfirmTransaction = useCallback(
+    async (transaction) => {
+      const session = sessionRef.current;
+      await session.flush();
+      const draftId = session.getDraftId();
+      if (draftId) {
+        await confirmDraft(draftId, transaction);
+      } else {
+        await transactionApi.create(transaction);
+      }
+      session.reset();
       notifyTransactionsChanged();
       notifyReceiptsChanged();
-      return res;
     },
-    [draftsHook, notifyTransactionsChanged, notifyReceiptsChanged]
+    [confirmDraft, notifyTransactionsChanged, notifyReceiptsChanged]
   );
 
+  const handleClosePopup = useCallback(async () => {
+    const session = sessionRef.current;
+    await session.flush();
+    session.reset();
+  }, []);
+
   return (
-    <ScanReceiptPage
-      drafts={draftsHook.drafts}
-      onConfirmDraft={handleConfirmDraft}
-      onRejectDraft={draftsHook.rejectDraft}
-      onSaveDraft={draftsHook.saveDraft}
-      reloadDrafts={draftsHook.reloadDrafts}
-      draftsLoading={draftsHook.loading}
-      draftsHook={draftsHook}
-      onTransactionSaved={() => {
-        notifyTransactionsChanged();
-        notifyReceiptsChanged();
-      }}
+    <TransactionPage
+      onPreviewReceipt={receiptApi.previewReceipt}
+      onAddTransactionConfirm={handleConfirmTransaction}
+      onAddTransactionFormChange={handleFormChange}
+      onAddTransactionReceiptSelect={handleReceiptSelect}
+      onAddTransactionClose={handleClosePopup}
     />
   );
 }
@@ -145,8 +198,8 @@ function ExpenseIndexRedirect() {
   const location = useLocation();
   const view = location.state?.view;
   let target = APP_ROUTES.EXPENSE_TRANSACTIONS;
-  if (view === 'receipt') {
-    target = APP_ROUTES.EXPENSE_RECEIPTS;
+  if (view === 'receipt' || view === 'drafts') {
+    target = APP_ROUTES.EXPENSE_DRAFTS;
   } else if (view === 'categories') {
     target = APP_ROUTES.EXPENSE_CATEGORIES;
   }
@@ -186,8 +239,9 @@ export default function App() {
                   }
                 >
                   <Route index element={<ExpenseIndexRedirect />} />
-                  <Route path="receipts" element={<WorkspaceScanReceipt />} />
-                  <Route path="transactions" element={<TransactionPage onPreviewReceipt={receiptApi.previewReceipt} />} />
+                  <Route path="drafts" element={<DraftsPage />} />
+                  <Route path="receipts" element={<Navigate to={APP_ROUTES.EXPENSE_DRAFTS} replace />} />
+                  <Route path="transactions" element={<WorkspaceTransactions />} />
                   <Route path="categories" element={<CategoriesPage />} />
                   <Route path="*" element={<Navigate to={APP_ROUTES.EXPENSE_TRANSACTIONS} replace />} />
                 </Route>

@@ -104,6 +104,10 @@ export function useChat({
     return next;
   }, [scrollToBottom]);
 
+  const renameConversation = useCallback(async (id, title) => {
+    return controllerRef.current.renameConversation(id, title);
+  }, []);
+
   const removeConversation = useCallback(
     async (id, confirmPrompt = 'Delete this conversation?') => {
       const isConfirmed = await confirm({
@@ -179,6 +183,7 @@ export function useChat({
     appendMessage,
     handleRevealComplete,
     newConversation,
+    renameConversation,
     removeConversation,
   };
 }

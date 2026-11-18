@@ -1,7 +1,8 @@
 import React, { forwardRef } from 'react';
+import Spinner from '../feedback/Spinner.jsx';
 
 const BASE_BUTTON_CLASSES =
-  'inline-flex items-center justify-center gap-1.5 font-sans font-semibold leading-tight cursor-pointer select-none whitespace-nowrap border border-transparent transition-[background-color,border-color,color,box-shadow,transform] duration-150 focus-visible:outline-none focus-visible:shadow-focus disabled:opacity-60 disabled:cursor-not-allowed';
+  'inline-flex items-center justify-center gap-1.5 font-sans font-semibold leading-tight cursor-pointer select-none whitespace-nowrap border border-transparent transition-[background-color,border-color,color,box-shadow,transform] duration-150 active:enabled:translate-y-0 active:enabled:scale-[0.98] focus-visible:outline-none focus-visible:shadow-focus disabled:opacity-60 disabled:cursor-not-allowed';
 
 const BUTTON_VARIANTS = Object.freeze({
   primary:
@@ -114,6 +115,11 @@ const Button = forwardRef(function Button(
     .filter(Boolean)
     .join(' ');
 
+  const spinnerVariant =
+    variant === 'primary' || variant === 'fab' || variant === 'sidebar-active' || variant === 'sidebar-secondary'
+      ? 'inverse'
+      : 'default';
+
   return (
     <button
       ref={ref}
@@ -121,14 +127,19 @@ const Button = forwardRef(function Button(
       className={classes}
       disabled={disabled || loading}
       aria-busy={loading ? 'true' : undefined}
+      data-loading={loading ? 'true' : undefined}
       {...domProps}
     >
-      {icon && (
-        <span className="inline-flex items-center justify-center shrink-0 [&>svg]:block [&>svg]:shrink-0">
-          {icon}
-        </span>
+      {loading ? (
+        <Spinner size="xs" variant={spinnerVariant} ariaHidden />
+      ) : (
+        icon && (
+          <span className="inline-flex items-center justify-center shrink-0 [&>svg]:block [&>svg]:shrink-0">
+            {icon}
+          </span>
+        )
       )}
-      {children}
+      {!(iconOnly && loading) && children}
     </button>
   );
 });

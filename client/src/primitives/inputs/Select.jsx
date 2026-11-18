@@ -2,7 +2,7 @@ import React, { forwardRef } from 'react';
 import { omitProps } from '../../shared/utils/domProps.js';
 
 const BASE_SELECT_CLASSES =
-  'border rounded-md font-sans text-content-primary bg-surface transition-[border-color,box-shadow,background-color] duration-150 focus:outline-none disabled:bg-surface-muted disabled:text-content-muted disabled:cursor-not-allowed';
+  'border rounded-md font-sans text-content-primary bg-surface overflow-hidden whitespace-nowrap text-ellipsis transition-[border-color,box-shadow,background-color] duration-150 focus:outline-none disabled:bg-surface-muted disabled:text-content-muted disabled:cursor-not-allowed';
 
 const SELECT_SIZES = Object.freeze({
   sm: 'min-h-control-sm px-2.5 py-1 text-xs',

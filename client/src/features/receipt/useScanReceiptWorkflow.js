@@ -12,6 +12,7 @@ export function useScanReceiptWorkflow({
   drafts = [],
   onConfirmDraft,
   onRejectDraft,
+  onSaveDraft,
   reloadDrafts,
   draftsHook = null,
   receiptsVersion = 0,
@@ -26,6 +27,7 @@ export function useScanReceiptWorkflow({
 
   const handleConfirmDraft = draftsHook?.confirmDraft || onConfirmDraft;
   const handleRejectDraft = draftsHook?.rejectDraft || onRejectDraft;
+  const handleSaveDraft = draftsHook?.saveDraft || onSaveDraft;
   const handleCreateDraft = draftsHook?.createDraft;
   const handleReloadDrafts = draftsHook?.loadDrafts || draftsHook?.reloadDrafts || reloadDrafts;
   const getPreviewUrl = draftsHook?.getPreviewUrl;
@@ -63,7 +65,7 @@ export function useScanReceiptWorkflow({
     receipt: inFlightReceipt,
     processing: processingReceipt,
     uploadFile,
-    showReceipt,
+    closeReceipt,
     beginAction,
     isCurrentAction,
   } = useReceiptUpload({
@@ -256,6 +258,23 @@ export function useScanReceiptWorkflow({
     }
   }
 
+  async function handleReviewChange(nextValues) {
+    if (!activeReview?.draft?.id) return;
+    const draftId = activeReview.draft.id;
+    setActiveReview((prev) =>
+      prev && prev.draft?.id === draftId
+        ? { ...prev, draft: { ...prev.draft, reviewedData: nextValues } }
+        : prev
+    );
+    if (handleSaveDraft) {
+      try {
+        await handleSaveDraft(draftId, nextValues);
+      } catch (err) {
+        reportError(err?.message || 'Failed to save draft edits.');
+      }
+    }
+  }
+
   async function handleReviewConfirm(finalValues) {
     if (!activeReview) return;
     const draftId = activeReview.draft?.id;
@@ -271,7 +290,7 @@ export function useScanReceiptWorkflow({
     await onTransactionSaved?.();
     toast.success('Receipt confirmed and transaction saved.');
     setActiveReview(null);
-    showReceipt(null);
+    closeReceipt();
     await refreshState();
   }
 
@@ -290,7 +309,7 @@ export function useScanReceiptWorkflow({
     }
     toast.info('Receipt draft discarded.');
     setActiveReview(null);
-    showReceipt(null);
+    closeReceipt();
     await refreshState();
   }
 
@@ -304,6 +323,7 @@ export function useScanReceiptWorkflow({
     resumeDraftReview,
     discardDraft,
     retryFailedReceipt,
+    handleReviewChange,
     handleReviewConfirm,
     handleReviewDiscard,
   };

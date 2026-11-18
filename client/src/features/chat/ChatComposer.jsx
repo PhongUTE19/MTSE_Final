@@ -42,18 +42,21 @@ export default function ChatComposer({
     const trimmed = message.trim();
     if (!trimmed || isDisabled) return;
 
+    setMessage('');
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+
     try {
       setIsSubmitting(true);
       const result = onSendMessage?.(trimmed);
       if (result && typeof result.then === 'function') {
         await result;
       }
-      setMessage('');
-      if (textareaRef.current) {
-        textareaRef.current.style.height = 'auto';
+    } catch (err) {
+      if (!err?.messageAccepted) {
+        setMessage((prev) => prev || trimmed);
       }
-    } catch {
-      // Keep message draft intact on failure so user does not lose input
     } finally {
       setIsSubmitting(false);
     }
@@ -65,11 +68,15 @@ export default function ChatComposer({
 
   return (
     <form
-      className="border-t border-border p-2.5 px-3 flex flex-col gap-2 bg-surface shrink-0 max-tablet:p-2 max-tablet:px-2.5"
+      className="border-t border-border p-3 px-4 flex flex-col gap-2.5 bg-surface shrink-0 max-tablet:p-2.5 max-tablet:px-3"
       onSubmit={handleSubmit}
       aria-label="Message composer"
     >
-      <div className="w-full">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          {renderAttachmentAction ? renderAttachmentAction({ busy: isDisabled }) : null}
+        </div>
+
         <TextArea
           ref={textareaRef}
           value={message}
@@ -85,12 +92,6 @@ export default function ChatComposer({
           aria-label={placeholder}
           aria-disabled={isDisabled}
         />
-      </div>
-
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          {renderAttachmentAction ? renderAttachmentAction({ busy: isDisabled }) : null}
-        </div>
 
         {isStreaming && onStop ? (
           <Button

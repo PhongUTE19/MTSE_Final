@@ -62,3 +62,19 @@
     line-height: var(--line-height-normal);
   }
 }
+
+@layer utilities {
+  .text-overflow-fade {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: clip;
+  }
+
+  .text-overflow-fade-active {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: clip;
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
+    mask-image: linear-gradient(to right, #000 calc(100% - 1.75rem), transparent 100%);
+  }
+}

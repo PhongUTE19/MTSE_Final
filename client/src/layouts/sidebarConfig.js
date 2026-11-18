@@ -7,7 +7,7 @@ import { getUserRole } from '../shared/services/supabaseAuth.js';
  */
 export const WORKSPACE_NAV_ITEMS = Object.freeze([
   Object.freeze({ key: 'transactions', label: 'Transactions', path: APP_ROUTES.EXPENSE_TRANSACTIONS, view: 'transactions' }),
-  Object.freeze({ key: 'receipt', label: 'Scan Receipt', path: APP_ROUTES.EXPENSE_RECEIPTS, view: 'receipt' }),
+  Object.freeze({ key: 'drafts', label: 'Drafts', path: APP_ROUTES.EXPENSE_DRAFTS, view: 'drafts' }),
 ]);
 
 /**

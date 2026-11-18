@@ -8,6 +8,7 @@ export const APP_ROUTES = Object.freeze({
   AUTH_CALLBACK: '/auth/callback',
   RESET_PASSWORD: '/reset-password',
   EXPENSE: '/expense',
+  EXPENSE_DRAFTS: '/expense/drafts',
   EXPENSE_RECEIPTS: '/expense/receipts',
   EXPENSE_TRANSACTIONS: '/expense/transactions',
   EXPENSE_CATEGORIES: '/expense/categories',
@@ -23,6 +24,7 @@ export const ALLOWED_AUTH_DESTINATIONS = Object.freeze(
   new Set([
     APP_ROUTES.HOME,
     APP_ROUTES.EXPENSE,
+    APP_ROUTES.EXPENSE_DRAFTS,
     APP_ROUTES.EXPENSE_RECEIPTS,
     APP_ROUTES.EXPENSE_TRANSACTIONS,
     APP_ROUTES.EXPENSE_CATEGORIES,

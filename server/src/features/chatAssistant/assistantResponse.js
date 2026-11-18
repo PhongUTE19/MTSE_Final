@@ -1,13 +1,20 @@
 import { sanitizeGeneratedOutput, validateChatResponse } from '../../shared/guardrails/index.js';
 
 const CITATION_TOKEN_PATTERN = /\[(S\d+)\]/g;
-const INCOMPLETE_TAIL_PATTERN = /[ \t]+(?:\[(?:S\d*)?|<\/?[a-zA-Z_]*)?$|(?:\[(?:S\d*)?|<\/?[a-zA-Z_]*)$/;
+const INTERNAL_STATUS_TOKEN_PATTERN = /[ \t]*\[(?:INSUFFICIENT_EVIDENCE|NO_RESULTS|RETRIEVAL_UNAVAILABLE|SUFFICIENT)\]/gi;
+const INCOMPLETE_TAIL_PATTERN = /[ \t]+(?:\[(?:[A-Z0-9_]*)?|<\/?[a-zA-Z_]*)?$|(?:\[(?:[A-Z0-9_]*)?|<\/?[a-zA-Z_]*)$/;
 
-function stripUnknownCitations(text, sourcesMap) {
-  return text
-    .replace(CITATION_TOKEN_PATTERN, (full, sourceId) => (sourcesMap.has(sourceId) ? full : ''))
+function stripInternalStatusMarkers(text) {
+  return String(text || '')
+    .replace(INTERNAL_STATUS_TOKEN_PATTERN, '')
     .replace(/[ \t]{2,}/g, ' ')
     .replace(/[ \t]+\n/g, '\n');
+}
+
+function stripUnknownCitations(text, sourcesMap) {
+  return stripInternalStatusMarkers(
+    text.replace(CITATION_TOKEN_PATTERN, (full, sourceId) => (sourcesMap.has(sourceId) ? full : ''))
+  );
 }
 
 /**
@@ -102,10 +109,11 @@ export function finalizeAssistantResponse({
   const citedIds = [];
   const seenCited = new Set();
 
-  // Strip unknown citation markers (e.g. [S99]) and collect valid cited IDs in order.
+  // Strip unknown citation markers (e.g. [S99]) and internal retrieval status markers,
+  // and collect valid cited IDs in order.
   // Normalize only horizontal whitespace so Markdown newlines and list formatting remain intact.
-  const sanitizedAnswer = validated.answer
-    .replace(CITATION_TOKEN_PATTERN, (full, sourceId) => {
+  const sanitizedAnswer = stripInternalStatusMarkers(
+    validated.answer.replace(CITATION_TOKEN_PATTERN, (full, sourceId) => {
       if (!sourcesMap.has(sourceId)) {
         return '';
       }
@@ -115,15 +123,17 @@ export function finalizeAssistantResponse({
       }
       return full;
     })
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/[ \t]+\n/g, '\n')
-    .trim();
+  ).trim();
 
   const finalAnswer = sanitizedAnswer || validateChatResponse('').answer;
 
   const citedSources = citedIds.map((id) => sourcesMap.get(id));
   const consultedSources = Array.isArray(state?.consultedSources) ? state.consultedSources : [];
   const lastPrimaryTool = state?.lastPrimaryTool || null;
+  const retrievalStatus = state?.kbStatus || null;
+  const retrieval = state?.retrieval
+    ? { ...state.retrieval, status: retrievalStatus }
+    : (retrievalStatus ? { status: retrievalStatus } : null);
 
   return {
     answer: finalAnswer,
@@ -136,7 +146,8 @@ export function finalizeAssistantResponse({
     toolsExecuted: Array.isArray(state?.toolsExecuted) ? state.toolsExecuted : [],
     consultedSources,
     sources: citedSources,
-    retrieval: state?.retrieval || null,
+    retrievalStatus,
+    retrieval,
     promptId: promptMeta.promptId || null,
     promptVersion: promptMeta.promptVersion || null,
     promptHash: promptMeta.promptHash || null,

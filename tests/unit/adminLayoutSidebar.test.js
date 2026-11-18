@@ -38,15 +38,15 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
       assert.equal(getUserRole(regularUser), 'user');
       assert.deepEqual(
         nav.workspace.map((i) => i.key),
-        ['transactions', 'receipt']
+        ['transactions', 'drafts']
       );
       assert.deepEqual(
         nav.workspace.map((i) => i.label),
-        ['Transactions', 'Scan Receipt']
+        ['Transactions', 'Drafts']
       );
       assert.deepEqual(
         nav.workspace.map((i) => i.view),
-        ['transactions', 'receipt']
+        ['transactions', 'drafts']
       );
       assert.equal(nav.admin, null, 'Ordinary users must never see Administration section');
     });
@@ -91,28 +91,28 @@ describe('Admin Layout & Unified Sidebar Architecture Suite', () => {
     });
 
     it('highlights the active route for Workspace and Administration items', () => {
-      const [txItem, receiptItem] = WORKSPACE_NAV_ITEMS;
+      const [txItem, draftsItem] = WORKSPACE_NAV_ITEMS;
       const kbItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'knowledge');
       const aiItem = ADMIN_NAV_ITEMS.find((i) => i.key === 'ai-usage');
 
       // /expense: the active view selects the matching workspace item
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.EXPENSE, 'transactions'), true);
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.EXPENSE), true, 'defaults to transactions');
-      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.EXPENSE, 'transactions'), false);
-      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.EXPENSE, 'receipt'), true);
+      assert.equal(isWorkspaceItemActive(draftsItem, APP_ROUTES.EXPENSE, 'transactions'), false);
+      assert.equal(isWorkspaceItemActive(draftsItem, APP_ROUTES.EXPENSE, 'drafts'), true);
       assert.equal(isAdminItemActive(kbItem, APP_ROUTES.EXPENSE), false);
       assert.equal(isAdminItemActive(aiItem, APP_ROUTES.EXPENSE), false);
 
       // /home: neither workspace item is highlighted
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.HOME, 'home'), false);
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.HOME), false);
-      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.HOME), false);
+      assert.equal(isWorkspaceItemActive(draftsItem, APP_ROUTES.HOME), false);
 
       // /admin/knowledge-base
       assert.equal(isAdminItemActive(kbItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE), true);
       assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE), false);
       assert.equal(isWorkspaceItemActive(txItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE, 'knowledge'), false);
-      assert.equal(isWorkspaceItemActive(receiptItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE, 'knowledge'), false);
+      assert.equal(isWorkspaceItemActive(draftsItem, APP_ROUTES.ADMIN_KNOWLEDGE_BASE, 'knowledge'), false);
 
       // /admin/ai-usage
       assert.equal(isAdminItemActive(aiItem, APP_ROUTES.ADMIN_AI_USAGE), true);

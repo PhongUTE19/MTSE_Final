@@ -17,7 +17,7 @@ export function useTransactionDrafts({
   autoFetch = true,
   status = 'pending_review',
 } = {}) {
-  const { user: workspaceUser } = useWorkspace();
+  const { user: workspaceUser, draftsVersion = 0, notifyDraftsChanged } = useWorkspace();
   const resolvedUserId = userId ?? workspaceUser?.id ?? null;
 
   const [state, setState] = useState({
@@ -27,6 +27,9 @@ export function useTransactionDrafts({
   });
 
   const controllerRef = useRef(null);
+  const lastDraftsVersionRef = useRef(draftsVersion);
+  const skipNextVersionSyncRef = useRef(false);
+
   if (!controllerRef.current) {
     controllerRef.current = createTransactionDraftController({
       onStateChange: setState,
@@ -42,11 +45,29 @@ export function useTransactionDrafts({
   }, [resolvedUserId, autoFetch, status]);
 
   useEffect(() => {
+    if (draftsVersion !== lastDraftsVersionRef.current) {
+      lastDraftsVersionRef.current = draftsVersion;
+      if (skipNextVersionSyncRef.current) {
+        skipNextVersionSyncRef.current = false;
+        return;
+      }
+      if (autoFetch && resolvedUserId) {
+        controllerRef.current.reloadDrafts({ status });
+      }
+    }
+  }, [draftsVersion, autoFetch, resolvedUserId, status]);
+
+  useEffect(() => {
     const controller = controllerRef.current;
     return () => {
       controller.dispose();
     };
   }, []);
+
+  const notifyLocalMutation = useCallback(() => {
+    skipNextVersionSyncRef.current = true;
+    notifyDraftsChanged?.();
+  }, [notifyDraftsChanged]);
 
   const reloadDrafts = useCallback(
     () => controllerRef.current.reloadDrafts({ status }),
@@ -54,23 +75,48 @@ export function useTransactionDrafts({
   );
 
   const createDraft = useCallback(
-    (input) => controllerRef.current.createDraft(input, { status }),
-    [status]
+    async (input) => {
+      const created = await controllerRef.current.createDraft(input, { status });
+      notifyLocalMutation();
+      return created;
+    },
+    [status, notifyLocalMutation]
   );
 
   const confirmDraft = useCallback(
-    (id, reviewedFields) => controllerRef.current.confirmDraft(id, reviewedFields),
-    []
+    async (id, reviewedFields) => {
+      const result = await controllerRef.current.confirmDraft(id, reviewedFields);
+      notifyLocalMutation();
+      return result;
+    },
+    [notifyLocalMutation]
   );
 
   const rejectDraft = useCallback(
-    (id) => controllerRef.current.rejectDraft(id),
-    []
+    async (id) => {
+      const result = await controllerRef.current.rejectDraft(id);
+      notifyLocalMutation();
+      return result;
+    },
+    [notifyLocalMutation]
+  );
+
+  const updateDraft = useCallback(
+    async (id, patch) => {
+      const updated = await controllerRef.current.updateDraft(id, patch);
+      notifyLocalMutation();
+      return updated;
+    },
+    [notifyLocalMutation]
   );
 
   const saveDraft = useCallback(
-    (id, reviewedData) => controllerRef.current.saveDraft(id, reviewedData),
-    []
+    async (id, reviewedData) => {
+      const updated = await controllerRef.current.saveDraft(id, reviewedData);
+      notifyLocalMutation();
+      return updated;
+    },
+    [notifyLocalMutation]
   );
 
   const getPreviewUrl = useCallback(
@@ -98,6 +144,7 @@ export function useTransactionDrafts({
     createDraft,
     confirmDraft,
     rejectDraft,
+    updateDraft,
     saveDraft,
     getPreviewUrl,
     releasePreviewUrl,

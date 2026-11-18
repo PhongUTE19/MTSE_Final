@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import { useTableVariant } from './Table.jsx';
 import { omitProps } from '../../shared/utils/domProps.js';
+import { useOverflowFade } from '../../shared/hooks/useOverflowFade.js';
 
 export const TABLE_CELL_VARIANTS = {
   default: '',
@@ -39,6 +40,8 @@ export const TableCell = forwardRef(function TableCell(
 ) {
   const domProps = omitProps(rest);
   const tableVariant = useTableVariant();
+  const textContent = typeof children === 'string' || typeof children === 'number' ? String(children) : undefined;
+  const { ref: overflowRef, isOverflowing } = useOverflowFade(ref, Boolean(truncate), textContent);
 
   const isEmpty = variant === 'empty';
   const paddingClass = isEmpty
@@ -82,13 +85,17 @@ export const TableCell = forwardRef(function TableCell(
     smallTextClass,
     mono ? 'font-mono' : null,
     nowrap ? 'whitespace-nowrap' : null,
-    truncate ? 'overflow-hidden text-ellipsis whitespace-nowrap max-w-cell-truncate' : null,
+    truncate
+      ? `${isOverflowing ? 'text-overflow-fade-active' : 'text-overflow-fade'} max-w-cell-truncate`
+      : null,
   ]
     .filter(Boolean)
     .join(' ');
 
+  const resolvedTitle = domProps.title || (truncate && isOverflowing ? textContent : undefined);
+
   return (
-    <td ref={ref} className={classes} colSpan={colSpan} {...domProps}>
+    <td ref={truncate ? overflowRef : ref} className={classes} colSpan={colSpan} {...domProps} title={resolvedTitle}>
       {children}
     </td>
   );

@@ -119,7 +119,7 @@ export default function DocumentTable({
           <TableBody>
             {displayedDocs.map((doc) => (
               <TableRow key={doc.filename}>
-                <TableCell>{doc.filename}</TableCell>
+                <TableCell truncate title={doc.filename}>{doc.filename}</TableCell>
                 <TableCell>{doc.sectionCount} {UI_LABELS.COMMON.CHUNKS}</TableCell>
                 <TableCell nowrap>{formatFileSize(doc.size)} {UI_UNITS.KB}</TableCell>
                 <TableCell nowrap>{new Date(doc.modifiedAt).toLocaleDateString()}</TableCell>
